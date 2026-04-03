@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router';
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -58,6 +59,13 @@ interface ExecutionGap {
   insight: string;
 }
 
+interface EdgeScore { name: string; score: number; winRate: number; trades: number; confidence: 'High' | 'Medium' | 'Low'; }
+interface AvoidPattern { description: string; winRate: number; trades: number; recommendation: string; }
+interface Cluster { name: string; description: string; trades: number; winRate: number; totalPnL: number; }
+interface EdgeDecay { recent10WR: number; previous20WR: number; drift: number; detected: boolean; }
+interface ProfitLeak { description: string; estimatedImpact: string; trades: number; }
+interface Playbook { rules: string[]; estimatedWinRate: number; confidence: 'High' | 'Medium' | 'Low'; }
+
 interface AnalysisResults {
   dataMode: 'live' | 'backtesting';
   totalTrades: number;
@@ -72,6 +80,12 @@ interface AnalysisResults {
   timeAnalysis: TimeAnalysis | null;
   executionGap: ExecutionGap | null;
   confluenceInsights: ConfluenceInsight[];
+  edgeScores: EdgeScore[];
+  avoidPatterns: AvoidPattern[];
+  clusters: Cluster[];
+  edgeDecay: EdgeDecay | null;
+  profitLeaks: ProfitLeak[];
+  playbook: Playbook | null;
   recommendations: string[];
   hasMinimumData: boolean;
 }
@@ -373,6 +387,140 @@ function calcExecutionGap(live: any[], bt: any[]): ExecutionGap | null {
   };
 }
 
+// ─── Edge Score Table ──────────────────────────────────────────────────────────
+function buildEdgeScores(confluenceInsights: ConfluenceInsight[]): EdgeScore[] {
+  return confluenceInsights.map(ci => {
+    const impact = Math.max(ci.withWinRate, 1);
+    const absence = Math.max(ci.withoutWinRate, 1);
+    const rawScore = (impact / absence) * 5;
+    const score = Math.min(10, parseFloat(rawScore.toFixed(1)));
+    const confidence: 'High' | 'Medium' | 'Low' = ci.withCount >= 20 ? 'High' : ci.withCount >= 10 ? 'Medium' : 'Low';
+    return { name: ci.name, score, winRate: ci.withWinRate, trades: ci.withCount, confidence };
+  }).sort((a, b) => b.score - a.score);
+}
+
+// ─── Avoid Patterns ────────────────────────────────────────────────────────────
+function buildAvoidPatterns(entries: any[], confluenceInsights: ConfluenceInsight[], rrAnalysis: RRAnalysis | null): AvoidPattern[] {
+  const patterns: AvoidPattern[] = [];
+  const calcWR = (arr: any[]) => { const w = arr.filter(e => e.result === 'win').length; const l = arr.filter(e => e.result === 'loss').length; return w + l > 0 ? Math.round((w/(w+l))*100) : 0; };
+
+  // Low RR trades
+  if (rrAnalysis) {
+    const lowRR = entries.filter(e => e.riskReward > 0 && e.riskReward < 2);
+    if (lowRR.length >= 5 && calcWR(lowRR) < 45) {
+      patterns.push({ description: `Trades with RR below 2.0`, winRate: calcWR(lowRR), trades: lowRR.length, recommendation: `Remove trades with RR < 2.0. Your data shows only ${calcWR(lowRR)}% win rate at this range.` });
+    }
+  }
+
+  // Weak confluences
+  confluenceInsights.filter(ci => ci.verdict === 'weak').forEach(ci => {
+    patterns.push({ description: `Trades using ${ci.name}`, winRate: ci.withWinRate, trades: ci.withCount, recommendation: `${ci.name} is producing a ${ci.withWinRate}% win rate. Remove or requalify before including this in your checklist.` });
+  });
+
+  // Trades after losses
+  const sorted = [...entries].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const afterLoss = sorted.filter((e, i) => i > 0 && sorted[i-1].result === 'loss');
+  if (afterLoss.length >= 5) {
+    const afterLossWR = calcWR(afterLoss);
+    const baseWR = calcWR(entries);
+    if (afterLossWR < baseWR - 10) {
+      patterns.push({ description: `Trades taken immediately after a loss`, winRate: afterLossWR, trades: afterLoss.length, recommendation: `Your win rate drops ${baseWR - afterLossWR}% after a loss. Implement a mandatory pause before re-entering.` });
+    }
+  }
+  return patterns;
+}
+
+// ─── Performance Clusters ──────────────────────────────────────────────────────
+function buildClusters(entries: any[]): Cluster[] {
+  const calcWR = (arr: any[]) => { const w = arr.filter(e => e.result === 'win').length; const l = arr.filter(e => e.result === 'loss').length; return w + l > 0 ? Math.round((w/(w+l))*100) : 0; };
+  const pnl = (arr: any[]) => arr.reduce((s, e) => s + (e.pnl || 0), 0);
+
+  const highConf = entries.filter(e => Object.keys(e.customFields || {}).length >= 3);
+  const lowConf  = entries.filter(e => Object.keys(e.customFields || {}).length < 2);
+  const highRR   = entries.filter(e => e.riskReward >= 2.5);
+  const lowRR    = entries.filter(e => e.riskReward > 0 && e.riskReward < 1.5);
+
+  const clusters: Cluster[] = [];
+  if (highConf.length >= 5) clusters.push({ name: 'High Confluence', description: '3+ conditions confirmed', trades: highConf.length, winRate: calcWR(highConf), totalPnL: pnl(highConf) });
+  if (lowConf.length >= 5)  clusters.push({ name: 'Low Confirmation', description: 'Fewer than 2 conditions', trades: lowConf.length, winRate: calcWR(lowConf), totalPnL: pnl(lowConf) });
+  if (highRR.length >= 5)   clusters.push({ name: 'Aggressive RR (2.5+)', description: 'High reward targets', trades: highRR.length, winRate: calcWR(highRR), totalPnL: pnl(highRR) });
+  if (lowRR.length >= 5)    clusters.push({ name: 'Low RR (< 1.5)', description: 'Conservative targets', trades: lowRR.length, winRate: calcWR(lowRR), totalPnL: pnl(lowRR) });
+
+  return clusters.sort((a, b) => b.totalPnL - a.totalPnL);
+}
+
+// ─── Edge Decay ────────────────────────────────────────────────────────────────
+function detectEdgeDecay(entries: any[]): EdgeDecay | null {
+  if (entries.length < 30) return null;
+  const sorted = [...entries].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const calcWR = (arr: any[]) => { const w = arr.filter(e => e.result === 'win').length; const l = arr.filter(e => e.result === 'loss').length; return w + l > 0 ? Math.round((w/(w+l))*100) : 0; };
+  const recent10 = sorted.slice(-10);
+  const previous20 = sorted.slice(-30, -10);
+  const recent10WR = calcWR(recent10);
+  const previous20WR = calcWR(previous20);
+  const drift = previous20WR - recent10WR;
+  return { recent10WR, previous20WR, drift, detected: drift >= 15 };
+}
+
+// ─── Profit Leak Detector ──────────────────────────────────────────────────────
+function detectProfitLeaks(entries: any[], confluenceInsights: ConfluenceInsight[]): ProfitLeak[] {
+  const leaks: ProfitLeak[] = [];
+  const calcWR = (arr: any[]) => { const w = arr.filter(e => e.result === 'win').length; const l = arr.filter(e => e.result === 'loss').length; return w + l > 0 ? Math.round((w/(w+l))*100) : 0; };
+
+  // RR below 2 leak
+  const lowRR = entries.filter(e => e.riskReward > 0 && e.riskReward < 2);
+  const highRR = entries.filter(e => e.riskReward >= 2);
+  if (lowRR.length >= 5 && highRR.length >= 5) {
+    const lowWR = calcWR(lowRR);
+    const highWR = calcWR(highRR);
+    if (lowWR < highWR - 10) {
+      const pnlLost = lowRR.filter(e => e.result === 'loss').reduce((s,e) => s + Math.abs(e.pnl || 0), 0);
+      leaks.push({ description: `Trades with RR below 2.0 underperform by ${highWR - lowWR}%`, estimatedImpact: `Removing these trades would improve overall performance by reducing $${pnlLost.toFixed(0)} in losses`, trades: lowRR.length });
+    }
+  }
+
+  // Weak confluence leaks
+  confluenceInsights.filter(ci => ci.verdict === 'weak' && ci.withCount >= 5).forEach(ci => {
+    leaks.push({ description: `${ci.name} reduces win rate by ${Math.abs(ci.impact)}%`, estimatedImpact: `Filtering out trades that rely solely on ${ci.name} would remove your weakest setup cluster`, trades: ci.withCount });
+  });
+
+  return leaks;
+}
+
+// ─── Personal Playbook Generator ───────────────────────────────────────────────
+function buildPlaybook(entries: any[], confluenceInsights: ConfluenceInsight[], rrAnalysis: RRAnalysis | null, timeAnalysis: TimeAnalysis | null): Playbook | null {
+  const rules: string[] = [];
+  const calcWR = (arr: any[]) => { const w = arr.filter(e => e.result === 'win').length; const l = arr.filter(e => e.result === 'loss').length; return w + l > 0 ? Math.round((w/(w+l))*100) : 0; };
+
+  // Best confluences
+  const strongConfs = confluenceInsights.filter(ci => ci.verdict === 'strong').slice(0, 3);
+  strongConfs.forEach(ci => rules.push(`Require ${ci.name} before entry (${ci.withWinRate}% WR)`));
+
+  // Best RR
+  if (rrAnalysis) rules.push(`Only take trades with RR ≥ ${rrAnalysis.bestBand.replace('RR ', '').split('–')[0] || '2.0'}`);
+
+  // Best session
+  if (timeAnalysis) rules.push(`Focus on ${timeAnalysis.bestSession} session (${timeAnalysis.bestWinRate}% WR)`);
+
+  // Avoid weak patterns
+  const weakConfs = confluenceInsights.filter(ci => ci.verdict === 'weak').slice(0, 2);
+  weakConfs.forEach(ci => rules.push(`Do NOT trade when ${ci.name} is the only confirmation`));
+
+  if (rules.length < 2) return null;
+
+  // Estimate playbook win rate from strong confluence trades
+  const strongTrades = entries.filter(e =>
+    strongConfs.some(ci => {
+      const v = e.customFields?.[ci.name];
+      return v === true || v === 'true' || (typeof v === 'string' && v.trim() !== '');
+    })
+  );
+  const estWR = strongTrades.length >= 5 ? calcWR(strongTrades) : calcWR(entries);
+  const confidence: 'High' | 'Medium' | 'Low' = entries.length >= 50 ? 'High' : entries.length >= 20 ? 'Medium' : 'Low';
+
+  return { rules, estimatedWinRate: estWR, confidence };
+}
+
 function buildRecs(entries: any[], best: SetupPerformance | null, worst: SetupPerformance | null, leaks: BehaviorInsight[], rr: RRAnalysis | null, time: TimeAnalysis | null, gap: ExecutionGap | null): string[] {
   const recs: string[] = [];
   if (best && best.winRate >= 60) recs.push(`Double down on ${best.conditions.slice(0, 2).join(' + ')} — your ${best.winRate}% win rate here is your true edge. Only take trades that match this setup.`);
@@ -391,6 +539,7 @@ function buildRecs(entries: any[], best: SetupPerformance | null, worst: SetupPe
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AIAnalytics() {
+  const navigate = useNavigate();
   const isPremium = storage.isPremium();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [dataMode, setDataMode] = useState<'live' | 'backtesting'>('live');
@@ -407,7 +556,7 @@ export function AIAnalytics() {
         const entries = dataMode === 'live' ? live : bt;
 
         if (entries.length < 10) {
-          setResults({ dataMode, totalTrades: entries.length, overallWinRate: 0, winCount: 0, lossCount: 0, avgRR: 0, bestSetup: null, worstSetup: null, behaviorLeaks: [], rrAnalysis: null, timeAnalysis: null, executionGap: null, confluenceInsights: [], recommendations: [], hasMinimumData: false });
+          setResults({ dataMode, totalTrades: entries.length, overallWinRate: 0, winCount: 0, lossCount: 0, avgRR: 0, bestSetup: null, worstSetup: null, behaviorLeaks: [], rrAnalysis: null, timeAnalysis: null, executionGap: null, confluenceInsights: [], edgeScores: [], avoidPatterns: [], clusters: [], edgeDecay: null, profitLeaks: [], playbook: null, recommendations: [], hasMinimumData: false });
           setIsAnalyzing(false);
           return;
         }
@@ -423,9 +572,15 @@ export function AIAnalytics() {
         const timeAnalysis = analyzeTime(entries);
         const executionGap = calcExecutionGap(live, bt);
         const confluenceInsights = analyzeNamedConfluences(entries);
+        const edgeScores = buildEdgeScores(confluenceInsights);
+        const avoidPatterns = buildAvoidPatterns(entries, confluenceInsights, rrAnalysis);
+        const clusters = buildClusters(entries);
+        const edgeDecay = detectEdgeDecay(entries);
+        const profitLeaks = detectProfitLeaks(entries, confluenceInsights);
+        const playbook = buildPlaybook(entries, confluenceInsights, rrAnalysis, timeAnalysis);
         const recommendations = buildRecs(entries, bestSetup, worstSetup, behaviorLeaks, rrAnalysis, timeAnalysis, executionGap);
 
-        setResults({ dataMode, totalTrades: entries.length, overallWinRate: wins + losses > 0 ? Math.round(wins / (wins + losses) * 100) : 0, winCount: wins, lossCount: losses, avgRR: parseFloat(avgRR.toFixed(2)), bestSetup, worstSetup, behaviorLeaks, rrAnalysis, timeAnalysis, executionGap, confluenceInsights, recommendations, hasMinimumData: true });
+        setResults({ dataMode, totalTrades: entries.length, overallWinRate: wins + losses > 0 ? Math.round(wins / (wins + losses) * 100) : 0, winCount: wins, lossCount: losses, avgRR: parseFloat(avgRR.toFixed(2)), bestSetup, worstSetup, behaviorLeaks, rrAnalysis, timeAnalysis, executionGap, confluenceInsights, edgeScores, avoidPatterns, clusters, edgeDecay, profitLeaks, playbook, recommendations, hasMinimumData: true });
       } catch (err) { console.error(err); }
       finally { setIsAnalyzing(false); }
     }, 800);
@@ -435,7 +590,15 @@ export function AIAnalytics() {
   if (!isPremium) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {showUpgradeModal && <PremiumUpgradeModal onClose={() => setShowUpgradeModal(false)} />}
+       <PremiumUpgradeModal
+  isOpen={showUpgradeModal}
+  onClose={() => setShowUpgradeModal(false)}
+onUpgrade={() => {
+  storage.upgradeToPremium();
+  setShowUpgradeModal(false);
+  navigate('/premium'); // or wherever you want
+}}  feature="AI Strategy Performance Coach"
+/>
         <div className="mb-8">
           <h1 className="text-3xl font-bold flex items-center gap-3 mb-2"><Brain className="w-8 h-8 text-purple-500" />AI Strategy Coach</h1>
           <p className="text-muted-foreground">Deep pattern analysis to refine your edge</p>
@@ -698,6 +861,165 @@ export function AIAnalytics() {
             </Card>
           )}
 
+          {/* Edge Score Table */}
+          {results.edgeScores && results.edgeScores.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5 text-indigo-500" />Setup Quality Scores</CardTitle>
+                <CardDescription>Edge score for each condition — data driven, not assumptions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {results.edgeScores.map((es, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      <div className="w-6 text-xs text-muted-foreground font-bold">{i + 1}</div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-sm">{es.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">{es.winRate}% WR · {es.trades} trades</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${es.confidence === 'High' ? 'bg-green-500/20 text-green-600' : es.confidence === 'Medium' ? 'bg-yellow-500/20 text-yellow-600' : 'bg-muted text-muted-foreground'}`}>{es.confidence} confidence</span>
+                            <span className={`font-bold text-sm ${es.score >= 7 ? 'text-green-500' : es.score >= 5 ? 'text-yellow-500' : 'text-red-500'}`}>{es.score}/10</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-1.5">
+                          <div className={`h-1.5 rounded-full ${es.score >= 7 ? 'bg-green-500' : es.score >= 5 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${es.score * 10}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Avoid Patterns */}
+          {results.avoidPatterns && results.avoidPatterns.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><XCircle className="w-5 h-5 text-red-500" />Trades You Should Stop Taking</CardTitle>
+                <CardDescription>Patterns your data shows are consistently unprofitable</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {results.avoidPatterns.map((ap, i) => (
+                  <div key={i} className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-sm">{ap.description}</span>
+                      <div className="flex gap-2 text-xs">
+                        <span className="text-red-500 font-bold">{ap.winRate}% WR</span>
+                        <span className="text-muted-foreground">{ap.trades} trades</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{ap.recommendation}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Performance Clusters */}
+          {results.clusters && results.clusters.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Activity className="w-5 h-5 text-blue-500" />Performance Clusters</CardTitle>
+                <CardDescription>How your trades group by type — which cluster makes money</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {results.clusters.map((cl, i) => (
+                  <div key={i} className={`p-4 rounded-xl border ${cl.totalPnL >= 0 ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-sm">{cl.name}</p>
+                        <p className="text-xs text-muted-foreground">{cl.description} · {cl.trades} trades</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-bold text-lg ${cl.totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>{cl.winRate}% WR</p>
+                        {cl.totalPnL !== 0 && <p className={`text-xs font-medium ${cl.totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>{cl.totalPnL >= 0 ? '+' : ''}${cl.totalPnL.toFixed(0)} P&L</p>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Edge Decay */}
+          {results.edgeDecay && (
+            <Card className={results.edgeDecay.detected ? 'border-2 border-orange-500/30' : ''}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><TrendingDown className="w-5 h-5 text-orange-500" />Edge Decay Detection</CardTitle>
+                <CardDescription>Comparing recent 10 trades vs previous 20</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="p-3 rounded-lg bg-muted text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Last 10 Trades</p>
+                    <p className={`text-2xl font-bold ${results.edgeDecay.recent10WR < results.edgeDecay.previous20WR - 10 ? 'text-red-500' : 'text-green-500'}`}>{results.edgeDecay.recent10WR}%</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Previous 20 Trades</p>
+                    <p className="text-2xl font-bold text-blue-500">{results.edgeDecay.previous20WR}%</p>
+                  </div>
+                </div>
+                {results.edgeDecay.detected ? (
+                  <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                    <p className="text-sm font-semibold text-orange-600">⚠ Execution drift detected — {results.edgeDecay.drift}% drop in recent performance. Review your last 10 trades for rule violations or setup quality decline.</p>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                    <p className="text-sm text-green-600">✓ Performance is consistent. No significant edge decay detected.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Profit Leaks */}
+          {results.profitLeaks && results.profitLeaks.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Zap className="w-5 h-5 text-yellow-500" />Profit Leak Detector</CardTitle>
+                <CardDescription>Mistakes costing you money that your data reveals</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {results.profitLeaks.map((pl, i) => (
+                  <div key={i} className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                    <p className="font-semibold text-sm mb-1">{pl.description}</p>
+                    <p className="text-xs text-muted-foreground">{pl.estimatedImpact}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{pl.trades} trades analyzed</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Personal Playbook */}
+          {results.playbook && (
+            <Card className="border-2 border-green-500/30 bg-green-500/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-green-500" />Your Personal Playbook</CardTitle>
+                <CardDescription>AI-built optimal rule set based on your actual trading data</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 mb-4">
+                  {results.playbook.rules.map((rule, i) => (
+                    <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-background">
+                      <span className="text-green-500 font-bold mt-0.5">✓</span>
+                      <p className="text-sm">{rule}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Estimated Win Rate</p>
+                    <p className="text-2xl font-bold text-green-500">{results.playbook.estimatedWinRate}%</p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${results.playbook.confidence === 'High' ? 'bg-green-500/20 text-green-600' : results.playbook.confidence === 'Medium' ? 'bg-yellow-500/20 text-yellow-600' : 'bg-muted text-muted-foreground'}`}>{results.playbook.confidence} Confidence</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Action Plan */}
           {results.recommendations.length > 0 && (
             <Card className="border-2 border-purple-500/30 bg-purple-500/5">
@@ -720,3 +1042,4 @@ export function AIAnalytics() {
     </div>
   );
 }
+

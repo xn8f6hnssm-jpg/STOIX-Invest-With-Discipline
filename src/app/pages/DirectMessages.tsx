@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
-import { MessageCircle, Search, Send, ArrowLeft, Circle } from 'lucide-react';
+import { MessageCircle, Search, Send, ArrowLeft, Image as ImageIcon, Crown, X } from 'lucide-react';
 import { storage } from '../utils/storage';
 
 export function DirectMessages() {
@@ -19,7 +19,10 @@ export function DirectMessages() {
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isPremium = storage.isPremium();
 
   useEffect(() => {
     if (!currentUser) return;
@@ -72,13 +75,39 @@ export function DirectMessages() {
     navigate(`/app/messages/${partnerId}`, { replace: true });
   };
 
-  const sendMessage = () => {
-    if (!newMessage.trim() || !currentUser || !activePartnerId) return;
-    storage.sendDirectMessage(currentUser.id, activePartnerId, newMessage.trim());
+  const sendMessage = async () => {
+    if (!newMessage.trim() && !imagePreview) return;
+    if (!currentUser || !activePartnerId) return;
+
+    let uploadedUrl: string | undefined;
+    if (imagePreview) {
+      // Upload image via storage helper
+      uploadedUrl = await storage.uploadImage(imagePreview, currentUser.id, undefined, 'dm_img');
+    }
+
+    storage.sendDirectMessage(currentUser.id, activePartnerId, newMessage.trim(), uploadedUrl);
     setNewMessage('');
+    setImagePreview(null);
     const msgs = storage.getDMConversation(currentUser.id, activePartnerId);
     setMessages(msgs);
     loadConversations();
+  };
+
+  const handleImageSelect = () => {
+    if (!isPremium) {
+      navigate('/app/upgrade');
+      return;
+    }
+    imageInputRef.current?.click();
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert('Max image size is 5MB'); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -244,12 +273,22 @@ export function DirectMessages() {
                             <AvatarFallback className="text-xs">{activePartner?.name?.[0] || '?'}</AvatarFallback>
                           </Avatar>
                         )}
-                        <div className={`max-w-[70%] px-4 py-2 rounded-2xl text-sm ${
+                        <div className={`max-w-[70%] rounded-2xl text-sm ${
                           isMe
                             ? 'bg-primary text-primary-foreground rounded-br-sm'
                             : 'bg-muted rounded-bl-sm'
-                        }`}>
-                          {msg.text}
+                        } ${msg.imageUrl ? 'overflow-hidden p-0' : 'px-4 py-2'}`}>
+                          {msg.imageUrl && (
+                            <img
+                              src={msg.imageUrl}
+                              alt="Shared image"
+                              className="max-w-[240px] max-h-[240px] object-cover rounded-2xl"
+                              loading="lazy"
+                            />
+                          )}
+                          {msg.text && (
+                            <p className={msg.imageUrl ? 'px-3 py-2 text-sm' : ''}>{msg.text}</p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -260,7 +299,36 @@ export function DirectMessages() {
 
               {/* Input */}
               <div className="p-4 border-t">
+                {/* Image preview */}
+                {imagePreview && (
+                  <div className="relative inline-block mb-2">
+                    <img src={imagePreview} alt="Preview" className="h-20 rounded-lg border object-cover" />
+                    <button
+                      onClick={() => setImagePreview(null)}
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center text-xs"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
                 <div className="flex gap-2">
+                  {/* Image button — premium only */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleImageSelect}
+                    title={isPremium ? 'Send image' : 'Premium feature'}
+                    className={isPremium ? 'text-blue-500' : 'text-muted-foreground'}
+                  >
+                    {isPremium ? <ImageIcon className="w-5 h-5" /> : <Crown className="w-4 h-4" />}
+                  </Button>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
                   <Input
                     placeholder="Type a message..."
                     value={newMessage}
@@ -268,7 +336,7 @@ export function DirectMessages() {
                     onKeyDown={handleKeyDown}
                     className="flex-1"
                   />
-                  <Button onClick={sendMessage} disabled={!newMessage.trim()} size="icon">
+                  <Button onClick={sendMessage} disabled={!newMessage.trim() && !imagePreview} size="icon">
                     <Send className="w-4 h-4" />
                   </Button>
                 </div>

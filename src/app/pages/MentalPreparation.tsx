@@ -141,6 +141,18 @@ interface BreathingPhase {
 }
 
 
+
+const DEFAULT_AFFIRMATIONS = [
+  'I trade my plan with discipline and patience.',
+  'I accept small losses as the cost of doing business.',
+  'I am in control of my emotions, not the market.',
+  'Every disciplined trade builds my edge.',
+  'I follow my rules on every single trade.',
+  'I do not chase. I wait for my setup.',
+  'My consistency compounds over time.',
+  'I protect my capital above all else.',
+];
+
 const RELIGION_TO_BOOK: Record<string, string> = {
   Christianity: 'Bible',
   Islam: 'Quran',
@@ -206,7 +218,15 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     return enabledQuotes.length > 0 ? enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)] : '';
   });
 
-  const [selectedAffirmation] = useState(() => affirmations.length > 0 ? affirmations[Math.floor(Math.random() * affirmations.length)] : null);
+  // Show user affirmations first (newest = last added), fall back to defaults
+  const [selectedAffirmation] = useState(() => {
+    const userAffirms = storage.getAffirmations();
+    if (userAffirms.length > 0) {
+      // Show most recent user affirmation first, then random
+      return userAffirms[userAffirms.length - 1];
+    }
+    return DEFAULT_AFFIRMATIONS[Math.floor(Math.random() * DEFAULT_AFFIRMATIONS.length)];
+  });
   
   // Dynamically compute religious text based on current settings
   const selectedReligiousText = (() => {

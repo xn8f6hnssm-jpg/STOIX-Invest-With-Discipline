@@ -1217,12 +1217,38 @@ export const storage = {
   },
 
   likePost: (postId: string) => {
+    const currentUser = storage.getCurrentUser();
+    if (!currentUser) return;
+    // Check if already liked
+    const likedKey = `liked_posts_${currentUser.id}`;
+    const likedStr = localStorage.getItem(likedKey);
+    const liked: string[] = likedStr ? JSON.parse(likedStr) : [];
+    if (liked.includes(postId)) return; // Already liked — block
+    liked.push(postId);
+    localStorage.setItem(likedKey, JSON.stringify(liked));
+    // Increment like count
     const posts = storage.getPosts();
     const post = posts.find(p => p.id === postId);
     if (post) {
       post.likes += 1;
       safeSetItem(STORAGE_KEYS.POSTS, JSON.stringify(posts));
     }
+  },
+
+  hasLikedPost: (postId: string): boolean => {
+    const currentUser = storage.getCurrentUser();
+    if (!currentUser) return false;
+    const likedKey = `liked_posts_${currentUser.id}`;
+    const likedStr = localStorage.getItem(likedKey);
+    const liked: string[] = likedStr ? JSON.parse(likedStr) : [];
+    return liked.includes(postId);
+  },
+
+  getLikedPosts: (): string[] => {
+    const currentUser = storage.getCurrentUser();
+    if (!currentUser) return [];
+    const likedStr = localStorage.getItem(`liked_posts_${currentUser.id}`);
+    return likedStr ? JSON.parse(likedStr) : [];
   },
 
   addComment: (postId: string, comment: Omit<Comment, 'id' | 'timestamp'>) => {
@@ -1289,17 +1315,39 @@ export const storage = {
   
   // Follow/Unfollow functionality
   followUser: (userId: string) => {
+    const currentUser = storage.getCurrentUser();
+    if (!currentUser) return;
     const following = storage.getFollowing();
-    if (!following.includes(userId)) {
-      following.push(userId);
-      safeSetItem(STORAGE_KEYS.FOLLOWING, JSON.stringify(following));
+    if (following.includes(userId)) return;
+    following.push(userId);
+    safeSetItem(STORAGE_KEYS.FOLLOWING, JSON.stringify(following));
+    // Update current user's following count
+    storage.updateCurrentUser({ following: (currentUser.following || 0) + 1 });
+    // Update target user's followers count
+    const allUsers = storage.getAllUsers();
+    const targetIdx = allUsers.findIndex(u => u.id === userId);
+    if (targetIdx !== -1) {
+      allUsers[targetIdx].followers = (allUsers[targetIdx].followers || 0) + 1;
+      safeSetItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsers));
     }
   },
-  
+
   unfollowUser: (userId: string) => {
+    const currentUser = storage.getCurrentUser();
+    if (!currentUser) return;
     const following = storage.getFollowing();
+    if (!following.includes(userId)) return;
     const updated = following.filter(id => id !== userId);
     safeSetItem(STORAGE_KEYS.FOLLOWING, JSON.stringify(updated));
+    // Update current user's following count
+    storage.updateCurrentUser({ following: Math.max((currentUser.following || 1) - 1, 0) });
+    // Update target user's followers count
+    const allUsers = storage.getAllUsers();
+    const targetIdx = allUsers.findIndex(u => u.id === userId);
+    if (targetIdx !== -1) {
+      allUsers[targetIdx].followers = Math.max((allUsers[targetIdx].followers || 1) - 1, 0);
+      safeSetItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsers));
+    }
   },
   
   getFollowing: (): string[] => {
@@ -1589,12 +1637,21 @@ export const storage = {
   },
   
   getAffirmations: (): string[] => {
-    const affirmationsStr = localStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
+    const user = storage.getCurrentUser();
+    const key = user ? `tradeforge_affirmations_${user.id}` : STORAGE_KEYS.AFFIRMATIONS;
+    const affirmationsStr = localStorage.getItem(key);
+    // Migrate old global affirmations if present
+    if (!affirmationsStr && user) {
+      const oldStr = localStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
+      if (oldStr) return JSON.parse(oldStr);
+    }
     return affirmationsStr ? JSON.parse(affirmationsStr) : [];
   },
-  
+
   saveAffirmations: (affirmations: string[]) => {
-    safeSetItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(affirmations));
+    const user = storage.getCurrentUser();
+    const key = user ? `tradeforge_affirmations_${user.id}` : STORAGE_KEYS.AFFIRMATIONS;
+    safeSetItem(key, JSON.stringify(affirmations));
   },
   
   trackMentalPrepCompletion: (completed: boolean) => {
@@ -1643,12 +1700,14 @@ export const storage = {
     }).sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
   },
 
-  sendDirectMessage: (fromId: string, toId: string, text: string): any => {
+  sendDirectMessage: (fromId: string, toId: string, text: string, imageUrl?: string): any => {
     const msg = {
       id: `dm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       fromId,
       toId,
       text,
+      imageUrl: imageUrl || null,
+      messageType: imageUrl ? 'image' : 'text',
       timestamp: Date.now(),
       read: false,
     };

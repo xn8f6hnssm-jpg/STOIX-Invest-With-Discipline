@@ -216,6 +216,15 @@ export function OnboardingRules() {
     navigate('/app');
   };
 
+  const handleSkip = () => {
+    // Complete onboarding without saving rules — user can add rules later in Settings
+    sessionStorage.setItem('just_completed_onboarding', 'true');
+    sessionStorage.removeItem('onboarding_user');
+    sessionStorage.removeItem('onboarding_profile');
+    storage.setOnboardingComplete();
+    navigate('/app');
+  };
+
   const hasValidRule = rules.some(r => r.title.trim() !== '');
   const validRulesCount = rules.filter(r => r.title.trim() !== '').length;
   const canSubmit = validRulesCount >= minRulesRequired;
@@ -384,6 +393,14 @@ export function OnboardingRules() {
                 className="flex-1"
               >
                 Back
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSkip}
+                className="flex-1 text-muted-foreground"
+              >
+                Skip for now
               </Button>
               <Button type="submit" className="flex-1" disabled={!canSubmit}>
                 Complete Setup

@@ -18,7 +18,7 @@ export function Social() {
   const [posts, setPosts] = useState(storage.getPosts());
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set(storage.getLikedPosts()));
   const [leaderboardFilter, setLeaderboardFilter] = useState<'global' | 'friends' | 'weekly' | 'monthly'>('global');
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [newPostText, setNewPostText] = useState('');
@@ -249,10 +249,12 @@ export function Social() {
     }
   };
 
-  // Filter posts based on selected tab
+  // Filter posts based on selected tab — following tab shows own posts + followed users, newest first
   const filteredPosts = activeTab === 'following'
-    ? posts.filter(post => followingUsers.has(post.userId))
-    : posts;
+    ? posts
+        .filter(post => followingUsers.has(post.userId) || post.userId === currentUser?.id)
+        .sort((a, b) => b.timestamp - a.timestamp)
+    : posts.sort((a, b) => b.timestamp - a.timestamp);
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl pb-24">
