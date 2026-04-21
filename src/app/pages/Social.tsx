@@ -220,37 +220,36 @@ export function Social() {
     return colors[result as keyof typeof colors] || colors.breakeven;
   };
 
-  // Get leaderboard data
   const getLeaderboardData = () => {
-    const allUsers = storage.getAllUsers();
-    
-    const uniqueUsers = Array.from(
-      new Map(allUsers.map(user => [user.id, user])).values()
-    );
-    
-    return uniqueUsers
-      .map(user => {
-        const totalDays = (user.cleanDays || 0) + (user.forfeitDays || 0);
-        const disciplineRate = getDisciplineRate(user.cleanDays || 0, totalDays);
-        const journalEntries = storage.getJournalEntries().filter(e => e.userId === user.id);
-        const dailyCheckCount = (user.cleanDays || 0) + (user.forfeitDays || 0);
-        
-        return {
-          ...user,
-          disciplineRate,
-          journalCount: journalEntries.length,
-          dailyCheckCount,
-        };
-      })
-      .sort((a, b) => {
-        // Primary: discipline % DESC, Secondary: total points DESC
-        if (b.disciplineRate !== a.disciplineRate) {
-          return b.disciplineRate - a.disciplineRate;
-        }
-        return (b.totalPoints || 0) - (a.totalPoints || 0);
-      });
-  };
+  if (typeof window === "undefined") return [];
 
+  const allUsers = storage.getAllUsers() || [];
+
+  const uniqueUsers = Array.from(
+    new Map(allUsers.map(user => [user.id, user])).values()
+  );
+
+  return uniqueUsers
+    .map(user => {
+      const totalDays = (user.cleanDays || 0) + (user.forfeitDays || 0);
+      const disciplineRate = getDisciplineRate(user.cleanDays || 0, totalDays);
+      const journalEntries = storage.getJournalEntries().filter(e => e.userId === user.id);
+      const dailyCheckCount = (user.cleanDays || 0) + (user.forfeitDays || 0);
+
+      return {
+        ...user,
+        disciplineRate,
+        journalCount: journalEntries.length,
+        dailyCheckCount,
+      };
+    })
+    .sort((a, b) => {
+      if (b.disciplineRate !== a.disciplineRate) {
+        return b.disciplineRate - a.disciplineRate;
+      }
+      return (b.totalPoints || 0) - (a.totalPoints || 0);
+    });
+};
   const leaderboardData = getLeaderboardData();
 
   // Handle follow/unfollow
