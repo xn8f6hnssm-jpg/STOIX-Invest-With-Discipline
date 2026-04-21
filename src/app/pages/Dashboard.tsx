@@ -10,7 +10,8 @@ import { storage, getLeague, getDisciplineRate, checkDemotion } from '../utils/s
 import { Card, CardContent } from '../components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
-import { Plus, Trophy, XCircle, Target, TrendingUp, Trash2, Edit } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Plus, Trophy, XCircle, Target, TrendingUp, Trash2, Edit, Users, Share2 } from 'lucide-react';
 
 // ── League tier gradient map ──────────────────────────────────────────────────
 const TIER_GRADIENTS: Record<string, { bg: string; shield: string; text: string }> = {
@@ -21,7 +22,6 @@ const TIER_GRADIENTS: Record<string, { bg: string; shield: string; text: string 
   Platinum: { bg: 'from-cyan-200 to-slate-400',    shield: '#67e8f9', text: '#083344' },
 };
 
-// ── SVG Shield badge — clean, no emoji ───────────────────────────────────────
 function LeagueBadgeIcon({ tier, size = 36 }: { tier: string; size?: number }) {
   const colors = TIER_GRADIENTS[tier] || TIER_GRADIENTS.Bronze;
   const id = `shield-${tier}`;
@@ -33,21 +33,18 @@ function LeagueBadgeIcon({ tier, size = 36 }: { tier: string; size?: number }) {
           <stop offset="100%" stopColor={colors.shield} stopOpacity="0.6" />
         </linearGradient>
       </defs>
-      {/* Shield shape */}
       <path
         d="M20 2 L36 8 L36 22 C36 32 28 40 20 44 C12 40 4 32 4 22 L4 8 Z"
         fill={`url(#${id})`}
         stroke="rgba(255,255,255,0.3)"
         strokeWidth="1.5"
       />
-      {/* Inner highlight */}
       <path
         d="M20 6 L33 11 L33 22 C33 30 26 37 20 40 C14 37 7 30 7 22 L7 11 Z"
         fill="none"
         stroke="rgba(255,255,255,0.2)"
         strokeWidth="1"
       />
-      {/* Star/center mark */}
       <circle cx="20" cy="21" r="5" fill="rgba(255,255,255,0.35)" />
       <path
         d="M20 16 L21.2 19.5 L25 19.5 L22 21.8 L23.1 25.3 L20 23 L16.9 25.3 L18 21.8 L15 19.5 L18.8 19.5 Z"
@@ -56,6 +53,34 @@ function LeagueBadgeIcon({ tier, size = 36 }: { tier: string; size?: number }) {
     </svg>
   );
 }
+
+// FIX: Check if streak should be reset due to no daily check within 24 hours
+const checkAndResetStreak = () => {
+  const user = storage.getCurrentUser();
+  if (!user || user.currentStreak === 0) return;
+
+  const logs = storage.getDayLogs();
+  const userLogs = logs.filter(l => l.userId === user.id);
+
+  if (userLogs.length === 0) return;
+
+  // Get the most recent log
+  const sortedLogs = [...userLogs].sort((a, b) =>
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  const lastLog = sortedLogs[0];
+
+  // Calculate hours since last check
+  const lastLogDate = new Date(lastLog.date);
+  const now = new Date();
+  const hoursSinceLastLog = (now.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60);
+
+  // FIX: If more than 24 hours since last daily check, reset streak to 0
+  if (hoursSinceLastLog > 24) {
+    storage.updateCurrentUser({ currentStreak: 0 });
+    console.log(`Streak reset: ${hoursSinceLastLog.toFixed(1)}h since last daily check`);
+  }
+};
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -66,6 +91,10 @@ export function Dashboard() {
   const [disciplineRate, setDisciplineRate] = useState(0);
   const [hasLoggedToday, setHasLoggedToday] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  // NEW: followers/following modal
+  const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
+  // NEW: share card period
+  const [sharePeriod, setSharePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'overall'>('weekly');
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -91,7 +120,6 @@ export function Dashboard() {
       setDisciplineRate(rate);
       const lg = getLeague(currentUser.totalPoints ?? 0);
       setLeague(lg);
-      // Check demotion condition
       setIsDemoted(checkDemotion(currentUser.id));
     }
     setPosts(storage.getPosts());
@@ -101,6 +129,8 @@ export function Dashboard() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      // FIX: Check and reset streak if 24h have passed without a daily check
+      checkAndResetStreak();
       refreshData();
       setIsLoading(false);
     }, 100);
@@ -109,7 +139,13 @@ export function Dashboard() {
 
   // Re-sync when tab becomes visible (user comes back from daily check)
   useEffect(() => {
-    const handleVisibility = () => { if (!document.hidden) refreshData(); };
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        // FIX: Also check streak reset on visibility change
+        checkAndResetStreak();
+        refreshData();
+      }
+    };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
@@ -143,29 +179,26 @@ export function Dashboard() {
   }
 
   const userPosts = posts.filter(p => p.userId === user.id);
-  
-  // Calculate trading stats from journal
+
   const journalEntries = storage.getJournalEntries().filter(e => e.userId === user.id);
-  
-  // For Long Term Hold, only count SELL entries for stats (BUY entries don't have results)
+
   const isLongTermHold = user.tradingStyle === 'Long Term Hold';
-  const entriesForStats = isLongTermHold 
+  const entriesForStats = isLongTermHold
     ? journalEntries.filter(e => e.action === 'sell')
     : journalEntries;
-  
+
   const tradingStats = {
     totalTrades: isLongTermHold ? entriesForStats.length : journalEntries.length,
     wins: entriesForStats.filter(e => e.result === 'win' || e.result === 'breakeven').length,
     losses: entriesForStats.filter(e => e.result === 'loss').length,
-    winRate: entriesForStats.length > 0 ? 
-      Math.round((entriesForStats.filter(e => e.result === 'win' || e.result === 'breakeven').length / entriesForStats.length) * 100) : 
+    winRate: entriesForStats.length > 0 ?
+      Math.round((entriesForStats.filter(e => e.result === 'win' || e.result === 'breakeven').length / entriesForStats.length) * 100) :
       0,
-    avgRR: entriesForStats.length > 0 ? 
-      (entriesForStats.reduce((sum, e) => sum + (e.riskReward || 0), 0) / entriesForStats.length).toFixed(2) : 
+    avgRR: entriesForStats.length > 0 ?
+      (entriesForStats.reduce((sum, e) => sum + (e.riskReward || 0), 0) / entriesForStats.length).toFixed(2) :
       '0.00',
   };
 
-  // P&L calculations
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
   const weekStart = new Date(today);
@@ -177,11 +210,82 @@ export function Dashboard() {
   const weeklyPnL = entriesForStats.filter(e => e.date >= weekStartStr).reduce((sum, e) => sum + (e.pnl || 0), 0);
 
   const fmtPnL = (val: number) => `${val >= 0 ? '+' : ''}$${Math.abs(val).toFixed(0)}`;
-  
+
+  // Pre-compute share card period stats (avoids IIFE inside JSX which breaks Babel)
+  const _now = new Date();
+  const _todayS = _now.toISOString().split('T')[0];
+  const _weekStart = new Date(_now); _weekStart.setDate(_now.getDate() - _now.getDay());
+  const _weekS = _weekStart.toISOString().split('T')[0];
+  const _monthS = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-01`;
+  const _yearS = `${_now.getFullYear()}-01-01`;
+  const shareFrom = sharePeriod === 'daily' ? _todayS : sharePeriod === 'weekly' ? _weekS : sharePeriod === 'monthly' ? _monthS : sharePeriod === 'yearly' ? _yearS : '2000-01-01';
+  const shareEntries = entriesForStats.filter(e => e.date >= shareFrom);
+  const shareLogs = storage.getDayLogs().filter(l => l.userId === user.id && l.date >= shareFrom);
+  const shareWins = shareEntries.filter(e => e.result === 'win' || e.result === 'breakeven').length;
+  const shareClean = shareLogs.filter(l => l.isClean).length;
+  const shareDiscipline = shareLogs.length > 0 ? Math.round((shareClean / shareLogs.length) * 100) : disciplineRate;
+  const sharePeriodLabel = sharePeriod === 'daily' ? "Today's" : sharePeriod === 'weekly' ? "This Week's" : sharePeriod === 'monthly' ? "This Month's" : sharePeriod === 'yearly' ? "This Year's" : 'All-Time';
+
+  return (
+  // getFollowing() returns array of user IDs that the CURRENT user follows
+  const allUsers = storage.getAllUsers();
+  const myFollowingIds = storage.getFollowing() || [];
+  const followingList = allUsers.filter(u => myFollowingIds.includes(u.id) && u.id !== user.id);
+  // Followers: users who have the current user's id in their following list
+  const followerList = allUsers.filter(u => {
+    if (u.id === user.id) return false;
+    try {
+      // Try storage method if it exists, otherwise skip
+      const theirFollowing = (storage as any).getFollowingForUser?.(u.id) || [];
+      return theirFollowing.includes(user.id);
+    } catch {
+      return false;
+    }
+  });
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       <WelcomeDialog />
-      
+
+      {/* Followers / Following Modal */}
+      <Dialog open={!!followModal} onOpenChange={() => setFollowModal(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              {followModal === 'followers' ? 'Followers' : 'Following'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {(followModal === 'followers' ? followerList : followingList).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                {followModal === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
+              </p>
+            ) : (
+              (followModal === 'followers' ? followerList : followingList).map(u => {
+                const uLeague = getLeague(u.totalPoints || 0);
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer transition-colors"
+                    onClick={() => { setFollowModal(null); navigate(`/app/profile/${u.id}`); }}
+                  >
+                    <Avatar className="w-9 h-9 flex-shrink-0">
+                      <AvatarImage src={u.profilePicture} />
+                      <AvatarFallback className="text-sm">{u.name?.[0] || u.username?.[0] || '?'}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{u.username}</p>
+                      <p className="text-xs text-muted-foreground">{uLeague.name} League</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Daily Check CTA */}
       {!hasLoggedToday && (
         <Card className="bg-gradient-to-r from-blue-600 to-blue-800 text-white border-0">
@@ -191,7 +295,7 @@ export function Dashboard() {
                 <h3 className="text-lg font-semibold mb-1">Ready to log your day?</h3>
                 <p className="text-blue-100 text-sm">Keep your streak alive and earn points!</p>
               </div>
-              <Button 
+              <Button
                 onClick={() => navigate('/app/daily-check')}
                 variant="secondary"
                 size="lg"
@@ -202,18 +306,17 @@ export function Dashboard() {
           </CardContent>
         </Card>
       )}
-      
-      {/* Premium Features - Only visible to premium users */}
+
+      {/* Premium Features */}
       {user.isPremium && <PremiumFeatures />}
-      
-      {/* Account Rules Monitor - Premium Feature */}
+
+      {/* Account Rules Monitor */}
       <AccountRulesWidget />
-      
+
       {/* Profile Section */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex gap-6">
-            {/* Profile Picture & League Badge */}
             <div className="flex flex-col items-center gap-2">
               <div className="relative">
                 <Avatar className="w-24 h-24">
@@ -239,8 +342,7 @@ export function Dashboard() {
                   />
                 </label>
               </div>
-              
-              {/* League Badge */}
+
               <div className={`relative px-4 py-3 rounded-xl bg-gradient-to-br ${TIER_GRADIENTS[league.tier]?.bg || 'from-slate-400 to-slate-600'} text-white shadow-lg flex flex-col items-center gap-1`}>
                 <LeagueBadgeIcon tier={league.tier} size={36} />
                 <div className="text-center leading-tight">
@@ -251,14 +353,13 @@ export function Dashboard() {
               {isDemoted && (
                 <Badge variant="destructive" className="text-xs">⚠ Demotion Risk</Badge>
               )}
-              
+
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">{disciplineRate}%</div>
                 <div className="text-xs text-muted-foreground">Discipline</div>
               </div>
             </div>
 
-            {/* User Info */}
             <div className="flex-1 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -289,33 +390,96 @@ export function Dashboard() {
                   Edit Profile
                 </Button>
               </div>
-              
+
               <div className="flex gap-6 text-sm">
-                <div>
+                <button
+                  className="text-left hover:opacity-70 transition-opacity"
+                  onClick={() => setFollowModal('followers')}
+                >
                   <span className="font-bold">{user.followers ?? 0}</span>
                   <span className="text-muted-foreground ml-1">Followers</span>
-                </div>
-                <div>
+                </button>
+                <button
+                  className="text-left hover:opacity-70 transition-opacity"
+                  onClick={() => setFollowModal('following')}
+                >
                   <span className="font-bold">{user.following ?? 0}</span>
                   <span className="text-muted-foreground ml-1">Following</span>
-                </div>
+                </button>
               </div>
-              
+
               {user.instruments.length > 0 && (
                 <div>
                   <p className="text-sm text-muted-foreground">Pairs traded:</p>
                   <p className="font-medium">{user.instruments.join(', ')}</p>
                 </div>
               )}
-              
+
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="flex items-center gap-1">
                   <TrendingUp className="w-3 h-3" />
                   {user.currentStreak ?? 0} Day Streak
                 </Badge>
-                <DisciplineShareCard />
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Share Card — period selector ── */}
+      <Card className="border-2 border-primary/10">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-semibold text-sm flex items-center gap-2">
+              <Share2 className="w-4 h-4 text-primary" />
+              Share Progress
+            </p>
+            {/* Period pill selector */}
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
+              {(['daily','weekly','monthly','yearly','overall'] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setSharePeriod(p)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                    sharePeriod === p
+                      ? 'bg-background shadow text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {p === 'daily' ? 'Today' : p === 'weekly' ? 'Week' : p === 'monthly' ? 'Month' : p === 'yearly' ? 'Year' : 'All'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Share card preview */}
+          <div className="rounded-xl border bg-gradient-to-br from-background to-muted/30 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs text-muted-foreground">{sharePeriodLabel} Progress</p>
+                <p className="font-bold text-base">{user.username}</p>
+              </div>
+              <div className="text-right">
+                <p className={`text-2xl font-bold ${shareDiscipline >= 80 ? 'text-green-500' : shareDiscipline >= 60 ? 'text-yellow-500' : 'text-red-500'}`}>
+                  {shareDiscipline}%
+                </p>
+                <p className="text-xs text-muted-foreground">Discipline</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              {[
+                { label: 'Trades', val: shareEntries.length, color: '' },
+                { label: 'Wins',   val: shareWins,           color: 'text-green-500' },
+                { label: 'Streak', val: `${user.currentStreak ?? 0}d`, color: '' },
+                { label: league.tier, val: league.roman,     color: '' },
+              ].map(({ label, val, color }) => (
+                <div key={label} className="text-center p-2 rounded-lg bg-background border">
+                  <p className={`font-bold text-sm ${color}`}>{val}</p>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                </div>
+              ))}
+            </div>
+            <DisciplineShareCard period={sharePeriod} />
           </div>
         </CardContent>
       </Card>
@@ -383,13 +547,12 @@ export function Dashboard() {
               </div>
               <div className="text-center">
                 <div className="text-xl font-bold text-purple-500">
-                  {isLongTermHold ? `${tradingStats.avgRR > 0 ? '+' : ''}${tradingStats.avgRR}%` : tradingStats.avgRR}
+                  {isLongTermHold ? `${Number(tradingStats.avgRR) > 0 ? '+' : ''}${tradingStats.avgRR}%` : tradingStats.avgRR}
                 </div>
                 <div className="text-xs text-muted-foreground">{isLongTermHold ? '% Gain' : 'Avg R:R'}</div>
               </div>
             </div>
 
-            {/* P&L Row */}
             <div className="grid grid-cols-3 gap-3 pt-3 border-t border-purple-200/50 dark:border-purple-800/30">
               <div className="text-center">
                 <div className={`text-lg font-bold ${dailyPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -445,7 +608,6 @@ export function Dashboard() {
                   >
                     {post.type === 'clean' ? '✓' : '⚡'}
                   </Badge>
-                  {/* Delete Button - Only visible on hover */}
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();

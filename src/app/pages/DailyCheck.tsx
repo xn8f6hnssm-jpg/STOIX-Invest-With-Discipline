@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { CheckCircle, XCircle, Upload, Sparkles, Zap, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Upload, Sparkles, Zap, Clock, Timer, ArrowLeft, Image as ImageIcon } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -62,7 +62,129 @@ const INVESTOR_FORFEITS = [
   'Journal about an emotional decision you almost made',
 ];
 
+// Points: random 26–30 base. Max with public post bonus = 35 (30+5)
+const getRandomDailyPoints = (): number => {
+  return Math.floor(Math.random() * 5) + 26; // 26, 27, 28, 29, or 30
+};
+
 type Step = 'question' | 'clean-proof' | 'forfeit-wheel' | 'forfeit-proof' | 'summary';
+
+// ── Summary Screen Component ──────────────────────────────────────────────────
+function SummaryScreen({
+  isClean,
+  pointsEarned,
+  photoPreview,
+  note,
+  isNoTradeDay,
+  selectedForfeit,
+  onNavigate,
+  userId,
+}: {
+  isClean: boolean;
+  pointsEarned: number;
+  photoPreview: string;
+  note: string;
+  isNoTradeDay: boolean;
+  selectedForfeit: string;
+  onNavigate: () => void;
+  userId?: string;
+}) {
+  const [countdown, setCountdown] = useState<string>('');
+
+  useEffect(() => {
+    const update = () => {
+      if (!userId) return;
+      const last = localStorage.getItem(`daily_check_last_${userId}`);
+      if (!last) return;
+      const elapsed = Date.now() - parseInt(last);
+      const remaining = COOLDOWN_MS - elapsed;
+      if (remaining <= 0) { setCountdown('Available now'); return; }
+      const h = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
+      setCountdown(`${h}h ${m}m`);
+    };
+    update();
+    const interval = setInterval(update, 10000);
+    return () => clearInterval(interval);
+  }, [userId]);
+
+  const dayType = isNoTradeDay ? 'No Trade Day' : isClean ? 'Trade Day ✓' : 'Forfeit Day ⚡';
+
+  return (
+    <div className="space-y-4">
+      {/* Header Card */}
+      <Card className="border-2 border-green-500/30 bg-gradient-to-br from-green-500/5 to-transparent">
+        <CardContent className="pt-6 pb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase mb-1">Daily Check Logged</p>
+              <h2 className="text-2xl font-bold">
+                {isClean ? '✓ Clean Day' : '⚡ Forfeit Day'}
+              </h2>
+            </div>
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${isClean ? 'bg-green-500/10' : 'bg-orange-500/10'}`}>
+              {isClean
+                ? <CheckCircle className="w-8 h-8 text-green-500" />
+                : <XCircle className="w-8 h-8 text-orange-500" />
+              }
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg bg-background border">
+              <p className="text-xs text-muted-foreground mb-1">Points Earned</p>
+              <p className="text-2xl font-bold text-green-500">+{pointsEarned}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-background border">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Timer className="w-3 h-3 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Next Available In</p>
+              </div>
+              <p className="text-lg font-bold text-blue-500">{countdown || '—'}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* What was logged */}
+      <Card>
+        <CardContent className="pt-4 space-y-3">
+          <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">What You Logged</p>
+
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isClean ? 'bg-green-500/20' : 'bg-orange-500/20'}`}>
+              {isClean ? <CheckCircle className="w-4 h-4 text-green-600" /> : <XCircle className="w-4 h-4 text-orange-600" />}
+            </div>
+            <div>
+              <p className="font-semibold text-sm">{dayType}</p>
+              {selectedForfeit && <p className="text-xs text-muted-foreground">Forfeit: {selectedForfeit}</p>}
+            </div>
+          </div>
+
+          {note && (
+            <div className="p-3 rounded-lg bg-muted">
+              <p className="text-xs text-muted-foreground mb-1">Your Note</p>
+              <p className="text-sm leading-relaxed">{note}</p>
+            </div>
+          )}
+
+          {photoPreview && (
+            <div className="rounded-lg overflow-hidden">
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                <ImageIcon className="w-3 h-3" /> Uploaded Proof
+              </p>
+              <img src={photoPreview} alt="Proof" className="w-full max-h-64 object-cover rounded-lg" />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Button onClick={onNavigate} className="w-full h-12 text-base font-semibold">
+        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+      </Button>
+    </div>
+  );
+}
 
 export function DailyCheck() {
   const navigate = useNavigate();
@@ -98,20 +220,18 @@ export function DailyCheck() {
   };
 
   useEffect(() => {
-    // Backend check: if cooldown active, force to locked state regardless of UI
-    const isLocked = storage.isDailyCheckLocked();
     const todayLog = storage.getTodayLog();
 
-    if (isLocked || todayLog) {
-      // Always show summary/locked if submitted within 5h
-      if (todayLog) {
-        setStep('summary');
-        setPointsEarned(todayLog.pointsEarned);
-        setIsClean(todayLog.isClean);
-      } else {
-        // Locked but no log yet (edge case) — show cooldown on question step
-        setStep('question');
-      }
+    if (todayLog) {
+      // Always show summary if they've already completed today — restore all state from log
+      setStep('summary');
+      setPointsEarned(todayLog.pointsEarned ?? 0);
+      setIsClean(todayLog.isClean ?? true);
+      setNote(todayLog.note || '');
+      setPhotoPreview(todayLog.photoUrl || '');
+      setSelectedForfeit(todayLog.forfeitCompleted || '');
+      // isNoTradeDay: true if clean day with no forfeit and note exists but no photo required
+      setIsNoTradeDay(!!todayLog.isNoTradeDay);
     }
 
     setCooldownRemaining(storage.getDailyCheckCooldown());
@@ -170,14 +290,17 @@ export function DailyCheck() {
   };
 
   const submitCleanDay = () => {
-    if (storage.isDailyCheckLocked()) return; // Backend enforcement
-    let points = 25; // Clean day base points
-    
+    if (storage.isDailyCheckLocked()) return;
+
+    // Points 26-30
+    let points = getRandomDailyPoints();
+
     // Apply double XP if active (Premium feature)
     if (storage.isDoubleXPActive()) {
       points = points * 2;
     }
-    
+
+    // FIX: +5 points for posting publicly
     if (createPost) points += 5;
 
     const user = storage.getCurrentUser();
@@ -193,14 +316,17 @@ export function DailyCheck() {
       posted: createPost,
     });
 
+    // FIX: Post appears in social feed when createPost is true
     if (createPost) {
       storage.addPost({
         userId: user.id,
         username: user.username,
+        avatarUrl: user.profilePicture,
         league: `${user.totalPoints}`,
-        isVerified: user.isVerified,
+        isVerified: user.isVerified || false,
         type: 'clean',
         photoUrl: photoPreview,
+        images: photoPreview ? [photoPreview] : [],
         caption: note,
       });
     }
@@ -211,14 +337,17 @@ export function DailyCheck() {
   };
 
   const submitForfeit = () => {
-    if (storage.isDailyCheckLocked()) return; // Backend enforcement
-    let points = 10; // Forfeit base points
-    
+    if (storage.isDailyCheckLocked()) return;
+
+    // Points 26-30
+    let points = getRandomDailyPoints();
+
     // Apply double XP if active (Premium feature)
     if (storage.isDoubleXPActive()) {
       points = points * 2;
     }
-    
+
+    // FIX: +5 points for posting publicly
     if (createPost) points += 5;
 
     const user = storage.getCurrentUser();
@@ -233,11 +362,10 @@ export function DailyCheck() {
         `You have ${user.streakSavers} Streak Saver${(user.streakSavers || 0) > 1 ? 's' : ''} remaining.\n\n` +
         `Use one now to protect your streak?`
       );
-      
+
       if (useStreakSaver) {
         if (storage.useStreakSaver()) {
           alert(`✅ Streak Saver used! Your ${user.currentStreak}-day streak is protected!`);
-          // Don't break the streak - keep it intact
         }
       }
     }
@@ -253,15 +381,18 @@ export function DailyCheck() {
       posted: createPost,
     });
 
+    // FIX: Post appears in social feed when createPost is true
     if (createPost) {
       storage.addPost({
         userId: user.id,
         username: user.username,
+        avatarUrl: user.profilePicture,
         league: `${user.totalPoints}`,
-        isVerified: user.isVerified,
+        isVerified: user.isVerified || false,
         type: 'forfeit',
         photoUrl: photoPreview,
-        caption: `${note} (Forfeit: ${selectedForfeit})`,
+        images: photoPreview ? [photoPreview] : [],
+        caption: `${note}${note ? ' — ' : ''}Forfeit completed: ${selectedForfeit}`,
       });
     }
 
@@ -269,6 +400,12 @@ export function DailyCheck() {
     if (user) localStorage.setItem(`daily_check_last_${user.id}`, Date.now().toString());
     setStep('summary');
   };
+
+  // FIX: For No Trade Day — photo is optional (only note required)
+  // For regular clean day — photo is required
+  const canSubmitCleanDay = isNoTradeDay
+    ? note.length >= 20
+    : (!!photoPreview && note.length >= 20);
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -295,20 +432,20 @@ export function DailyCheck() {
             <div className="flex items-center justify-center gap-3">
               <Clock className="w-5 h-5 text-muted-foreground" />
               <p className="text-sm font-medium text-muted-foreground">
-                Daily check-in on cooldown — come back in <span className="font-bold text-foreground">{cooldownRemaining}</span>
+                Daily check-in on cooldown — <span className="font-bold text-foreground">Next available in {cooldownRemaining}</span>
               </p>
             </div>
           </CardContent>
         </Card>
       )}
-      
+
       {step === 'question' && (
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Daily Check-In</CardTitle>
             <CardDescription>
-              {isLongTermHold 
-                ? 'Did you follow your investing rules today?' 
+              {isLongTermHold
+                ? 'Did you follow your investing rules today?'
                 : 'Did you follow all of your rules today?'}
             </CardDescription>
           </CardHeader>
@@ -321,7 +458,7 @@ export function DailyCheck() {
               <CheckCircle className="w-6 h-6 mr-2" />
               Yes, I followed my rules
             </Button>
-            
+
             <Button
               onClick={() => handleAnswer(false)}
               variant="destructive"
@@ -348,13 +485,14 @@ export function DailyCheck() {
               {isLongTermHold ? 'Decision Evidence (Optional)' : 'Clean Day Proof'}
             </CardTitle>
             <CardDescription>
-              {isLongTermHold 
+              {isLongTermHold
                 ? 'Add anything related to your investing discipline today.'
                 : 'Upload proof to earn your points'
               }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* No Trade Day checkbox */}
             <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg">
               <Checkbox
                 id="no-trades"
@@ -366,12 +504,12 @@ export function DailyCheck() {
                   htmlFor="no-trades"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  {isLongTermHold ? 'No investing activity today' : 'No trades today'}
+                  {isLongTermHold ? 'No investing activity today' : 'No Trade Day'}
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  {isLongTermHold 
+                  {isLongTermHold
                     ? 'Check this if you made no changes to your portfolio today'
-                    : 'Check this if you did not execute any trades today'
+                    : 'Check this if you did not execute any trades today — image upload becomes optional'
                   }
                 </p>
               </div>
@@ -379,12 +517,19 @@ export function DailyCheck() {
 
             <div className="space-y-2">
               <Label>
-                {isLongTermHold 
-                  ? 'Upload screenshot or add note (Optional)'
-                  : 'Upload proof photo or screenshot of trade (Required)'
+                {/* FIX: Image is optional for No Trade Day and Long Term Hold */}
+                {isNoTradeDay
+                  ? 'Upload proof photo (Optional for No Trade Day)'
+                  : isLongTermHold
+                    ? 'Upload screenshot or add note (Optional)'
+                    : 'Upload proof photo or screenshot of trade (Required)'
                 }
               </Label>
-              {isLongTermHold && (
+              {/* Helper text showing what to upload */}
+              <p className="text-xs text-muted-foreground">
+                You can upload: • Trade proof &nbsp;• Discipline proof &nbsp;• Rule break / forfeit proof
+              </p>
+              {isLongTermHold && !isNoTradeDay && (
                 <p className="text-xs text-muted-foreground mb-2">
                   Examples: Portfolio screenshot, research notes, position update, broker screenshot, or short discipline note.
                 </p>
@@ -398,7 +543,9 @@ export function DailyCheck() {
                 ) : (
                   <div className="space-y-2 pointer-events-none">
                     <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Click to upload</p>
+                    <p className="text-sm text-muted-foreground">
+                      {isNoTradeDay ? 'Click to upload (optional)' : 'Click to upload'}
+                    </p>
                   </div>
                 )}
                 <input
@@ -422,7 +569,7 @@ export function DailyCheck() {
               )}
               <Textarea
                 id="note"
-                placeholder={isLongTermHold 
+                placeholder={isLongTermHold
                   ? 'Any thoughts about your investing discipline today...'
                   : 'Any notes about today...'
                 }
@@ -454,13 +601,18 @@ export function DailyCheck() {
               <Button variant="outline" onClick={() => setStep('question')} className="flex-1">
                 Back
               </Button>
-              <Button
-                onClick={submitCleanDay}
-                disabled={!photoPreview || note.length < 20}
-                className="flex-1"
-              >
-                Confirm Clean Day (+{25 + (createPost ? 5 : 0)} points)
-              </Button>
+              <div className="flex-1 flex flex-col gap-1">
+                <Button
+                  onClick={submitCleanDay}
+                  disabled={!canSubmitCleanDay}
+                  className="w-full h-12 text-base font-semibold"
+                >
+                  Complete Daily Check
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  Earn {26}–{30 + (createPost ? 5 : 0)} points
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -576,44 +728,34 @@ export function DailyCheck() {
               <Button variant="outline" onClick={() => setStep('forfeit-wheel')} className="flex-1">
                 Back
               </Button>
-              <Button
-                onClick={submitForfeit}
-                disabled={!photoPreview || note.length < 20}
-                className="flex-1"
-              >
-                Complete Forfeit (+{10 + (createPost ? 5 : 0)} points)
-              </Button>
+              <div className="flex-1 flex flex-col gap-1">
+                <Button
+                  onClick={submitForfeit}
+                  disabled={!photoPreview || note.length < 20}
+                  className="w-full h-12 text-base font-semibold"
+                >
+                  Complete Daily Check
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  Earn {26}–{30 + (createPost ? 5 : 0)} points
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
       {step === 'summary' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl text-center">Daily Check Complete!</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6 text-center">
-            <div className="py-8">
-              <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                {isClean ? (
-                  <CheckCircle className="w-12 h-12 text-green-500" />
-                ) : (
-                  <XCircle className="w-12 h-12 text-orange-500" />
-                )}
-              </div>
-              
-              <h3 className="text-3xl font-bold mb-2">+{pointsEarned} Points</h3>
-              <p className="text-muted-foreground">
-                {isClean ? 'Clean day logged successfully!' : 'Forfeit completed successfully!'}
-              </p>
-            </div>
-
-            <Button onClick={() => navigate('/app')} className="w-full">
-              Back to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
+        <SummaryScreen
+          isClean={isClean}
+          pointsEarned={pointsEarned}
+          photoPreview={photoPreview}
+          note={note}
+          isNoTradeDay={isNoTradeDay}
+          selectedForfeit={selectedForfeit}
+          onNavigate={() => navigate('/app')}
+          userId={user?.id}
+        />
       )}
     </div>
   );

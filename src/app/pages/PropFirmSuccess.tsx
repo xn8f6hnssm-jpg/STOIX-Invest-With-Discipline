@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   Trophy, Target, Lock, ChevronRight, AlertCircle, Plus, Trash2,
   Edit2, Shield, AlertTriangle, CheckCircle, Calculator, BarChart3,
-  Brain, Zap, RefreshCw, TrendingDown, Activity, XCircle, Flame,
-  Lightbulb, CheckSquare
+  Brain, Zap, RefreshCw, TrendingDown, TrendingUp, Activity, XCircle, Flame,
+  Lightbulb, CheckSquare, Gauge, Calendar, Star, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { storage } from '../utils/storage';
 import { toast } from 'sonner';
@@ -58,7 +58,13 @@ function getZone(pct: number): Zone {
   return 'optimal';
 }
 
-// ── Blow-Up Probability ────────────────────────────────────────────────────
+function getRiskBarColor(pct: number): string {
+  if (pct >= 85) return 'bg-red-500';
+  if (pct >= 65) return 'bg-orange-500';
+  if (pct >= 40) return 'bg-yellow-500';
+  return 'bg-green-500';
+}
+
 function calcBlowUpProb(lossPercent: number, tradeRisk: number, remainingLoss: number, behaviorWarnings: number): number {
   let prob = 0;
   prob += Math.min(lossPercent * 0.6, 60);
@@ -70,13 +76,17 @@ function calcBlowUpProb(lossPercent: number, tradeRisk: number, remainingLoss: n
   return Math.min(Math.round(prob), 99);
 }
 
-// ── Pre-Trade Checklist items ──────────────────────────────────────────────
+function projectBlowUpOver(currentBlowUp: number, days: number): number {
+  const dailyProb = currentBlowUp / 100;
+  return Math.min(99, Math.round((1 - Math.pow(1 - dailyProb, days)) * 100));
+}
+
 const CHECKLIST_ITEMS = [
-  { id: 'setup',    label: 'Setup matches my trading plan' },
-  { id: 'risk',     label: 'Risk is within today\'s allowed limit' },
+  { id: 'setup',      label: 'Setup matches my trading plan' },
+  { id: 'risk',       label: 'Risk is within today\'s allowed limit' },
   { id: 'no_revenge', label: 'This is NOT a revenge trade' },
-  { id: 'emotion', label: 'I am calm and not emotional' },
-  { id: 'confirm',  label: 'I have waited for confirmation' },
+  { id: 'emotion',    label: 'I am calm and not emotional' },
+  { id: 'confirm',    label: 'I have waited for confirmation' },
 ];
 
 export function PropFirmSuccess() {
@@ -92,6 +102,8 @@ export function PropFirmSuccess() {
   const [showChecklist, setShowChecklist] = useState(false);
   const [checklistState, setChecklistState] = useState<Record<string, boolean>>({});
   const [checklistPassed, setChecklistPassed] = useState<boolean | null>(null);
+  const [disciplineImpact, setDisciplineImpact] = useState(0);
+  const [autoLockTriggered, setAutoLockTriggered] = useState(false);
 
   const [settings, setSettings] = useState<PropFirmSettings>({
     dailyLossLimit: 2500,
@@ -102,7 +114,6 @@ export function PropFirmSuccess() {
     averageRiskPerTrade: 250,
   });
 
-  // Risk calculator
   const [instrument, setInstrument] = useState('NQ');
   const [contracts, setContracts] = useState(1);
   const [stopSize, setStopSize] = useState(10);
@@ -112,14 +123,15 @@ export function PropFirmSuccess() {
       setAccountRules(storage.getAccountRules(currentUser.id) || []);
       const saved = localStorage.getItem(`prop_firm_settings_${currentUser.id}`);
       if (saved) setSettings(JSON.parse(saved));
-      // Check if locked
       const locked = localStorage.getItem(`prop_firm_locked_${currentUser.id}`);
       if (locked === 'true') setDisciplineLocked(true);
+      const impact = localStorage.getItem(`prop_firm_discipline_impact_${currentUser.id}`);
+      if (impact) setDisciplineImpact(parseInt(impact) || 0);
     }
   }, [currentUser?.id]);
 
-  // ── Derived ──────────────────────────────────────────────────────────────
   const tradeRisk = contracts * stopSize * (INSTRUMENTS[instrument] ?? 20);
+
   const todayLoss = (() => {
     const today = new Date().toISOString().split('T')[0];
     return storage.getJournalEntries()
@@ -139,14 +151,21 @@ export function PropFirmSuccess() {
   const challengeProgress = Math.min((settings.currentProfit / settings.profitTarget) * 100, 100);
   const recommendedMaxRisk = remainingLoss * 0.30;
 
-  // ── Tilt Detection ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (lossPercent >= 100 && !disciplineLocked && !autoLockTriggered) {
+      setDisciplineLocked(true);
+      setAutoLockTriggered(true);
+      localStorage.setItem(`prop_firm_locked_${currentUser?.id}`, 'true');
+      toast.error('🔒 Auto-Lock activated — daily loss limit reached. Trading locked to protect account.');
+    }
+  }, [lossPercent]);
+
   const getTiltSignals = () => {
     const today = new Date().toISOString().split('T')[0];
     const entries = storage.getJournalEntries()
       .filter(e => e.date === today && e.userId === currentUser?.id);
     const signals: { text: string; level: 'warning' | 'critical' }[] = [];
 
-    // Multiple consecutive losses
     if (entries.length >= 2) {
       const last3 = entries.slice(-3);
       const consecLosses = last3.filter(e => e.result === 'loss').length;
@@ -154,7 +173,6 @@ export function PropFirmSuccess() {
       else if (consecLosses === 2) signals.push({ text: '2 losses in a row — revenge trading risk elevated', level: 'warning' });
     }
 
-    // Increasing position size
     if (entries.length >= 3) {
       const risks = entries.slice(-3).map(e => e.riskReward || 0);
       if (risks[2] > risks[1] * 1.5 && risks[1] > risks[0] * 1.5) {
@@ -162,7 +180,6 @@ export function PropFirmSuccess() {
       }
     }
 
-    // Fast entries (multiple trades same hour)
     if (entries.length >= 3) {
       const lastThreeTimes = entries.slice(-3).map(e => e.customFields?.['Entry Time'] || '');
       const hours = lastThreeTimes.map(t => t ? parseInt(t.split(':')[0]) : -1).filter(h => h >= 0);
@@ -171,7 +188,6 @@ export function PropFirmSuccess() {
       }
     }
 
-    // High trade count
     const style = currentUser?.tradingStyle || 'Day Trader';
     const maxTrades = { 'Day Trader': 8, 'Swing Trader': 3, 'Long Term Hold': 2, 'Other': 5 }[style] ?? 5;
     if (entries.length > maxTrades) {
@@ -184,8 +200,22 @@ export function PropFirmSuccess() {
   const tiltSignals = getTiltSignals();
   const isTilting = tiltSignals.some(s => s.level === 'critical');
   const blowUpProb = calcBlowUpProb(lossPercent, tradeRisk, remainingLoss, tiltSignals.length);
+  const blowUpProb10Days = projectBlowUpOver(blowUpProb, 10);
 
-  // ── Dynamic Risk Suggestion ──────────────────────────────────────────────
+  const getSmartTradeLimit = () => {
+    const entries = storage.getJournalEntries().filter(e => e.userId === currentUser?.id);
+    if (entries.length < 5) return Math.max(0, Math.floor(remainingLoss / settings.averageRiskPerTrade));
+    const wins   = entries.filter(e => e.result === 'win').length;
+    const losses = entries.filter(e => e.result === 'loss').length;
+    const total  = wins + losses;
+    const winRate = total > 0 ? wins / total : 0.5;
+    const rrEntries = entries.filter(e => e.riskReward > 0);
+    const avgRR = rrEntries.length > 0 ? rrEntries.reduce((s, e) => s + e.riskReward, 0) / rrEntries.length : 1;
+    const kellySizing = Math.max(0.1, winRate * avgRR - (1 - winRate));
+    const base = Math.max(0, Math.floor(remainingLoss / settings.averageRiskPerTrade));
+    return Math.max(0, Math.floor(base * kellySizing));
+  };
+
   const getDynamicMaxRisk = () => {
     let base = remainingLoss * 0.30;
     if (tiltSignals.length >= 2) base *= 0.5;
@@ -196,19 +226,29 @@ export function PropFirmSuccess() {
 
   const getAIRecommendation = () => {
     if (disciplineLocked) return 'Discipline Lock is active. Confirm you understand the risks before trading again.';
+    if (lossPercent >= 100) return 'Daily loss limit reached. Trading is locked for today — the account is protected.';
     if (lossPercent >= 85) return 'Stop trading today. One more average loss ends the challenge. The account is more valuable than any single trade.';
     if (isTilting) return 'Tilt detected. High probability of rule-breaking behavior. Take a 30-minute break minimum before considering another trade.';
     if (tradeRisk > remainingLoss) return `This trade would violate your daily limit. Reduce to ${Math.floor(remainingLoss / (stopSize * (INSTRUMENTS[instrument] ?? 20)))} contract(s) or skip.`;
     if (tradeRisk > recommendedMaxRisk) return `Size is above recommended max. Consider ${Math.floor(getDynamicMaxRisk() / (stopSize * (INSTRUMENTS[instrument] ?? 20)))} contract(s) for safe risk management.`;
-    const safe = Math.max(0, Math.floor(remainingLoss / settings.averageRiskPerTrade));
-    return `Account in ${zone} zone. Approximately ${safe} average-risk trades remain today. Stay selective.`;
+    const hour = new Date().getHours();
+    if (hour >= 9 && hour < 11) return `Account in ${zone} zone. ${getSmartTradeLimit()} smart trades remaining. You're in the Open session — historically the best window. Stay disciplined.`;
+    if (hour >= 11 && hour < 13) return `Midday session — lower volatility. Account in ${zone} zone. ${getSmartTradeLimit()} smart trades remaining. Only A+ setups.`;
+    return `Account in ${zone} zone. Approximately ${getSmartTradeLimit()} smart trades remain today. Stay selective.`;
   };
 
-  // ── Discipline Lock ──────────────────────────────────────────────────────
+  const adjustDisciplineImpact = (delta: number, reason: string) => {
+    const newVal = disciplineImpact + delta;
+    setDisciplineImpact(newVal);
+    localStorage.setItem(`prop_firm_discipline_impact_${currentUser?.id}`, String(newVal));
+    if (delta > 0) toast.success(`+${delta} Discipline ${reason}`);
+    else toast.error(`${delta} Discipline ${reason}`);
+  };
+
   const activateLock = () => {
     setDisciplineLocked(true);
     localStorage.setItem(`prop_firm_locked_${currentUser?.id}`, 'true');
-    toast.success('Discipline Lock activated. Confirm before your next trade.');
+    adjustDisciplineImpact(+5, '— Discipline lock activated');
   };
 
   const unlockDiscipline = () => {
@@ -218,42 +258,21 @@ export function PropFirmSuccess() {
     }
     setDisciplineLocked(false);
     setLockConfirmText('');
+    setAutoLockTriggered(false);
     localStorage.removeItem(`prop_firm_locked_${currentUser?.id}`);
     toast.success('Lock removed. Trade with discipline.');
   };
 
-  // ── Checklist ────────────────────────────────────────────────────────────
   const handleChecklistSubmit = () => {
     const allPassed = CHECKLIST_ITEMS.every(item => checklistState[item.id]);
     setChecklistPassed(allPassed);
     if (allPassed) {
+      adjustDisciplineImpact(+3, '— Pre-trade checklist followed');
       toast.success('Pre-trade checklist passed ✓ Proceed with your trade.');
     } else {
+      adjustDisciplineImpact(-2, '— Checklist not fully completed');
       toast.error('Checklist failed — do not take this trade.');
     }
-  };
-
-  // ── CRUD ─────────────────────────────────────────────────────────────────
-  const handleAddRule = () => {
-    if (!currentUser || !newRule.title.trim()) return;
-    const rule = storage.addAccountRule(currentUser.id, newRule.title, newRule.description);
-    setAccountRules(prev => [...prev, rule]);
-    setNewRule({ title: '', description: '' });
-    toast.success('Rule added!');
-  };
-
-  const handleUpdateRule = () => {
-    if (!editingRule?.title.trim()) return;
-    storage.updateAccountRule(editingRule.id, editingRule.title, editingRule.description);
-    setAccountRules(prev => prev.map(r => r.id === editingRule.id ? editingRule : r));
-    setEditingRule(null);
-    toast.success('Rule updated!');
-  };
-
-  const handleDeleteRule = (id: string) => {
-    storage.deleteAccountRule(id);
-    setAccountRules(prev => prev.filter(r => r.id !== id));
-    toast.success('Rule deleted.');
   };
 
   const saveSettings = () => {
@@ -263,13 +282,33 @@ export function PropFirmSuccess() {
     toast.success('Settings saved!');
   };
 
-  // ── Premium Gate ──────────────────────────────────────────────────────────
+  const tradeBreach  = tradeRisk > remainingLoss;
+  const tradeWarning = !tradeBreach && tradeRisk > recommendedMaxRisk;
+
+  const projectedDaysToGoal = settings.averageDailyProfit > 0 && remainingProfit > 0
+    ? Math.ceil(remainingProfit / settings.averageDailyProfit)
+    : null;
+  const projectedDate = projectedDaysToGoal
+    ? new Date(Date.now() + projectedDaysToGoal * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+
+  const shouldSuggestStop = (() => {
+    const todayEntries = storage.getJournalEntries()
+      .filter(e => e.date === new Date().toISOString().split('T')[0] && e.userId === currentUser?.id);
+    const todayPnL = todayEntries.reduce((s, e) => s + (e.pnl || 0), 0);
+    const upSignificantly   = todayPnL > settings.averageDailyProfit * 2;
+    const downSignificantly = lossPercent >= 65;
+    return {
+      suggest: upSignificantly || downSignificantly,
+      reason: upSignificantly ? 'You\'re up significantly — protect your gains.' : 'You\'re in the danger zone — protect the account.',
+    };
+  })();
+
   if (!isPremium) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Prop Firm Success</h1>
-          <p className="text-muted-foreground">Your prop firm survival engine</p>
         </div>
         <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
           <CardContent className="py-16 text-center space-y-4">
@@ -278,7 +317,7 @@ export function PropFirmSuccess() {
             </div>
             <h2 className="text-2xl font-bold">Premium Feature</h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Tilt detection, blow-up probability, dynamic risk, discipline lock, pre-trade checklist, and full account protection.
+              Tilt detection, blow-up probability, dynamic risk, discipline lock, auto-lock, pre-trade checklist, and full account protection.
             </p>
             <Button size="lg" className="mt-4" onClick={() => window.location.href = '/app/upgrade'}>
               Upgrade to Premium <ChevronRight className="w-4 h-4 ml-2" />
@@ -289,21 +328,18 @@ export function PropFirmSuccess() {
     );
   }
 
-  // ── Main UI ───────────────────────────────────────────────────────────────
   return (
     <div className="container mx-auto px-4 py-6 max-w-5xl pb-24 space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Shield className="w-8 h-8 text-green-600" />
-            <h1 className="text-2xl font-bold">Account Protection Center</h1>
-          </div>
-          <p className="text-muted-foreground text-sm">Prop firm survival engine — not a static dashboard</p>
+        <div className="flex items-center gap-3">
+          <Shield className="w-8 h-8 text-green-600" />
+          <h1 className="text-2xl font-bold">Account Protection Center</h1>
         </div>
+        {/* FIX: Renamed from "Settings" to "Prop Firm Rules" */}
         <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
-          <RefreshCw className="w-4 h-4 mr-2" /> Settings
+          <RefreshCw className="w-4 h-4 mr-2" /> Prop Firm Rules
         </Button>
       </div>
 
@@ -323,12 +359,8 @@ export function PropFirmSuccess() {
               ] as [string, keyof PropFirmSettings][]).map(([label, key]) => (
                 <div key={key} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
-                  <Input
-                    type="number"
-                    onWheel={e => e.currentTarget.blur()}
-                    value={settings[key]}
-                    onChange={e => setSettings(s => ({ ...s, [key]: parseFloat(e.target.value) || 0 }))}
-                  />
+                  <Input type="number" onWheel={e => e.currentTarget.blur()} value={settings[key]}
+                    onChange={e => setSettings(s => ({ ...s, [key]: parseFloat(e.target.value) || 0 }))} />
                 </div>
               ))}
             </div>
@@ -340,37 +372,72 @@ export function PropFirmSuccess() {
         </Card>
       )}
 
-      {/* ── 1. Zone Banner ── */}
+      {/* ── Discipline Score Impact ── */}
+      <Card className={`border ${disciplineImpact >= 0 ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Star className="w-5 h-5 text-amber-500" />
+              <div>
+                <p className="font-semibold text-sm">Today's Discipline Score Impact</p>
+                <p className="text-xs text-muted-foreground">Updated on every action taken in the engine</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-2xl font-bold ${disciplineImpact >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {disciplineImpact >= 0 ? '+' : ''}{disciplineImpact}
+              </span>
+              {disciplineImpact >= 0 ? <ArrowUp className="w-5 h-5 text-green-500" /> : <ArrowDown className="w-5 h-5 text-red-500" />}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Zone Banner ── */}
       <Card className={`border-2 ${cfg.border} ${cfg.bg}`}>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xl font-bold">Account Status</h2>
-            <Badge className={`${cfg.color} text-base px-4 py-2 font-bold border ${cfg.border} ${cfg.bg}`}>
-              {cfg.label}
-            </Badge>
+            <Badge className={`${cfg.color} text-base px-4 py-2 font-bold border ${cfg.border} ${cfg.bg}`}>{cfg.label}</Badge>
           </div>
           <p className={`font-semibold ${cfg.color} mb-1`}>{guidance.title}</p>
           <p className="text-sm text-muted-foreground">{guidance.msg}</p>
         </CardContent>
       </Card>
 
-      {/* ── 2. Discipline Lock ── */}
+      {/* ── Daily Stop Suggestion ── */}
+      {shouldSuggestStop.suggest && (
+        <Card className="border-2 border-blue-500/30 bg-blue-500/5">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-3">
+              <Gauge className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="font-semibold text-sm text-blue-600">Consider stopping for the day</p>
+                <p className="text-xs text-muted-foreground">{shouldSuggestStop.reason}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Discipline Lock ── */}
       {disciplineLocked ? (
         <Card className="border-2 border-red-500/50 bg-red-500/5">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-2">
               <Lock className="w-6 h-6 text-red-600" />
-              <h2 className="text-xl font-bold text-red-600">Discipline Lock Active</h2>
+              <h2 className="text-xl font-bold text-red-600">
+                {autoLockTriggered ? '🔒 Auto-Lock Active — Daily Limit Reached' : 'Discipline Lock Active'}
+              </h2>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              You activated Discipline Lock. To unlock, type exactly: <span className="font-mono font-bold">I understand the risk</span>
-            </p>
+            {autoLockTriggered && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                <p className="text-sm font-bold text-red-600">Trading locked to protect account. Come back tomorrow with a fresh mindset.</p>
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground mb-4">To unlock, type exactly: <span className="font-mono font-bold">I understand the risk</span></p>
             <div className="flex gap-3">
-              <Input
-                placeholder="Type: I understand the risk"
-                value={lockConfirmText}
-                onChange={e => setLockConfirmText(e.target.value)}
-              />
+              <Input placeholder="Type: I understand the risk" value={lockConfirmText} onChange={e => setLockConfirmText(e.target.value)} />
               <Button variant="destructive" onClick={unlockDiscipline}>Unlock</Button>
             </div>
           </CardContent>
@@ -392,32 +459,23 @@ export function PropFirmSuccess() {
         </Card>
       )}
 
-      {/* ── 3. Tilt Detection ── */}
+      {/* ── Tilt Detection ── */}
       {tiltSignals.length > 0 && (
         <Card className={`border-2 ${isTilting ? 'border-red-500/50 bg-red-500/5' : 'border-orange-500/30 bg-orange-500/5'}`}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 mb-4">
               <Flame className={`w-6 h-6 ${isTilting ? 'text-red-600' : 'text-orange-500'}`} />
-              <h2 className="text-xl font-bold">
-                {isTilting ? '🚨 Tilt Detected' : '⚠️ Tilt Warning'}
-              </h2>
+              <h2 className="text-xl font-bold">{isTilting ? '🚨 Tilt Detected' : '⚠️ Tilt Warning'}</h2>
             </div>
             {isTilting && (
               <div className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <p className="text-sm font-bold text-red-600">
-                  High probability of rule-breaking — strongly recommend stopping now.
-                </p>
+                <p className="text-sm font-bold text-red-600">High probability of rule-breaking — strongly recommend stopping now.</p>
               </div>
             )}
             <div className="space-y-2">
               {tiltSignals.map((s, i) => (
-                <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${
-                  s.level === 'critical' ? 'bg-red-500/10 border-red-500/20' : 'bg-yellow-500/10 border-yellow-500/20'
-                }`}>
-                  {s.level === 'critical'
-                    ? <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                    : <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  }
+                <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${s.level === 'critical' ? 'bg-red-500/10 border-red-500/20' : 'bg-yellow-500/10 border-yellow-500/20'}`}>
+                  {s.level === 'critical' ? <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" /> : <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />}
                   <p className="text-sm font-medium">{s.text}</p>
                 </div>
               ))}
@@ -431,38 +489,38 @@ export function PropFirmSuccess() {
         </Card>
       )}
 
-      {/* ── 4. Blow-Up Probability ── */}
+      {/* ── Blow-Up Probability — with 10-day projection ── */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-4">
             <Activity className="w-6 h-6 text-purple-600" />
             <h2 className="text-xl font-bold">Blow-Up Probability</h2>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="text-center">
-              <div className={`text-5xl font-bold ${
-                blowUpProb >= 70 ? 'text-red-600' : blowUpProb >= 40 ? 'text-orange-500' : blowUpProb >= 20 ? 'text-yellow-500' : 'text-green-600'
-              }`}>{blowUpProb}%</div>
-              <div className="text-xs text-muted-foreground mt-1">Failure Risk</div>
-            </div>
-            <div className="flex-1">
-              <div className="w-full bg-muted rounded-full h-3 mb-2">
-                <div
-                  className={`h-3 rounded-full transition-all ${
-                    blowUpProb >= 70 ? 'bg-red-500' : blowUpProb >= 40 ? 'bg-orange-500' : blowUpProb >= 20 ? 'bg-yellow-500' : 'bg-green-500'
-                  }`}
-                  style={{ width: `${blowUpProb}%` }}
-                />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <div className={`text-5xl font-bold ${blowUpProb >= 70 ? 'text-red-600' : blowUpProb >= 40 ? 'text-orange-500' : blowUpProb >= 20 ? 'text-yellow-500' : 'text-green-600'}`}>{blowUpProb}%</div>
+                <div className="text-xs text-muted-foreground mt-1">Today</div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Based on daily loss usage ({lossPercent.toFixed(0)}%), trade sizing, and behavior patterns ({tiltSignals.length} warning{tiltSignals.length !== 1 ? 's' : ''})
+              <div className="flex-1">
+                <div className="w-full bg-muted rounded-full h-3 mb-1">
+                  <div className={`h-3 rounded-full transition-all ${blowUpProb >= 70 ? 'bg-red-500' : blowUpProb >= 40 ? 'bg-orange-500' : blowUpProb >= 20 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${blowUpProb}%` }} />
+                </div>
+                <p className="text-xs text-muted-foreground">Based on daily loss, sizing, and behavior ({tiltSignals.length} warning{tiltSignals.length !== 1 ? 's' : ''})</p>
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-muted border">
+              <p className="text-xs text-muted-foreground mb-1">At current behavior — 10-day projection</p>
+              <p className={`text-2xl font-bold ${blowUpProb10Days >= 50 ? 'text-red-600' : blowUpProb10Days >= 25 ? 'text-orange-500' : 'text-green-600'}`}>{blowUpProb10Days}%</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {blowUpProb10Days >= 50 ? 'Critical risk over 10 days — change behavior now.' : blowUpProb10Days >= 25 ? 'Moderate risk over 10 days — reduce daily exposure.' : 'Risk stays manageable if behavior is consistent.'}
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* ── 5. Daily Loss Gauge ── */}
+      {/* ── Daily Loss Gauge — animated ── */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-4">
@@ -477,16 +535,12 @@ export function PropFirmSuccess() {
               <div className="bg-red-500/25 flex-[15]" />
             </div>
             <div className="absolute inset-0">
-              <div className={`h-10 rounded-lg transition-all opacity-80 ${cfg.bar}`}
-                style={{ width: `${Math.min(lossPercent, 100)}%` }} />
+              <div className={`h-10 rounded-lg transition-all duration-700 ease-out opacity-80 ${getRiskBarColor(lossPercent)}`} style={{ width: `${Math.min(lossPercent, 100)}%` }} />
             </div>
             {lossPercent > 2 && (
-              <div className="absolute top-0 pointer-events-none"
-                style={{ left: `${Math.min(lossPercent, 97)}%`, transform: 'translateX(-50%)' }}>
+              <div className="absolute top-0 pointer-events-none" style={{ left: `${Math.min(lossPercent, 97)}%`, transform: 'translateX(-50%)' }}>
                 <div className="w-0.5 h-10 bg-foreground" />
-                <div className="mt-1 px-2 py-0.5 bg-foreground text-background text-xs font-bold rounded whitespace-nowrap">
-                  {lossPercent.toFixed(0)}%
-                </div>
+                <div className="mt-1 px-2 py-0.5 bg-foreground text-background text-xs font-bold rounded whitespace-nowrap">{lossPercent.toFixed(0)}%</div>
               </div>
             )}
           </div>
@@ -495,11 +549,27 @@ export function PropFirmSuccess() {
               <div key={r}><div className={`font-semibold ${c}`}>{r}</div><div className="text-muted-foreground">{l}</div></div>
             ))}
           </div>
+
+          {/* Performance Pressure Meter */}
+          {lossPercent >= 40 && (
+            <div className={`mb-3 p-3 rounded-lg border text-xs font-medium flex items-center gap-2 ${
+              lossPercent >= 85 ? 'bg-red-500/10 border-red-500/20 text-red-600'
+              : lossPercent >= 65 ? 'bg-orange-500/10 border-orange-500/20 text-orange-600'
+              : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-400'
+            }`}>
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {lossPercent >= 85
+                ? '🚨 High pressure zone — one trade from a rule violation. Reduce size immediately.'
+                : lossPercent >= 65
+                ? '⚠️ Elevated pressure zone — you are in danger territory. Reduce size by 50%.'
+                : '⚡ Caution zone — cut position size by 50% and only take high-conviction setups.'}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-3 mt-2">
             {[
-              { label: 'Lost Today', val: `$${todayLoss.toLocaleString()}`, color: 'text-red-500' },
-              { label: 'Remaining', val: `$${remainingLoss.toLocaleString()}`, color: zone === 'critical' ? 'text-red-500' : 'text-green-500' },
-              { label: 'Safe Trades', val: Math.max(0, Math.floor(remainingLoss / settings.averageRiskPerTrade)).toString(), color: 'text-blue-500' },
+              { label: 'Lost Today',   val: `$${todayLoss.toLocaleString()}`,     color: 'text-red-500' },
+              { label: 'Remaining',    val: `$${remainingLoss.toLocaleString()}`,  color: zone === 'critical' ? 'text-red-500' : 'text-green-500' },
+              { label: 'Smart Trades', val: getSmartTradeLimit().toString(),        color: 'text-blue-500' },
             ].map(({ label, val, color }) => (
               <div key={label} className="p-3 rounded-lg bg-muted text-center">
                 <div className={`text-xl font-bold ${color}`}>{val}</div>
@@ -510,7 +580,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── 6. Risk Calculator ── */}
+      {/* ── Risk Calculator — with blocking warning ── */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-4">
@@ -522,82 +592,67 @@ export function PropFirmSuccess() {
               <Label className="text-xs">Instrument</Label>
               <Select value={instrument} onValueChange={setInstrument}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.keys(INSTRUMENTS).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-                </SelectContent>
+                <SelectContent>{Object.keys(INSTRUMENTS).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Contracts</Label>
-              <Input type="number" min={1} value={contracts} onWheel={e => e.currentTarget.blur()}
-                onChange={e => setContracts(parseInt(e.target.value) || 1)} />
+              <Input type="number" min={1} value={contracts} onWheel={e => e.currentTarget.blur()} onChange={e => setContracts(parseInt(e.target.value) || 1)} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Stop (pts)</Label>
-              <Input type="number" min={1} value={stopSize} onWheel={e => e.currentTarget.blur()}
-                onChange={e => setStopSize(parseInt(e.target.value) || 1)} />
+              <Input type="number" min={1} value={stopSize} onWheel={e => e.currentTarget.blur()} onChange={e => setStopSize(parseInt(e.target.value) || 1)} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Trade Risk</Label>
-              <div className={`px-3 py-2 rounded-lg font-bold text-xl ${
-                tradeRisk > remainingLoss ? 'bg-red-500/10 text-red-600' :
-                tradeRisk > recommendedMaxRisk ? 'bg-amber-500/10 text-amber-600' :
-                'bg-green-500/10 text-green-600'
-              }`}>${tradeRisk.toLocaleString()}</div>
+              <div className={`px-3 py-2 rounded-lg font-bold text-xl ${tradeBreach ? 'bg-red-500/10 text-red-600' : tradeWarning ? 'bg-amber-500/10 text-amber-600' : 'bg-green-500/10 text-green-600'}`}>
+                ${tradeRisk.toLocaleString()}
+              </div>
             </div>
           </div>
 
-          {/* Dynamic risk suggestion */}
           <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 mb-4">
             <p className="text-xs text-muted-foreground mb-1">Dynamic Max Risk (adjusted for behavior)</p>
             <p className="font-bold text-blue-600">${getDynamicMaxRisk().toLocaleString()}</p>
           </div>
 
-          {/* Output */}
           <div className="p-4 rounded-xl bg-muted/50 border mb-4">
             <div className="grid grid-cols-3 gap-4">
               <div><p className="text-xs text-muted-foreground mb-1">Trade Risk</p><p className="text-lg font-bold">${tradeRisk.toLocaleString()}</p></div>
               <div><p className="text-xs text-muted-foreground mb-1">Buffer After Loss</p>
-                <p className={`text-lg font-bold ${(remainingLoss - tradeRisk) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  ${(remainingLoss - tradeRisk).toLocaleString()}
-                </p>
+                <p className={`text-lg font-bold ${(remainingLoss - tradeRisk) < 0 ? 'text-red-600' : 'text-green-600'}`}>${(remainingLoss - tradeRisk).toLocaleString()}</p>
               </div>
-              <div><p className="text-xs text-muted-foreground mb-1">Trades Left After</p>
-                <p className="text-lg font-bold text-blue-600">
-                  {tradeRisk > 0 ? Math.max(0, Math.floor((remainingLoss - tradeRisk) / settings.averageRiskPerTrade)) : '—'}
-                </p>
+              <div><p className="text-xs text-muted-foreground mb-1">Smart Trades Left After</p>
+                <p className="text-lg font-bold text-blue-600">{tradeRisk > 0 ? Math.max(0, Math.floor((remainingLoss - tradeRisk) / settings.averageRiskPerTrade)) : '—'}</p>
               </div>
             </div>
           </div>
 
-          {/* Verdict */}
-          {tradeRisk > 0 && (
-            tradeRisk > remainingLoss ? (
-              <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3">
-                <XCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+          {tradeBreach ? (
+            <div className="p-4 rounded-lg bg-red-500/10 border-2 border-red-500/50">
+              <div className="flex items-start gap-3">
+                <XCircle className="w-6 h-6 text-red-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-semibold text-red-600 mb-1">⚠ Exceeds Daily Limit</p>
-                  <p className="text-sm text-muted-foreground">
-                    Reduce to {Math.max(0, Math.floor(remainingLoss / (stopSize * (INSTRUMENTS[instrument] ?? 20))))} contracts or skip.
-                  </p>
+                  <p className="font-bold text-red-600 text-base mb-1">🚫 This trade violates your risk rules.</p>
+                  <p className="text-sm text-muted-foreground">This trade exceeds your daily loss limit. Reduce to {Math.max(0, Math.floor(remainingLoss / (stopSize * (INSTRUMENTS[instrument] ?? 20))))} contracts or skip this trade entirely.</p>
                 </div>
               </div>
-            ) : tradeRisk > recommendedMaxRisk ? (
-              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm font-semibold text-amber-600">Above recommended max — consider sizing down</p>
-              </div>
-            ) : (
-              <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20 flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm font-semibold text-green-600">✓ Within safe limits</p>
-              </div>
-            )
+            </div>
+          ) : tradeWarning ? (
+            <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm font-semibold text-amber-600">Above recommended max — consider sizing down for safer risk management.</p>
+            </div>
+          ) : (
+            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20 flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm font-semibold text-green-600">✓ Within safe limits</p>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* ── 7. Pre-Trade Checklist ── */}
+      {/* ── Pre-Trade Checklist ── */}
       <Card className="border-2 border-blue-500/20">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-4">
@@ -605,11 +660,7 @@ export function PropFirmSuccess() {
               <CheckSquare className="w-6 h-6 text-blue-600" />
               <h2 className="text-xl font-bold">Pre-Trade Checklist</h2>
             </div>
-            <Button variant="outline" size="sm" onClick={() => {
-              setShowChecklist(!showChecklist);
-              setChecklistState({});
-              setChecklistPassed(null);
-            }}>
+            <Button variant="outline" size="sm" onClick={() => { setShowChecklist(!showChecklist); setChecklistState({}); setChecklistPassed(null); }}>
               {showChecklist ? 'Close' : 'Open Checklist'}
             </Button>
           </div>
@@ -617,19 +668,11 @@ export function PropFirmSuccess() {
             <div className="space-y-3">
               {CHECKLIST_ITEMS.map(item => (
                 <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted">
-                  <input
-                    type="checkbox"
-                    id={item.id}
-                    checked={!!checklistState[item.id]}
-                    onChange={e => setChecklistState(s => ({ ...s, [item.id]: e.target.checked }))}
-                    className="w-5 h-5 rounded"
-                  />
+                  <input type="checkbox" id={item.id} checked={!!checklistState[item.id]} onChange={e => setChecklistState(s => ({ ...s, [item.id]: e.target.checked }))} className="w-5 h-5 rounded" />
                   <label htmlFor={item.id} className="text-sm font-medium cursor-pointer">{item.label}</label>
                 </div>
               ))}
-              <Button className="w-full mt-2" onClick={handleChecklistSubmit}>
-                Evaluate Checklist
-              </Button>
+              <Button className="w-full mt-2" onClick={handleChecklistSubmit}>Evaluate Checklist</Button>
               {checklistPassed !== null && (
                 <div className={`p-4 rounded-lg border ${checklistPassed ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
                   <p className={`font-bold text-sm ${checklistPassed ? 'text-green-600' : 'text-red-600'}`}>
@@ -639,13 +682,11 @@ export function PropFirmSuccess() {
               )}
             </div>
           )}
-          {!showChecklist && (
-            <p className="text-sm text-muted-foreground">Run this before every trade to confirm you\'re not making an emotional decision.</p>
-          )}
+          {!showChecklist && <p className="text-sm text-muted-foreground">Run this before every trade to confirm you're not making an emotional decision.</p>}
         </CardContent>
       </Card>
 
-      {/* ── 8. AI Recommendation ── */}
+      {/* ── AI Recommendation — session-aware ── */}
       <Card className="border-2 border-blue-500/20 bg-blue-500/5">
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-3">
@@ -659,16 +700,14 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── 9. Max Allowed Positions ── */}
+      {/* ── Max Allowed Positions ── */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-2">
             <BarChart3 className="w-6 h-6 text-indigo-600" />
             <h2 className="text-xl font-bold">Max Allowed Positions</h2>
           </div>
-          <p className="text-sm text-muted-foreground mb-4">
-            Based on remaining buffer: <span className="font-bold text-foreground">${remainingLoss.toLocaleString()}</span>
-          </p>
+          <p className="text-sm text-muted-foreground mb-4">Based on remaining buffer: <span className="font-bold text-foreground">${remainingLoss.toLocaleString()}</span></p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {MAX_POSITIONS.map(pos => {
               const max = Math.max(0, Math.floor(remainingLoss / (pos.pv * pos.stop)));
@@ -684,7 +723,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── 10. Emergency Protection ── */}
+      {/* ── Emergency Protection ── */}
       {lossPercent >= 60 && (
         <Card className="border-2 border-red-500/30 bg-red-500/5">
           <CardContent className="pt-6">
@@ -692,13 +731,8 @@ export function PropFirmSuccess() {
               <Shield className="w-6 h-6 text-red-600" />
               <h2 className="text-xl font-bold">Emergency Protection</h2>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              {lossPercent.toFixed(0)}% of daily limit used — statistically the highest-risk zone for violations.
-            </p>
-            <Button variant="destructive" className="w-full mb-4" onClick={() => {
-              activateLock();
-              toast.success('Protection Mode activated.');
-            }}>
+            <p className="text-sm text-muted-foreground mb-4">{lossPercent.toFixed(0)}% of daily limit used — statistically the highest-risk zone for violations.</p>
+            <Button variant="destructive" className="w-full mb-4" onClick={() => { activateLock(); toast.success('Protection Mode activated.'); }}>
               <Zap className="w-4 h-4 mr-2" /> Activate Protection Mode
             </Button>
             <div className="p-4 bg-background border border-red-500/20 rounded-lg space-y-2">
@@ -712,7 +746,7 @@ export function PropFirmSuccess() {
         </Card>
       )}
 
-      {/* ── 11. Challenge Progress ── */}
+      {/* ── Challenge Progress — with trajectory ── */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-4">
@@ -721,90 +755,37 @@ export function PropFirmSuccess() {
           </div>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div><p className="text-xs text-muted-foreground mb-1">Target</p><p className="text-xl font-bold">${settings.profitTarget.toLocaleString()}</p></div>
-            <div><p className="text-xs text-muted-foreground mb-1">Current</p><p className="text-xl font-bold text-green-600">${settings.currentProfit.toLocaleString()}</p><p className="text-xs text-muted-foreground">{challengeProgress.toFixed(0)}% complete</p></div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Current</p>
+              <p className="text-xl font-bold text-green-600">${settings.currentProfit.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">{challengeProgress.toFixed(0)}% complete</p>
+            </div>
             <div><p className="text-xs text-muted-foreground mb-1">Remaining</p><p className="text-xl font-bold">${remainingProfit.toLocaleString()}</p></div>
           </div>
           <div className="w-full bg-muted rounded-full h-3 mb-3">
-            <div className="h-3 rounded-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all"
-              style={{ width: `${challengeProgress}%` }} />
+            <div className="h-3 rounded-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all" style={{ width: `${challengeProgress}%` }} />
           </div>
+          {projectedDate && projectedDaysToGoal && (
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-1"><Calendar className="w-4 h-4 text-blue-500" /><span className="text-xs text-muted-foreground">Projected Completion</span></div>
+                <p className="font-bold text-blue-600 text-sm">{projectedDate}</p>
+              </div>
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-blue-500" /><span className="text-xs text-muted-foreground">Trading Days Left</span></div>
+                <p className="font-bold text-blue-600 text-sm">~{projectedDaysToGoal} days</p>
+              </div>
+            </div>
+          )}
           {settings.averageDailyProfit > 0 && (
-            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm">
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm mt-3">
               <span className="text-muted-foreground">At ${settings.averageDailyProfit}/day: </span>
               <span className="font-semibold">~{Math.ceil(remainingProfit / settings.averageDailyProfit)} trading days remaining</span>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* ── 12. Account Rules ── */}
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h2 className="text-xl font-bold">Account Rules</h2>
-              <p className="text-sm text-muted-foreground">Your prop firm challenge rules</p>
-            </div>
-            <Badge variant="secondary">{accountRules.length} Rules</Badge>
-          </div>
-
-          {editingRule ? (
-            <div className="space-y-3 p-4 border-2 border-primary/20 rounded-lg bg-primary/5">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold">Edit Rule</p>
-                <Button variant="ghost" size="sm" onClick={() => setEditingRule(null)}>Cancel</Button>
-              </div>
-              <Input placeholder="Rule title" value={editingRule.title}
-                onChange={e => setEditingRule({ ...editingRule, title: e.target.value })} />
-              <Textarea placeholder="Description (optional)" value={editingRule.description || ''} rows={2}
-                onChange={e => setEditingRule({ ...editingRule, description: e.target.value })} />
-              <Button onClick={handleUpdateRule} disabled={!editingRule.title.trim()} className="w-full">Save Changes</Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Input placeholder="Rule title e.g. Max daily loss: 5%"
-                  value={newRule.title} onChange={e => setNewRule({ ...newRule, title: e.target.value })} />
-                <Input placeholder="Description (optional)"
-                  value={newRule.description} onChange={e => setNewRule({ ...newRule, description: e.target.value })} />
-              </div>
-              <Button onClick={handleAddRule} disabled={!newRule.title.trim()} className="w-full">
-                <Plus className="w-4 h-4 mr-2" /> Add Rule
-              </Button>
-            </div>
-          )}
-
-          {accountRules.length > 0 ? (
-            <div className="space-y-2 mt-2">
-              {accountRules.map(rule => (
-                <Card key={rule.id} className="group hover:border-primary/30 transition-all">
-                  <CardContent className="py-3 px-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm">{rule.title}</p>
-                        {rule.description && <p className="text-xs text-muted-foreground mt-0.5">{rule.description}</p>}
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" onClick={() => setEditingRule(rule)}>
-                          <Edit2 className="w-3 h-3" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteRule(rule.id)}>
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <AlertCircle className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No rules yet. Add your prop firm rules above.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* FIX: Account Rules block removed — duplicate of settings */}
     </div>
   );
 }

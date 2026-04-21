@@ -36,11 +36,25 @@ export function Social() {
   }, []);
 
   const handleLike = (postId: string) => {
-    if (likedPosts.has(postId)) return;
+    if (likedPosts.has(postId)) {
+      // Unlike: decrement count locally, remove from liked set
+      const updated = posts.map(p =>
+        p.id === postId ? { ...p, likes: Math.max(0, p.likes - 1) } : p
+      );
+      setPosts(updated);
+      const newLiked = new Set(likedPosts);
+      newLiked.delete(postId);
+      setLikedPosts(newLiked);
+      // Persist liked list if storage supports it
+      try { (storage as any).setLikedPosts?.([...newLiked]); } catch {}
+      return;
+    }
+    // Like
     storage.likePost(postId);
     setPosts(storage.getPosts());
-    setLikedPosts(new Set([...likedPosts, postId]));
-    // Notify post owner
+    const newLiked = new Set([...likedPosts, postId]);
+    setLikedPosts(newLiked);
+    try { (storage as any).setLikedPosts?.([...newLiked]); } catch {}
     const post = storage.getPosts().find(p => p.id === postId);
     if (post && post.userId !== currentUser?.id) {
       storage.addNotification({ userId: post.userId, type: 'like', fromId: currentUser?.id });
@@ -98,16 +112,15 @@ export function Social() {
     console.log('Creating post...');
     const league = getLeague(currentUser.totalPoints || 0);
 
-    // Don't store base64 images in localStorage - they're too large
-    // Instead, we'll just show a placeholder or not persist images
+    // FIX: Store real images from selectedImages
     const post = storage.addPost({
       userId: currentUser.id,
       username: currentUser.username,
       avatarUrl: currentUser.profilePicture,
       league: currentUser.totalPoints?.toString() || '0',
       isVerified: currentUser.isVerified || false,
-      photoUrl: '', // Don't persist images to localStorage
-      images: [], // Don't persist images to localStorage
+      photoUrl: selectedImages[0] || '', // FIX: use first selected image
+      images: selectedImages, // FIX: store all selected images
       caption: newPostText,
       type: newPostType,
     });
@@ -137,9 +150,7 @@ export function Social() {
     setNewPostText('');
     setNewPostType('general');
     setSelectedImages([]);
-    
-    // Show success message
-    alert('Post created successfully! Note: Images are not persisted in this demo version.');
+    // FIX: Removed demo alert - images now persist for real
   };
 
   const handleImageSelect = () => {
@@ -177,6 +188,14 @@ export function Social() {
     }
   };
 
+  // NEW: Delete own comment
+  const handleDeleteComment = (postId: string, commentId: string) => {
+    if (confirm('Delete this comment?')) {
+      storage.deleteComment(postId, commentId);
+      setPosts(storage.getPosts());
+    }
+  };
+
   const initializeDemoData = () => {
     // Demo data initialization if needed
   };
@@ -205,7 +224,6 @@ export function Social() {
   const getLeaderboardData = () => {
     const allUsers = storage.getAllUsers();
     
-    // Remove duplicates by user ID
     const uniqueUsers = Array.from(
       new Map(allUsers.map(user => [user.id, user])).values()
     );
@@ -215,19 +233,21 @@ export function Social() {
         const totalDays = (user.cleanDays || 0) + (user.forfeitDays || 0);
         const disciplineRate = getDisciplineRate(user.cleanDays || 0, totalDays);
         const journalEntries = storage.getJournalEntries().filter(e => e.userId === user.id);
+        const dailyCheckCount = (user.cleanDays || 0) + (user.forfeitDays || 0);
         
         return {
           ...user,
           disciplineRate,
           journalCount: journalEntries.length,
+          dailyCheckCount,
         };
       })
       .sort((a, b) => {
-        // Sort by discipline rate, then by journal consistency
+        // Primary: discipline % DESC, Secondary: total points DESC
         if (b.disciplineRate !== a.disciplineRate) {
           return b.disciplineRate - a.disciplineRate;
         }
-        return b.journalCount - a.journalCount;
+        return (b.totalPoints || 0) - (a.totalPoints || 0);
       });
   };
 
@@ -552,7 +572,8 @@ export function Social() {
                           className={`flex items-center gap-1 text-sm transition-colors ${
                             isLiked ? 'text-red-500' : 'hover:text-red-500'
                           }`}
-                          disabled={isLiked}
+                          title={isLiked ? 'Unlike' : 'Like'}
+
                         >
                           <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
                           <span>{post.likes}</span>
@@ -580,12 +601,23 @@ export function Social() {
                       {showComments[post.id] && (
                         <div className="space-y-2 pt-2 border-t">
                           {post.comments.map((comment) => (
-                            <div key={comment.id} className="text-sm flex items-start gap-1">
-                              <span className="font-semibold">{comment.username}</span>
-                              {comment.userId === currentUser?.id && storage.isPremium() && (
-                                <PremiumBadge size="sm" />
+                            <div key={comment.id} className="text-sm flex items-start justify-between gap-1 group/comment">
+                              <div className="flex items-start gap-1 flex-1 min-w-0">
+                                <span className="font-semibold flex-shrink-0">{comment.username}</span>
+                                {comment.userId === currentUser?.id && storage.isPremium() && (
+                                  <PremiumBadge size="sm" />
+                                )}
+                                <span className="break-words">{comment.text}</span>
+                              </div>
+                              {currentUser && comment.userId === currentUser.id && (
+                                <button
+                                  onClick={() => handleDeleteComment(post.id, comment.id)}
+                                  className="opacity-0 group-hover/comment:opacity-100 transition-opacity text-muted-foreground hover:text-destructive flex-shrink-0 ml-1"
+                                  title="Delete comment"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
                               )}
-                              <span>{comment.text}</span>
                             </div>
                           ))}
                         </div>
@@ -810,7 +842,8 @@ export function Social() {
                           className={`flex items-center gap-1 text-sm transition-colors ${
                             isLiked ? 'text-red-500' : 'hover:text-red-500'
                           }`}
-                          disabled={isLiked}
+                          title={isLiked ? 'Unlike' : 'Like'}
+
                         >
                           <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
                           <span>{post.likes}</span>
@@ -838,12 +871,23 @@ export function Social() {
                       {showComments[post.id] && (
                         <div className="space-y-2 pt-2 border-t">
                           {post.comments.map((comment) => (
-                            <div key={comment.id} className="text-sm flex items-start gap-1">
-                              <span className="font-semibold">{comment.username}</span>
-                              {comment.userId === currentUser?.id && storage.isPremium() && (
-                                <PremiumBadge size="sm" />
+                            <div key={comment.id} className="text-sm flex items-start justify-between gap-1 group/comment">
+                              <div className="flex items-start gap-1 flex-1 min-w-0">
+                                <span className="font-semibold flex-shrink-0">{comment.username}</span>
+                                {comment.userId === currentUser?.id && storage.isPremium() && (
+                                  <PremiumBadge size="sm" />
+                                )}
+                                <span className="break-words">{comment.text}</span>
+                              </div>
+                              {currentUser && comment.userId === currentUser.id && (
+                                <button
+                                  onClick={() => handleDeleteComment(post.id, comment.id)}
+                                  className="opacity-0 group-hover/comment:opacity-100 transition-opacity text-muted-foreground hover:text-destructive flex-shrink-0 ml-1"
+                                  title="Delete comment"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
                               )}
-                              <span>{comment.text}</span>
                             </div>
                           ))}
                         </div>
@@ -917,10 +961,10 @@ export function Social() {
                     className="cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => navigate(`/app/profile/${user.id}`)}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-4">
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-3">
                         {/* Rank */}
-                        <div className={`text-2xl font-bold w-8 text-center ${rankColor}`}>
+                        <div className={`text-xl font-bold w-7 text-center flex-shrink-0 ${rankColor}`}>
                           {index === 0 && '🥇'}
                           {index === 1 && '🥈'}
                           {index === 2 && '🥉'}
@@ -928,35 +972,38 @@ export function Social() {
                         </div>
 
                         {/* Avatar */}
-                        <Avatar className="w-12 h-12">
+                        <Avatar className="w-10 h-10 flex-shrink-0">
                           <AvatarImage src={user.profilePicture} />
-                          <AvatarFallback>
+                          <AvatarFallback className="text-sm">
                             {user.name?.[0] || user.username?.[0] || '?'}
                           </AvatarFallback>
                         </Avatar>
 
-                        {/* User Info */}
+                        {/* Left: name + league + daily checks */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-semibold truncate">{user.username}</p>
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <p className="font-semibold text-sm truncate">{user.username}</p>
                             {user.isVerified && (
-                              <Badge className="bg-blue-500">✓</Badge>
+                              <Badge className="bg-blue-500 text-white text-xs px-1 py-0 h-4">✓</Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span>{league.name} League</span>
-                            <span>•</span>
-                            <span>{user.journalCount} entries</span>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-medium">{league.name} {league.roman}</span>
+                            <span>·</span>
+                            <span>{user.dailyCheckCount} check-ins</span>
                           </div>
                         </div>
 
-                        {/* Discipline Rate */}
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-green-500">
+                        {/* Right: discipline % (primary) + points (secondary) */}
+                        <div className="text-right flex-shrink-0">
+                          <div className={`text-xl font-bold ${
+                            user.disciplineRate >= 80 ? 'text-green-500' :
+                            user.disciplineRate >= 60 ? 'text-yellow-500' : 'text-red-500'
+                          }`}>
                             {user.disciplineRate}%
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            Discipline
+                            {(user.totalPoints || 0).toLocaleString()} pts
                           </div>
                         </div>
                       </div>

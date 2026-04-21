@@ -60,26 +60,24 @@ export function OnboardingRules() {
   const categories = isLongTermHold ? INVESTOR_CATEGORIES : RULE_CATEGORIES;
 
   useEffect(() => {
-    // Check if user is logged in
     const user = storage.getCurrentUser();
     console.log('🔍 OnboardingRules mounted');
     console.log('👤 Current user from localStorage:', user);
     console.log('📦 Raw localStorage currentUser:', localStorage.getItem('tradeforge_currentUser'));
-    
+
     if (!user) {
       console.error('❌ No user found in localStorage!');
       alert('Error: No user logged in. Please restart onboarding.');
       navigate('/');
       return;
     }
-    
+
     console.log('✅ User found, ID:', user.id);
 
-    // Apply profile data from sessionStorage if it exists
     const profileData = sessionStorage.getItem('onboarding_profile');
     if (profileData) {
       const profile = JSON.parse(profileData);
-      setTradingStyle(profile.tradingStyle); // Store trading style in state
+      setTradingStyle(profile.tradingStyle);
       storage.updateCurrentUser({
         tradingStyle: profile.tradingStyle,
         instruments: profile.instruments,
@@ -89,10 +87,10 @@ export function OnboardingRules() {
   }, [navigate]);
 
   const addRule = () => {
-    setRules([...rules, { 
-      id: crypto.randomUUID(), 
-      title: '', 
-      description: '', 
+    setRules([...rules, {
+      id: crypto.randomUUID(),
+      title: '',
+      description: '',
       category: 'discipline',
       isCritical: false
     }]);
@@ -114,7 +112,7 @@ export function OnboardingRules() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const user = storage.getCurrentUser();
     if (!user) {
       console.error('❌ No user found during rule submission!');
@@ -122,30 +120,26 @@ export function OnboardingRules() {
       alert('Error: No user logged in. Please restart onboarding.');
       return;
     }
-    
+
     console.log('=== ONBOARDING RULES SUBMISSION ===');
     console.log('Current User:', user);
     console.log('User ID:', user.id);
     console.log('User Email:', user.email);
-    
-    // Save rules to both the Rules table and User object
+
     const validRules = rules.filter(r => r.title.trim() !== '');
-    
-    // Require minimum 5 rules
+
     if (validRules.length < minRulesRequired) {
       alert(`Please add at least ${minRulesRequired} trading rules before continuing.`);
       return;
     }
-    
+
     console.log('💾 STARTING RULE SAVE PROCESS');
     console.log('👤 Current User ID:', user.id);
     console.log('📝 Valid Rules to Save:', validRules);
-    
-    // Get current rules count BEFORE saving
+
     const existingRules = storage.getRules().filter(r => r.userId === user.id);
     console.log('📊 Existing rules before save:', existingRules.length);
-    
-    // Save to Rules table (for detailed rule management)
+
     const savedRuleIds: string[] = [];
     validRules.forEach((rule, index) => {
       try {
@@ -162,29 +156,25 @@ export function OnboardingRules() {
         console.error(`❌ Failed to save rule ${index + 1}:`, error);
       }
     });
-    
-    // VERIFY the rules were actually saved to localStorage
+
     const verifyRules = storage.getRules();
     const myRules = verifyRules.filter(r => r.userId === user.id);
-    
-    // Sort saved rules by category for consistency
+
     myRules.sort((a, b) => {
       const categoryOrder = ['psychology', 'entry', 'exit', 'risk', 'discipline'];
       const aIndex = categoryOrder.indexOf(a.tag);
       const bIndex = categoryOrder.indexOf(b.tag);
       return aIndex - bIndex;
     });
-    
+
     console.log('🔍 VERIFICATION - All rules in storage:', verifyRules);
     console.log('🔍 VERIFICATION - My rules in storage (sorted):', myRules);
     console.log('🔍 VERIFICATION - localStorage raw:', localStorage.getItem('tradeforge_rules'));
-    
-    // Verify that we added the expected number of rules
+
     const expectedTotal = existingRules.length + validRules.length;
     if (myRules.length !== expectedTotal) {
       console.error('❌ SAVE FAILED! Expected', expectedTotal, 'but found', myRules.length);
       console.error('Existing rules:', existingRules.length, '+ New rules:', validRules.length, '= Expected:', expectedTotal, ', Actual:', myRules.length);
-      // Don't show an error if we have at least the new rules saved
       if (myRules.length >= validRules.length) {
         console.log('✅ At least all new rules were saved, continuing...');
       } else {
@@ -193,31 +183,27 @@ export function OnboardingRules() {
     } else {
       console.log('✅ VERIFICATION PASSED - All rules saved successfully!');
     }
-    
-    // Save to User object (for quick access in RevengeX and other features)
+
     const ruleStrings = myRules.map(r => r.title);
     storage.updateCurrentUser({
       rules: ruleStrings,
     });
-    
+
     console.log('✅ Updated user.rules array:', ruleStrings);
     console.log('✅ Final user object:', storage.getCurrentUser());
-    
-    // Set a flag to prevent MainLayout from overwriting user data after onboarding
+
     sessionStorage.setItem('just_completed_onboarding', 'true');
-    
-    // Clear onboarding session data
+
     sessionStorage.removeItem('onboarding_user');
     sessionStorage.removeItem('onboarding_profile');
-    
+
     storage.setOnboardingComplete();
-    
+
     console.log('✅ ONBOARDING COMPLETE - Navigating to app...');
     navigate('/app');
   };
 
   const handleSkip = () => {
-    // Complete onboarding without saving rules — user can add rules later in Settings
     sessionStorage.setItem('just_completed_onboarding', 'true');
     sessionStorage.removeItem('onboarding_user');
     sessionStorage.removeItem('onboarding_profile');
@@ -237,7 +223,7 @@ export function OnboardingRules() {
             {isLongTermHold ? 'Your Investing Principles' : 'Your Trading Rules'}
           </CardTitle>
           <CardDescription>
-            {isLongTermHold 
+            {isLongTermHold
               ? `Add at least ${minRulesRequired} principles you follow to avoid emotional investing decisions.`
               : `Add at least ${minRulesRequired} rules. These are your commitments to disciplined trading.`
             }
@@ -256,16 +242,14 @@ export function OnboardingRules() {
                       key={idx}
                       type="button"
                       onClick={() => {
-                        // Find first empty rule slot
                         const emptyIndex = rules.findIndex(r => r.title.trim() === '');
                         if (emptyIndex !== -1) {
                           updateRule(emptyIndex, 'title', template);
                         } else {
-                          // Add new rule with this template
-                          setRules([...rules, { 
-                            id: crypto.randomUUID(), 
-                            title: template, 
-                            description: '', 
+                          setRules([...rules, {
+                            id: crypto.randomUUID(),
+                            title: template,
+                            description: '',
                             category: 'discipline',
                             isCritical: false
                           }]);
@@ -297,14 +281,14 @@ export function OnboardingRules() {
                       </button>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor={`rule-title-${rule.id}`}>
                       {isLongTermHold ? 'Principle' : 'Rule'}
                     </Label>
                     <Input
                       id={`rule-title-${rule.id}`}
-                      placeholder={isLongTermHold 
+                      placeholder={isLongTermHold
                         ? 'e.g., Never panic sell during market dips'
                         : 'e.g., Only take trades 9:30-11am'
                       }
@@ -312,12 +296,12 @@ export function OnboardingRules() {
                       onChange={(e) => updateRule(index, 'title', e.target.value)}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor={`rule-description-${rule.id}`}>Description (optional)</Label>
                     <Textarea
                       id={`rule-description-${rule.id}`}
-                      placeholder={isLongTermHold 
+                      placeholder={isLongTermHold
                         ? 'Add more details about this principle...'
                         : 'Add more details about this rule...'
                       }
@@ -326,7 +310,7 @@ export function OnboardingRules() {
                       rows={2}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor={`rule-category-${rule.id}`}>Category</Label>
                     <select
@@ -342,7 +326,7 @@ export function OnboardingRules() {
                       ))}
                     </select>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-2">
                       <Star className={`w-4 h-4 ${rule.isCritical ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground'}`} />
@@ -394,11 +378,12 @@ export function OnboardingRules() {
               >
                 Back
               </Button>
+              {/* FIX: Skip button text color changed to black (dark:text-white for dark mode) */}
               <Button
                 type="button"
                 variant="outline"
                 onClick={handleSkip}
-                className="flex-1 text-muted-foreground"
+                className="flex-1 text-black dark:text-white"
               >
                 Skip for now
               </Button>

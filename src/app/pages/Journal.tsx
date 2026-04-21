@@ -39,6 +39,9 @@ const sortNewest = (arr: any[]) => [...arr].sort((a, b) => {
   return (b.timestamp || 0) - (a.timestamp || 0);
 });
 
+// FIX: Randomize journal points between 8 and 12
+const getRandomJournalPoints = () => Math.floor(Math.random() * 5) + 8;
+
 export function Journal() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'live' | 'backtesting'>('live');
@@ -120,6 +123,10 @@ export function Journal() {
     sellReason: undefined as 'thesis_broken' | 'emotional_reaction' | 'planned_exit' | undefined,
   });
   const [hiddenFieldsForEntry, setHiddenFieldsForEntry] = useState<string[]>([]);
+  // NEW: Track which optional preset fields the user has hidden for this entry
+  const [hiddenSystemFields, setHiddenSystemFields] = useState<string[]>([]);
+  const hideSystem = (field: string) => setHiddenSystemFields(prev => [...prev, field]);
+  const showingSystem = (field: string) => !hiddenSystemFields.includes(field);
   const [newField, setNewField] = useState({
     name: '',
     type: 'text' as 'text' | 'number' | 'checkbox' | 'dropdown' | 'time' | 'image',
@@ -262,6 +269,7 @@ export function Journal() {
         sellReason: undefined,
       });
       setHiddenFieldsForEntry([]);
+      setHiddenSystemFields([]);
       setIsDialogOpen(false);
       return;
     }
@@ -320,10 +328,13 @@ export function Journal() {
         plannedHoldTime: isLongTermHold ? newEntry.plannedHoldTime : undefined,
       });
 
+      // FIX: Award points for both regular trades AND No Trade Days, with randomized 8-12 points
       if (shouldAwardPoints) {
+        const pointsEarned = getRandomJournalPoints();
         storage.updateCurrentUser({
-          totalPoints: user.totalPoints + 10,
+          totalPoints: user.totalPoints + pointsEarned,
         });
+        toast.success(`+${pointsEarned} points earned! 🎯`);
       }
 
       const updatedEntries = [entry, ...entries];
@@ -363,6 +374,7 @@ export function Journal() {
       sellReason: undefined,
     });
     setHiddenFieldsForEntry([]);
+    setHiddenSystemFields([]);
     setIsDialogOpen(false);
   };
 
@@ -478,6 +490,8 @@ export function Journal() {
 
   // NEW: Handle creating a SELL entry from a BUY entry
   const handleCreateSellEntry = (buyEntry: JournalEntry) => {
+    // FIX: Reset editingEntry so the form saves a new entry, not an update
+    setEditingEntry(null);
     setNewEntry({
       date: getTodayLocal(),
       result: 'breakeven',
@@ -489,7 +503,7 @@ export function Journal() {
       strategyId: buyEntry.strategyId,
       // Pre-fill investment fields
       assetName: buyEntry.assetName || '',
-      action: 'sell',
+      action: 'sell', // FIX: pre-set action to sell
       investmentThesis: '',
       invalidationCondition: '',
       plannedHoldTime: '',
@@ -758,7 +772,7 @@ export function Journal() {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                {checkPointsAvailable() ? 'Add Entry +10 Points' : 'Add Entry'}
+                {checkPointsAvailable() ? 'Add Entry +Points' : 'Add Entry'}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
@@ -814,9 +828,12 @@ export function Journal() {
                   </div>
 
                   {/* Only show Risk:Reward for non-Long Term Hold users */}
-                  {!isLongTermHold && (
-                    <div className="space-y-2">
-                      <Label>Risk:Reward (optional)</Label>
+                  {!isLongTermHold && showingSystem('rr') && (
+                    <div className="space-y-2 relative">
+                      <div className="flex items-center justify-between">
+                        <Label>Risk:Reward (optional)</Label>
+                        <button onClick={() => hideSystem('rr')} className="text-muted-foreground hover:text-foreground" title="Hide field"><X className="w-3 h-3" /></button>
+                      </div>
                       <Input
                         type="number"
                         onWheel={(e) => e.currentTarget.blur()}
@@ -829,20 +846,25 @@ export function Journal() {
                   )}
 
                   {/* P&L field - shown for all users */}
-                  <div className="space-y-2">
-                    <Label>P&L (Profit/Loss in $) - Optional</Label>
-                    <Input
-                      type="number"
-                        onWheel={(e) => e.currentTarget.blur()}
-                      step="0.01"
-                      value={newEntry.pnl ?? ''}
-                      onChange={(e) => setNewEntry({ ...newEntry, pnl: e.target.value ? parseFloat(e.target.value) : undefined })}
-                      placeholder="e.g., 500 for +$500 or -200 for -$200"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Enter positive for profit, negative for loss. This helps calculate your worst trading day.
-                    </p>
-                  </div>
+                  {showingSystem('pnl') && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>P&L (Profit/Loss in $) - Optional</Label>
+                        <button onClick={() => hideSystem('pnl')} className="text-muted-foreground hover:text-foreground" title="Hide field"><X className="w-3 h-3" /></button>
+                      </div>
+                      <Input
+                        type="number"
+                          onWheel={(e) => e.currentTarget.blur()}
+                        step="0.01"
+                        value={newEntry.pnl ?? ''}
+                        onChange={(e) => setNewEntry({ ...newEntry, pnl: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        placeholder="e.g., 500 for +$500 or -200 for -$200"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Enter positive for profit, negative for loss. This helps calculate your worst trading day.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Show % Gain for Long Term Hold users on SELL entries */}
                   {isLongTermHold && newEntry.action === 'sell' && (
@@ -859,19 +881,28 @@ export function Journal() {
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    <Label>Description (optional)</Label>
-                    <Textarea
-                      value={newEntry.description}
-                      onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
-                      placeholder="What happened? What did you learn?"
-                      rows={3}
-                    />
-                  </div>
+                  {showingSystem('description') && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Description (optional)</Label>
+                        <button onClick={() => hideSystem('description')} className="text-muted-foreground hover:text-foreground" title="Hide field"><X className="w-3 h-3" /></button>
+                      </div>
+                      <Textarea
+                        value={newEntry.description}
+                        onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
+                        placeholder="What happened? What did you learn?"
+                        rows={3}
+                      />
+                    </div>
+                  )}
 
                   {/* Screenshot Upload */}
+                  {showingSystem('screenshot') && (
                   <div className="space-y-2">
-                    <Label>Trade Screenshot (optional)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Trade Screenshot (optional)</Label>
+                      <button onClick={() => hideSystem('screenshot')} className="text-muted-foreground hover:text-foreground" title="Hide field"><X className="w-3 h-3" /></button>
+                    </div>
                     <div className="border-2 border-dashed rounded-lg p-4 text-center">
                       <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                       <input
@@ -899,6 +930,7 @@ export function Journal() {
                       </div>
                     )}
                   </div>
+                  )}
 
                   {/* Custom Fields */}
                   {customFields.length > 0 && (

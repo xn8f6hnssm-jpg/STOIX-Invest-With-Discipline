@@ -140,8 +140,6 @@ interface BreathingPhase {
   instruction: string;
 }
 
-
-
 const DEFAULT_AFFIRMATIONS = [
   'I trade my plan with discipline and patience.',
   'I accept small losses as the cost of doing business.',
@@ -162,6 +160,28 @@ const RELIGION_TO_BOOK: Record<string, string> = {
   Sikhism: 'Guru Granth Sahib',
 };
 
+// FIX: 5-hour cooldown helpers
+const MENTAL_PREP_COOLDOWN_MS = 5 * 60 * 60 * 1000;
+
+const getMentalPrepCooldownKey = (userId: string) => `mental_prep_last_${userId}`;
+
+const isMentalPrepOnCooldown = (userId: string): boolean => {
+  const last = localStorage.getItem(getMentalPrepCooldownKey(userId));
+  if (!last) return false;
+  return Date.now() - parseInt(last) < MENTAL_PREP_COOLDOWN_MS;
+};
+
+const getMentalPrepCooldownRemaining = (userId: string): string | null => {
+  const last = localStorage.getItem(getMentalPrepCooldownKey(userId));
+  if (!last) return null;
+  const elapsed = Date.now() - parseInt(last);
+  if (elapsed >= MENTAL_PREP_COOLDOWN_MS) return null;
+  const remaining = MENTAL_PREP_COOLDOWN_MS - elapsed;
+  const h = Math.floor(remaining / 3600000);
+  const m = Math.floor((remaining % 3600000) / 60000);
+  return `${h}h ${m}m`;
+};
+
 export function MentalPreparation({ onComplete, isPreTrade = false }: { onComplete?: () => void; isPreTrade?: boolean }) {
   const [settings, setSettings] = useState<MentalPrepSettings>(() => {
     const saved = storage.getMentalPrepSettings();
@@ -175,8 +195,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
       selectedReligion: 'Islam',
       requireBeforeTrade: false,
     };
-    
-    // Merge saved settings with defaults to ensure quoteSources exists
+
     if (saved) {
       return {
         ...defaultSettings,
@@ -184,7 +203,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
         quoteSources: saved.quoteSources || defaultSettings.quoteSources,
       };
     }
-    
+
     return defaultSettings;
   });
 
@@ -193,6 +212,25 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+
+  // FIX: Completion state — shows "Preparation Complete. +5 Discipline Points Earned."
+  const [completed, setCompleted] = useState(false);
+  const [pointsAwarded, setPointsAwarded] = useState(0);
+
+  // FIX: Cooldown state
+  const [onCooldown, setOnCooldown] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
+
+  const currentUser = storage.getCurrentUser();
+
+  // Check cooldown on mount
+  useEffect(() => {
+    if (currentUser) {
+      const cooldown = getMentalPrepCooldownRemaining(currentUser.id);
+      setOnCooldown(isMentalPrepOnCooldown(currentUser.id));
+      setCooldownRemaining(cooldown);
+    }
+  }, [currentUser?.id]);
 
   // Breathing exercise state
   const [breathingActive, setBreathingActive] = useState(false);
@@ -205,43 +243,34 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     { phase: 'exhale', duration: 4000, instruction: 'Breathe Out' },
   ];
 
-  // Random selections - compute from settings directly
   const [selectedTradingQuote] = useState(() => TRADING_QUOTES[Math.floor(Math.random() * TRADING_QUOTES.length)]);
-  
+
   const [selectedGeneralQuote] = useState(() => {
-    // Get settings directly from storage for initialization
     const saved = storage.getMentalPrepSettings();
     const quoteSources = saved?.quoteSources || ['movies', 'books', 'anime', 'philosophy', 'sports'];
-    
-    // Get all quotes from enabled sources
     const enabledQuotes = quoteSources.flatMap(source => CATEGORIZED_QUOTES[source as keyof typeof CATEGORIZED_QUOTES] || []);
     return enabledQuotes.length > 0 ? enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)] : '';
   });
 
-  // Show user affirmations first (newest = last added), fall back to defaults
   const [selectedAffirmation] = useState(() => {
     const userAffirms = storage.getAffirmations();
     if (userAffirms.length > 0) {
-      // Show most recent user affirmation first, then random
       return userAffirms[userAffirms.length - 1];
     }
     return DEFAULT_AFFIRMATIONS[Math.floor(Math.random() * DEFAULT_AFFIRMATIONS.length)];
   });
-  
-  // Dynamically compute religious text based on current settings
+
   const selectedReligiousText = (() => {
     const texts = RELIGIOUS_TEXTS[settings.selectedReligion as keyof typeof RELIGIOUS_TEXTS] || [];
     return texts.length > 0 ? texts[Math.floor(Math.random() * texts.length)] : '';
   })();
 
-  // Save settings
   const updateSettings = (updates: Partial<MentalPrepSettings>) => {
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     storage.saveMentalPrepSettings(newSettings);
   };
 
-  // Toggle quote source
   const toggleQuoteSource = (source: string) => {
     const newSources = settings.quoteSources.includes(source)
       ? settings.quoteSources.filter(s => s !== source)
@@ -249,7 +278,6 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     updateSettings({ quoteSources: newSources });
   };
 
-  // Affirmation management
   const addAffirmation = () => {
     if (newAffirmation.trim()) {
       const updated = [...affirmations, newAffirmation.trim()];
@@ -286,7 +314,6 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     setEditText('');
   };
 
-  // Breathing exercise
   const startBreathing = () => {
     setBreathingActive(true);
     setBreathingPhase(0);
@@ -319,31 +346,81 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     return () => clearInterval(interval);
   }, [breathingActive, breathingPhase]);
 
+  // FIX: Complete with 5-hour cooldown + visual confirmation state
   const handleComplete = () => {
-    // Track completion
     storage.trackMentalPrepCompletion(true);
-    
-    // Award 5 points for completing mental preparation
-    const currentUser = storage.getCurrentUser();
-    if (currentUser) {
+
+    const user = storage.getCurrentUser();
+    let awarded = 0;
+
+    // FIX: Only award points if NOT on cooldown
+    if (user && !isMentalPrepOnCooldown(user.id)) {
+      awarded = 5;
       storage.updateCurrentUser({
-        totalPoints: (currentUser.totalPoints || 0) + 5
+        totalPoints: (user.totalPoints || 0) + 5,
       });
+      // FIX: Store cooldown timestamp (5 hours)
+      localStorage.setItem(getMentalPrepCooldownKey(user.id), Date.now().toString());
     }
-    
+
+    setPointsAwarded(awarded);
+    setCompleted(true); // FIX: Show confirmation state
+
+    if (onComplete) {
+      setTimeout(() => onComplete(), 1500);
+    }
+  };
+
+  const handleSkip = () => {
+    storage.trackMentalPrepCompletion(false);
+
     if (onComplete) {
       onComplete();
     }
   };
 
-  const handleSkip = () => {
-    // Track skip (no points awarded)
-    storage.trackMentalPrepCompletion(false);
-    
-    if (onComplete) {
-      onComplete();
-    }
-  };
+  // FIX: Show confirmation screen after completion — with back button and live cooldown
+  if (completed) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-3xl">
+        <div className="flex flex-col items-center justify-center py-12 text-center space-y-5">
+          <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center">
+            <CheckCircle2 className="w-10 h-10 text-green-500" />
+          </div>
+          <h2 className="text-2xl font-bold">Preparation Complete</h2>
+          {pointsAwarded > 0 ? (
+            <div className="space-y-1">
+              <p className="text-xl font-bold text-green-600">
+                +{pointsAwarded} Discipline Points Earned 🏆
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Points available in: <span className="font-semibold text-foreground">
+                  {getMentalPrepCooldownRemaining(currentUser?.id || '') || '5h 0m'}
+                </span>
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">Points on cooldown</p>
+              <p className="text-sm text-muted-foreground">
+                Available in: <span className="font-semibold text-foreground">
+                  {getMentalPrepCooldownRemaining(currentUser?.id || '') || 'a few hours'}
+                </span>
+              </p>
+            </div>
+          )}
+          <p className="text-muted-foreground text-sm">You're focused and ready. Trade with discipline.</p>
+          <Button
+            variant="outline"
+            onClick={() => setCompleted(false)}
+            className="mt-2"
+          >
+            ← Back to Preparation
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (showSettings) {
     return (
@@ -400,7 +477,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                   <p className="text-sm text-muted-foreground">Select quote sources:</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex items-center space-x-2">
-                      <Checkbox 
+                      <Checkbox
                         id="source-movies"
                         checked={settings.quoteSources.includes('movies')}
                         onCheckedChange={() => toggleQuoteSource('movies')}
@@ -410,7 +487,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Checkbox 
+                      <Checkbox
                         id="source-books"
                         checked={settings.quoteSources.includes('books')}
                         onCheckedChange={() => toggleQuoteSource('books')}
@@ -420,7 +497,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Checkbox 
+                      <Checkbox
                         id="source-anime"
                         checked={settings.quoteSources.includes('anime')}
                         onCheckedChange={() => toggleQuoteSource('anime')}
@@ -430,7 +507,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Checkbox 
+                      <Checkbox
                         id="source-philosophy"
                         checked={settings.quoteSources.includes('philosophy')}
                         onCheckedChange={() => toggleQuoteSource('philosophy')}
@@ -440,7 +517,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Checkbox 
+                      <Checkbox
                         id="source-sports"
                         checked={settings.quoteSources.includes('sports')}
                         onCheckedChange={() => toggleQuoteSource('sports')}
@@ -623,16 +700,25 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
         </p>
       </div>
 
-      {isPreTrade && (
-        <Alert className="mb-6 bg-purple-500/10 border-purple-500/20">
-          <Brain className="h-4 w-4 text-purple-500" />
+      {/* FIX: Show cooldown info */}
+      {onCooldown && !isPreTrade && (
+        <Alert className="mb-6 bg-muted border-muted-foreground/20">
           <AlertDescription className="text-sm">
-            Complete your mental preparation to continue to the journal entry (+5 points)
+            ⏳ Points on cooldown — available again in <span className="font-bold">{cooldownRemaining}</span>. You can still complete preparation for mindset benefits.
           </AlertDescription>
         </Alert>
       )}
 
-      {!isPreTrade && (
+      {isPreTrade && (
+        <Alert className="mb-6 bg-purple-500/10 border-purple-500/20">
+          <Brain className="h-4 w-4 text-purple-500" />
+          <AlertDescription className="text-sm">
+            Complete your mental preparation to continue to the journal entry {!onCooldown ? '(+5 points)' : ''}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!isPreTrade && !onCooldown && (
         <Alert className="mb-6 bg-green-500/10 border-green-500/20">
           <CheckCircle2 className="h-4 w-4 text-green-500" />
           <AlertDescription className="text-sm">
@@ -722,9 +808,9 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                 <p className="text-sm text-muted-foreground">
                   No affirmations added yet. Go to settings to add your personal affirmations.
                 </p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="mt-3"
                   onClick={() => setShowSettings(true)}
                 >
@@ -814,7 +900,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
           ) : (
             <Button onClick={handleComplete} size="lg" className="w-full">
               <CheckCircle2 className="w-5 h-5 mr-2" />
-              Complete Preparation (+5 Points)
+              Complete Preparation {!onCooldown ? '(+5 Points)' : ''}
             </Button>
           )}
         </div>
