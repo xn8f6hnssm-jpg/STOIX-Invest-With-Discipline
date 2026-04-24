@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router';
-import { Home, BookOpen, Users, Shield, Menu, Brain, Award, UsersRound, DollarSign, CheckCircle, Trophy, Sparkles } from 'lucide-react';
+import { Home, BookOpen, Users, Shield, Menu, Brain, Award, UsersRound, CheckCircle, Trophy, Sparkles } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Logo } from '../components/Logo';
-import { signOut } from '../utils/auth';
+import { signOut, syncUserToSupabase } from '../utils/auth';
 import { PremiumBadge } from '../components/PremiumBadge';
 import { getCurrentUser } from '../utils/supabase';
 import { storage } from '../utils/storage';
@@ -22,36 +22,34 @@ export function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isPremium] = useState(false); // TODO: Load from user profile
+  const [isPremium] = useState(false);
 
-  // Sync Supabase user with localStorage on mount
   useEffect(() => {
     const syncUser = async () => {
-      // FIRST: Check if we have a localStorage user (for local development)
       const localUser = storage.getCurrentUser();
-      
-      // Check if user just completed onboarding
+
       const justCompletedOnboarding = sessionStorage.getItem('just_completed_onboarding');
       if (justCompletedOnboarding) {
-        console.log('🎓 User just completed onboarding, skipping sync to preserve onboarding data');
+        console.log('🎓 User just completed onboarding, skipping sync');
         sessionStorage.removeItem('just_completed_onboarding');
-        return; // Don't overwrite the onboarding data
+        // Still sync to Supabase even after onboarding
+        await syncUserToSupabase();
+        return;
       }
-      
-      // If we have a localStorage user, we're good - no need to check Supabase
+
       if (localUser) {
         console.log('✅ LocalStorage user found:', localUser.username);
-        return; // User is logged in via localStorage
+        // Sync to Supabase in background every time app loads
+        syncUserToSupabase().catch(err => console.error('Background sync failed:', err));
+        return;
       }
-      
-      // Only check Supabase if no localStorage user exists
+
       const supabaseUser = await getCurrentUser();
       if (supabaseUser) {
-        // Create or update user in localStorage from Supabase data
         const userData = {
           id: supabaseUser.id,
           email: supabaseUser.email || '',
-          password: '', // Not stored for security
+          password: '',
           username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || '',
           name: supabaseUser.user_metadata?.name || 'Trader',
           tradingStyle: supabaseUser.user_metadata?.tradingStyle || '',
@@ -67,21 +65,16 @@ export function MainLayout() {
           profilePicture: '',
           isPremium: false,
         };
-        
-        // Save to localStorage
         storage.setCurrentUser(userData);
         console.log('✅ User synced from Supabase to localStorage:', userData.username);
-        
-        // Initialize demo data for new users
+        await syncUserToSupabase();
         initializeDemoData();
-        console.log('✅ Demo data initialized for new user');
       } else {
-        // No localStorage user AND no Supabase session, redirect to login
-        console.log('⚠️ No user found in localStorage or Supabase, redirecting to onboarding');
+        console.log('⚠️ No user found, redirecting to onboarding');
         navigate('/');
       }
     };
-    
+
     syncUser();
   }, [navigate]);
 
@@ -101,9 +94,7 @@ export function MainLayout() {
   };
 
   const isActive = (path: string) => {
-    if (path === '/app') {
-      return location.pathname === path;
-    }
+    if (path === '/app') return location.pathname === path;
     return location.pathname.startsWith(path);
   };
 
@@ -114,7 +105,6 @@ export function MainLayout() {
         <div className="border-b bg-card">
           <div className="px-4 py-3 flex items-center justify-between">
             <Logo size="sm" />
-            
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -129,112 +119,40 @@ export function MainLayout() {
                 <div className="py-6 space-y-4">
                   <Separator />
                   <nav className="space-y-2">
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/ai-analytics');
-                        setMenuOpen(false);
-                      }}
-                    >
-                      <Brain className="w-4 h-4 mr-2" />
-                      AI Analytics
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/ai-analytics'); setMenuOpen(false); }}>
+                      <Brain className="w-4 h-4 mr-2" /> AI Analytics
                       {isPremium && <PremiumBadge size="sm" className="ml-2" />}
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/mental-prep');
-                        setMenuOpen(false);
-                      }}
-                    >
-                      <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
-                      Mental Preparation
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/mental-prep'); setMenuOpen(false); }}>
+                      <Sparkles className="w-4 h-4 mr-2 text-purple-500" /> Mental Preparation
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/achievements');
-                        setMenuOpen(false);
-                      }}
-                    >
-                      <Award className="w-4 h-4 mr-2" />
-                      Achievements
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/achievements'); setMenuOpen(false); }}>
+                      <Award className="w-4 h-4 mr-2" /> Achievements
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/prop-firm-success');
-                        setMenuOpen(false);
-                      }}
-                    >
-                      <Trophy className="w-4 h-4 mr-2" />
-                      Prop Firm Success
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/prop-firm-success'); setMenuOpen(false); }}>
+                      <Trophy className="w-4 h-4 mr-2" /> Prop Firm Success
                       {isPremium && <PremiumBadge size="sm" className="ml-2" />}
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/groups');
-                        setMenuOpen(false);
-                      }}
-                    >
-                      <UsersRound className="w-4 h-4 mr-2" />
-                      Groups
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/groups'); setMenuOpen(false); }}>
+                      <UsersRound className="w-4 h-4 mr-2" /> Groups
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/messages');
-                        setMenuOpen(false);
-                      }}
-                    >
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/messages'); setMenuOpen(false); }}>
                       Direct Messages
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/notifications');
-                        setMenuOpen(false);
-                      }}
-                    >
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/notifications'); setMenuOpen(false); }}>
                       Notifications
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/settings');
-                        setMenuOpen(false);
-                      }}
-                    >
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/settings'); setMenuOpen(false); }}>
                       Settings
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/edit-rules');
-                        setMenuOpen(false);
-                      }}
-                    >
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/edit-rules'); setMenuOpen(false); }}>
                       Edit Rules
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/app/upgrade');
-                        setMenuOpen(false);
-                      }}
-                    >
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/upgrade'); setMenuOpen(false); }}>
                       Upgrade
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/legal'); setMenuOpen(false); }}>
+                      Legal
                     </Button>
                   </nav>
                   <Separator />
@@ -259,21 +177,15 @@ export function MainLayout() {
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path);
-                
                 return (
                   <button
                     key={item.path}
                     onClick={() => navigate(item.path)}
                     className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
-                      active
-                        ? 'text-primary bg-primary/10'
-                        : 'text-muted-foreground hover:text-foreground'
-                    } ${item.highlight ? 'relative' : ''}`}
+                      active ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'
+                    }`}
                   >
-                    {item.highlight && (
-                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
-                    )}
-                    <Icon className={`w-5 h-5 ${item.highlight && active ? 'scale-110' : ''}`} />
+                    <Icon className="w-5 h-5" />
                     <span className="text-xs font-medium">{item.label}</span>
                   </button>
                 );

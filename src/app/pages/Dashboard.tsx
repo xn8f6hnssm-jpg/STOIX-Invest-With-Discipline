@@ -11,7 +11,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Plus, Trophy, XCircle, Target, TrendingUp, Trash2, Edit, Users, Share2 } from 'lucide-react';
+import { Plus, Trophy, XCircle, Target, TrendingUp, Trash2, Edit, Users } from 'lucide-react';
 
 // ── League tier gradient map ──────────────────────────────────────────────────
 const TIER_GRADIENTS: Record<string, { bg: string; shield: string; text: string }> = {
@@ -93,8 +93,7 @@ export function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   // NEW: followers/following modal
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
-  // NEW: share card period
-  const [sharePeriod, setSharePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'overall'>('weekly');
+  const [sharePeriod, setSharePeriod] = useState<'today'|'week'|'month'|'year'|'overall'>('overall');
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -211,22 +210,8 @@ export function Dashboard() {
 
   const fmtPnL = (val: number) => `${val >= 0 ? '+' : ''}$${Math.abs(val).toFixed(0)}`;
 
-  // Pre-compute share card period stats (avoids IIFE inside JSX which breaks Babel)
-  const _now = new Date();
-  const _todayS = _now.toISOString().split('T')[0];
-  const _weekStart = new Date(_now); _weekStart.setDate(_now.getDate() - _now.getDay());
-  const _weekS = _weekStart.toISOString().split('T')[0];
-  const _monthS = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-01`;
-  const _yearS = `${_now.getFullYear()}-01-01`;
-  const shareFrom = sharePeriod === 'daily' ? _todayS : sharePeriod === 'weekly' ? _weekS : sharePeriod === 'monthly' ? _monthS : sharePeriod === 'yearly' ? _yearS : '2000-01-01';
-  const shareEntries = entriesForStats.filter(e => e.date >= shareFrom);
-  const shareLogs = storage.getDayLogs().filter(l => l.userId === user.id && l.date >= shareFrom);
-  const shareWins = shareEntries.filter(e => e.result === 'win' || e.result === 'breakeven').length;
-  const shareClean = shareLogs.filter(l => l.isClean).length;
-  const shareDiscipline = shareLogs.length > 0 ? Math.round((shareClean / shareLogs.length) * 100) : disciplineRate;
-  const sharePeriodLabel = sharePeriod === 'daily' ? "Today's" : sharePeriod === 'weekly' ? "This Week's" : sharePeriod === 'monthly' ? "This Month's" : sharePeriod === 'yearly' ? "This Year's" : 'All-Time';
 
-  return (
+  // Build follower/following lists
   // getFollowing() returns array of user IDs that the CURRENT user follows
   const allUsers = storage.getAllUsers();
   const myFollowingIds = storage.getFollowing() || [];
@@ -235,7 +220,6 @@ export function Dashboard() {
   const followerList = allUsers.filter(u => {
     if (u.id === user.id) return false;
     try {
-      // Try storage method if it exists, otherwise skip
       const theirFollowing = (storage as any).getFollowingForUser?.(u.id) || [];
       return theirFollowing.includes(user.id);
     } catch {
@@ -426,61 +410,23 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* ── Share Card — period selector ── */}
-      <Card className="border-2 border-primary/10">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="font-semibold text-sm flex items-center gap-2">
-              <Share2 className="w-4 h-4 text-primary" />
-              Share Progress
-            </p>
-            {/* Period pill selector */}
-            <div className="flex gap-1 bg-muted rounded-lg p-1">
-              {(['daily','weekly','monthly','yearly','overall'] as const).map(p => (
-                <button
-                  key={p}
-                  onClick={() => setSharePeriod(p)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                    sharePeriod === p
-                      ? 'bg-background shadow text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {p === 'daily' ? 'Today' : p === 'weekly' ? 'Week' : p === 'monthly' ? 'Month' : p === 'yearly' ? 'Year' : 'All'}
-                </button>
-              ))}
-            </div>
+      {/* ── Share Card ── */}
+      <Card className="border border-border">
+        <CardContent className="pt-4 pb-4 space-y-3">
+          <div className="flex gap-1 bg-muted rounded-lg p-1">
+            {(['today','week','month','year','overall'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setSharePeriod(p)}
+                className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  sharePeriod === p ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {p === 'today' ? 'Today' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : p === 'year' ? 'Year' : 'All'}
+              </button>
+            ))}
           </div>
-
-          {/* Share card preview */}
-          <div className="rounded-xl border bg-gradient-to-br from-background to-muted/30 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-xs text-muted-foreground">{sharePeriodLabel} Progress</p>
-                <p className="font-bold text-base">{user.username}</p>
-              </div>
-              <div className="text-right">
-                <p className={`text-2xl font-bold ${shareDiscipline >= 80 ? 'text-green-500' : shareDiscipline >= 60 ? 'text-yellow-500' : 'text-red-500'}`}>
-                  {shareDiscipline}%
-                </p>
-                <p className="text-xs text-muted-foreground">Discipline</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 gap-2 mb-3">
-              {[
-                { label: 'Trades', val: shareEntries.length, color: '' },
-                { label: 'Wins',   val: shareWins,           color: 'text-green-500' },
-                { label: 'Streak', val: `${user.currentStreak ?? 0}d`, color: '' },
-                { label: league.tier, val: league.roman,     color: '' },
-              ].map(({ label, val, color }) => (
-                <div key={label} className="text-center p-2 rounded-lg bg-background border">
-                  <p className={`font-bold text-sm ${color}`}>{val}</p>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                </div>
-              ))}
-            </div>
-            <DisciplineShareCard period={sharePeriod} />
-          </div>
+          <DisciplineShareCard key={sharePeriod} range={sharePeriod} />
         </CardContent>
       </Card>
 

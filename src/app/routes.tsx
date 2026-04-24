@@ -24,6 +24,7 @@ import { Achievements } from "./pages/Achievements";
 import { PropFirmSuccess } from "./pages/PropFirmSuccess";
 import { MentalPreparation } from "./pages/MentalPreparation";
 import { DebugStorage } from "./pages/DebugStorage";
+import { TermsAndPrivacy } from "./pages/TermsAndPrivacy";
 
 export const router = createBrowserRouter([
   {
@@ -129,6 +130,10 @@ export const router = createBrowserRouter([
       {
         path: "debug-storage",
         element: <DebugStorage />,
+      },
+      {
+        path: "legal",
+        element: <TermsAndPrivacy />,
       },
     ],
   },

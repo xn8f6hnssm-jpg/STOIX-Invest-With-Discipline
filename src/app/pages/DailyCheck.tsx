@@ -78,6 +78,7 @@ function SummaryScreen({
   isNoTradeDay,
   selectedForfeit,
   onNavigate,
+  onStartNew,
   userId,
 }: {
   isClean: boolean;
@@ -87,18 +88,21 @@ function SummaryScreen({
   isNoTradeDay: boolean;
   selectedForfeit: string;
   onNavigate: () => void;
+  onStartNew: () => void;
   userId?: string;
 }) {
   const [countdown, setCountdown] = useState<string>('');
+  const [available, setAvailable] = useState(false);
 
   useEffect(() => {
     const update = () => {
       if (!userId) return;
       const last = localStorage.getItem(`daily_check_last_${userId}`);
-      if (!last) return;
+      if (!last) { setAvailable(true); setCountdown('Available now'); return; }
       const elapsed = Date.now() - parseInt(last);
       const remaining = COOLDOWN_MS - elapsed;
-      if (remaining <= 0) { setCountdown('Available now'); return; }
+      if (remaining <= 0) { setAvailable(true); setCountdown('Available now'); return; }
+      setAvailable(false);
       const h = Math.floor(remaining / 3600000);
       const m = Math.floor((remaining % 3600000) / 60000);
       setCountdown(`${h}h ${m}m`);
@@ -179,9 +183,20 @@ function SummaryScreen({
         </CardContent>
       </Card>
 
-      <Button onClick={onNavigate} className="w-full h-12 text-base font-semibold">
-        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-      </Button>
+      {available ? (
+        <div className="space-y-2">
+          <Button onClick={onStartNew} className="w-full h-12 text-base font-semibold">
+            Start New Daily Check
+          </Button>
+          <Button onClick={onNavigate} variant="outline" className="w-full">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+          </Button>
+        </div>
+      ) : (
+        <Button onClick={onNavigate} className="w-full h-12 text-base font-semibold">
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+        </Button>
+      )}
     </div>
   );
 }
@@ -221,22 +236,29 @@ export function DailyCheck() {
 
   useEffect(() => {
     const todayLog = storage.getTodayLog();
+    const cooldown = getCooldownRemaining();
 
-    if (todayLog) {
-      // Always show summary if they've already completed today — restore all state from log
+    if (todayLog && cooldown !== null) {
+      // Cooldown still active — show summary of what they already logged
       setStep('summary');
       setPointsEarned(todayLog.pointsEarned ?? 0);
       setIsClean(todayLog.isClean ?? true);
       setNote(todayLog.note || '');
       setPhotoPreview(todayLog.photoUrl || '');
       setSelectedForfeit(todayLog.forfeitCompleted || '');
-      // isNoTradeDay: true if clean day with no forfeit and note exists but no photo required
       setIsNoTradeDay(!!todayLog.isNoTradeDay);
     }
+    // If cooldown expired (cooldown === null), always go to 'question' step
+    // so the user can do a new check regardless of whether they logged before
 
-    setCooldownRemaining(storage.getDailyCheckCooldown());
+    setCooldownRemaining(cooldown);
     const interval = setInterval(() => {
-      setCooldownRemaining(storage.getDailyCheckCooldown());
+      const remaining = getCooldownRemaining();
+      setCooldownRemaining(remaining);
+      // When cooldown expires while on summary, kick user back to question
+      if (remaining === null && step === 'summary') {
+        setStep('question');
+      }
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -754,6 +776,17 @@ export function DailyCheck() {
           isNoTradeDay={isNoTradeDay}
           selectedForfeit={selectedForfeit}
           onNavigate={() => navigate('/app')}
+          onStartNew={() => {
+            // Reset all state and go back to question step
+            setStep('question');
+            setIsClean(false);
+            setNote('');
+            setPhotoPreview('');
+            setPhotoFile(null);
+            setSelectedForfeit('');
+            setIsNoTradeDay(false);
+            setPointsEarned(0);
+          }}
           userId={user?.id}
         />
       )}

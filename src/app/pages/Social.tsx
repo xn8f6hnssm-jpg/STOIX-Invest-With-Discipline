@@ -37,27 +37,22 @@ export function Social() {
 
   const handleLike = (postId: string) => {
     if (likedPosts.has(postId)) {
-      // Unlike: decrement count locally, remove from liked set
-      const updated = posts.map(p =>
-        p.id === postId ? { ...p, likes: Math.max(0, p.likes - 1) } : p
-      );
-      setPosts(updated);
-      const newLiked = new Set(likedPosts);
-      newLiked.delete(postId);
-      setLikedPosts(newLiked);
-      // Persist liked list if storage supports it
-      try { (storage as any).setLikedPosts?.([...newLiked]); } catch {}
-      return;
-    }
-    // Like
-    storage.likePost(postId);
-    setPosts(storage.getPosts());
-    const newLiked = new Set([...likedPosts, postId]);
-    setLikedPosts(newLiked);
-    try { (storage as any).setLikedPosts?.([...newLiked]); } catch {}
-    const post = storage.getPosts().find(p => p.id === postId);
-    if (post && post.userId !== currentUser?.id) {
-      storage.addNotification({ userId: post.userId, type: 'like', fromId: currentUser?.id });
+      // Unlike — purely local
+      setPosts(prev => prev.map(p =>
+        p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p
+      ));
+      setLikedPosts(prev => { const s = new Set(prev); s.delete(postId); return s; });
+    } else {
+      // Like — update storage then sync local state
+      storage.likePost(postId);
+      setPosts(prev => prev.map(p =>
+        p.id === postId ? { ...p, likes: (p.likes || 0) + 1 } : p
+      ));
+      setLikedPosts(prev => new Set([...prev, postId]));
+      const post = posts.find(p => p.id === postId);
+      if (post && post.userId !== currentUser?.id) {
+        storage.addNotification({ userId: post.userId, type: 'like', fromId: currentUser?.id });
+      }
     }
   };
 
@@ -220,36 +215,37 @@ export function Social() {
     return colors[result as keyof typeof colors] || colors.breakeven;
   };
 
+  // Get leaderboard data
   const getLeaderboardData = () => {
-  if (typeof window === "undefined") return [];
+    const allUsers = storage.getAllUsers();
+    
+    const uniqueUsers = Array.from(
+      new Map(allUsers.map(user => [user.id, user])).values()
+    );
+    
+    return uniqueUsers
+      .map(user => {
+        const totalDays = (user.cleanDays || 0) + (user.forfeitDays || 0);
+        const disciplineRate = getDisciplineRate(user.cleanDays || 0, totalDays);
+        const journalEntries = storage.getJournalEntries().filter(e => e.userId === user.id);
+        const dailyCheckCount = (user.cleanDays || 0) + (user.forfeitDays || 0);
+        
+        return {
+          ...user,
+          disciplineRate,
+          journalCount: journalEntries.length,
+          dailyCheckCount,
+        };
+      })
+      .sort((a, b) => {
+        // Primary: discipline % DESC, Secondary: total points DESC
+        if (b.disciplineRate !== a.disciplineRate) {
+          return b.disciplineRate - a.disciplineRate;
+        }
+        return (b.totalPoints || 0) - (a.totalPoints || 0);
+      });
+  };
 
-  const allUsers = storage.getAllUsers() || [];
-
-  const uniqueUsers = Array.from(
-    new Map(allUsers.map(user => [user.id, user])).values()
-  );
-
-  return uniqueUsers
-    .map(user => {
-      const totalDays = (user.cleanDays || 0) + (user.forfeitDays || 0);
-      const disciplineRate = getDisciplineRate(user.cleanDays || 0, totalDays);
-      const journalEntries = storage.getJournalEntries().filter(e => e.userId === user.id);
-      const dailyCheckCount = (user.cleanDays || 0) + (user.forfeitDays || 0);
-
-      return {
-        ...user,
-        disciplineRate,
-        journalCount: journalEntries.length,
-        dailyCheckCount,
-      };
-    })
-    .sort((a, b) => {
-      if (b.disciplineRate !== a.disciplineRate) {
-        return b.disciplineRate - a.disciplineRate;
-      }
-      return (b.totalPoints || 0) - (a.totalPoints || 0);
-    });
-};
   const leaderboardData = getLeaderboardData();
 
   // Handle follow/unfollow
@@ -987,7 +983,7 @@ export function Social() {
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span className="font-medium">{league.name} {league.roman}</span>
+                            <span className="font-medium">{league.name}{league.roman ? ` ${league.roman}` : ''}</span>
                             <span>·</span>
                             <span>{user.dailyCheckCount} check-ins</span>
                           </div>

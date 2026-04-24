@@ -223,13 +223,17 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
 
   const currentUser = storage.getCurrentUser();
 
-  // Check cooldown on mount
+  // Check cooldown on mount and update every minute
   useEffect(() => {
-    if (currentUser) {
-      const cooldown = getMentalPrepCooldownRemaining(currentUser.id);
+    if (!currentUser) return;
+    const update = () => {
+      const remaining = getMentalPrepCooldownRemaining(currentUser.id);
       setOnCooldown(isMentalPrepOnCooldown(currentUser.id));
-      setCooldownRemaining(cooldown);
-    }
+      setCooldownRemaining(remaining);
+    };
+    update();
+    const interval = setInterval(update, 60000);
+    return () => clearInterval(interval);
   }, [currentUser?.id]);
 
   // Breathing exercise state
@@ -252,13 +256,10 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     return enabledQuotes.length > 0 ? enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)] : '';
   });
 
-  const [selectedAffirmation] = useState(() => {
-    const userAffirms = storage.getAffirmations();
-    if (userAffirms.length > 0) {
-      return userAffirms[userAffirms.length - 1];
-    }
-    return DEFAULT_AFFIRMATIONS[Math.floor(Math.random() * DEFAULT_AFFIRMATIONS.length)];
-  });
+  // Derive selectedAffirmation from current affirmations state so it updates live
+  const selectedAffirmation = affirmations.length > 0
+    ? affirmations[affirmations.length - 1]
+    : DEFAULT_AFFIRMATIONS[Math.floor(Math.random() * DEFAULT_AFFIRMATIONS.length)];
 
   const selectedReligiousText = (() => {
     const texts = RELIGIOUS_TEXTS[settings.selectedReligion as keyof typeof RELIGIOUS_TEXTS] || [];
@@ -279,12 +280,12 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
   };
 
   const addAffirmation = () => {
-    if (newAffirmation.trim()) {
-      const updated = [...affirmations, newAffirmation.trim()];
-      setAffirmations(updated);
-      storage.saveAffirmations(updated);
-      setNewAffirmation('');
-    }
+    if (!newAffirmation.trim()) return;
+    const updated = [...affirmations, newAffirmation.trim()];
+    setAffirmations(updated);
+    storage.saveAffirmations(updated);
+    setNewAffirmation('');
+    // Stay on current screen — no navigation or state change
   };
 
   const deleteAffirmation = (index: number) => {
@@ -364,7 +365,11 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     }
 
     setPointsAwarded(awarded);
-    setCompleted(true); // FIX: Show confirmation state
+    setCompleted(true);
+
+    // Update cooldown state immediately so the button switches right away
+    setOnCooldown(true);
+    setCooldownRemaining(getMentalPrepCooldownRemaining(user?.id || '') || '5h 0m');
 
     if (onComplete) {
       setTimeout(() => onComplete(), 1500);
@@ -897,10 +902,17 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                 Skip
               </Button>
             </>
+          ) : onCooldown ? (
+            // Cooldown active — show timer, no button
+            <div className="w-full flex flex-col items-center gap-2 p-4 rounded-xl bg-muted border">
+              <p className="text-sm font-semibold text-muted-foreground">⏳ Cooldown active</p>
+              <p className="text-lg font-bold">Available in {cooldownRemaining}</p>
+              <p className="text-xs text-muted-foreground">You can still use the preparation for mindset benefits</p>
+            </div>
           ) : (
             <Button onClick={handleComplete} size="lg" className="w-full">
               <CheckCircle2 className="w-5 h-5 mr-2" />
-              Complete Preparation {!onCooldown ? '(+5 Points)' : ''}
+              Complete Preparation (+5 Points)
             </Button>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -10,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { BookOpen, Plus, Upload, Camera, X, Calendar, TrendingUp, TrendingDown, Minus, Lock, Pencil, Check } from 'lucide-react';
+import { BookOpen, Plus, Upload, Camera, X, Calendar, TrendingUp, TrendingDown, Minus, Lock, Pencil, Check, Edit2, Trash2 } from 'lucide-react';
 import { storage, JournalEntry, JournalFieldDefinition } from '../utils/storage';
 import { PremiumGate } from '../components/PremiumGate';
 import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal';
@@ -23,6 +23,21 @@ import { Settings } from 'lucide-react';
 import { RevengeTradingAlert } from '../components/RevengeTradingAlert';
 import { PreTradeChecklist } from '../components/PreTradeChecklist';
 import { BehaviorRiskAlert, BehaviorRiskType } from '../components/BehaviorRiskAlert';
+
+// ── User-specific field storage helpers ──────────────────────────────────────
+// Fields are stored per-user so different accounts have independent field sets
+const getUserFieldsKey = (userId: string) => `tradeforge_journal_fields_${userId}`;
+
+const getUserFields = (userId: string): any[] => {
+  try {
+    return JSON.parse(localStorage.getItem(getUserFieldsKey(userId)) || '[]');
+  } catch { return []; }
+};
+
+const saveUserFields = (userId: string, fields: any[]) => {
+  localStorage.setItem(getUserFieldsKey(userId), JSON.stringify(fields));
+};
+
 
 // Trading journal with live and backtesting tabs
 
@@ -46,9 +61,10 @@ export function Journal() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'live' | 'backtesting'>('live');
   const [selectedStrategy, setSelectedStrategy] = useState<string>('all'); // NEW: Strategy filter
-  const [entries, setEntries] = useState(sortNewest(storage.getJournalEntries()));
+  const [entries, setEntries] = useState(sortNewest(storage.getJournalEntries().filter(e => e.userId === (storage.getCurrentUser()?.id || ''))));
   const [backtestingEntries, setBacktestingEntries] = useState(sortNewest(storage.getBacktestingEntries()));
-  const [customFields, setCustomFields] = useState(storage.getJournalFields());
+  const currentUserId = storage.getCurrentUser()?.id || '';
+  const [customFields, setCustomFields] = useState(getUserFields(currentUserId));
   const [strategies, setStrategies] = useState(storage.getStrategies()); // NEW: Strategies
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isFieldsDialogOpen, setIsFieldsDialogOpen] = useState(false);
@@ -121,6 +137,7 @@ export function Journal() {
     invalidationCondition: '',
     plannedHoldTime: '',
     sellReason: undefined as 'thesis_broken' | 'emotional_reaction' | 'planned_exit' | undefined,
+    beResolution: undefined as 'continued_win' | 'continued_loss' | 'stayed_breakeven' | undefined,
   });
   const [hiddenFieldsForEntry, setHiddenFieldsForEntry] = useState<string[]>([]);
   // NEW: Track which optional preset fields the user has hidden for this entry
@@ -131,8 +148,13 @@ export function Journal() {
     name: '',
     type: 'text' as 'text' | 'number' | 'checkbox' | 'dropdown' | 'time' | 'image',
     options: [] as string[],
+    category: 'confluence' as 'confluence' | 'time' | 'trade_number' | 'emotion' | 'other',
+    otherLabel: '',
   });
   const [newFieldOption, setNewFieldOption] = useState('');
+  const [editingField, setEditingField] = useState<any | null>(null);
+  const [editFieldOption, setEditFieldOption] = useState('');
+  const fieldsDialogScrollRef = useRef<HTMLDivElement>(null);
 
   // Check if points are available (6 hour cooldown)
   const checkPointsAvailable = () => {
@@ -205,8 +227,8 @@ export function Journal() {
       }
 
       // If they clicked OK, ask them to confirm the sell reason
-      if (!newEntry.sellReason) {
-        alert('Please select a Sell Reason before continuing.');
+      if (!newEntry.customFields?.whySell) {
+        alert('Please fill in the "Why did you sell?" field before continuing.');
         return;
       }
     }
@@ -320,6 +342,7 @@ export function Journal() {
         pointsAwarded: shouldAwardPoints,
         timestamp: Date.now(),
         strategyId: newEntry.strategyId,
+        beResolution: newEntry.beResolution,
         // Investment fields for Long Term Hold users
         assetName: isLongTermHold ? newEntry.assetName : undefined,
         action: isLongTermHold ? newEntry.action : undefined,
@@ -380,16 +403,35 @@ export function Journal() {
 
   const handleAddField = () => {
     if (!newField.name) return;
-
-    const field = storage.addJournalField({
+    const field = {
+      id: String(Date.now()),
       name: newField.name,
       type: newField.type,
       options: newField.type === 'dropdown' ? newField.options : undefined,
-    });
-
-    setCustomFields([...customFields, field]);
-    setNewField({ name: '', type: 'text', options: [] });
+      category: newField.category,
+      otherLabel: newField.category === 'other' ? newField.otherLabel : undefined,
+    };
+    const updated = [...customFields, field];
+    saveUserFields(currentUserId, updated);
+    setCustomFields(updated);
+    setNewField({ name: '', type: 'text', options: [], category: 'confluence', otherLabel: '' });
     setNewFieldOption('');
+  };
+
+  const handleUpdateField = () => {
+    if (!editingField?.name) return;
+    const updated = customFields.map((f: any) => f.id === editingField.id ? {
+      ...f,
+      name: editingField.name,
+      type: editingField.type,
+      options: editingField.type === 'dropdown' ? (editingField.options || []) : undefined,
+      category: editingField.category,
+      otherLabel: editingField.category === 'other' ? editingField.otherLabel : undefined,
+    } : f);
+    saveUserFields(currentUserId, updated);
+    setCustomFields(updated);
+    setEditingField(null);
+    setEditFieldOption('');
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -413,22 +455,21 @@ export function Journal() {
     // Format custom fields properly
     const customFieldsFormatted: Record<string, any> = {};
     if (entry.customFields && Object.keys(entry.customFields).length > 0) {
-      const fieldDefinitions = storage.getJournalFields();
-      
+      const fieldDefinitions = getUserFields(currentUserId);
+
       Object.entries(entry.customFields).forEach(([key, value]) => {
+        // Skip the redundant Confluences text field — individual checkbox fields already show this
+        if (key.toLowerCase() === 'confluences') return;
+
         const fieldDef = fieldDefinitions.find(f => f.name === key);
-        
-        if (fieldDef) {
-          if (fieldDef.type === 'checkbox') {
-            // Convert boolean to checkmark or X
-            customFieldsFormatted[key] = value === true || value === 'true' ? '✓' : '✗';
-          } else if (fieldDef.type === 'time') {
-            // Time value is stored as \"HH:MM\" format from time input
-            // Just display it directly without converting to Date
-            customFieldsFormatted[key] = String(value);
-          } else {
-            customFieldsFormatted[key] = String(value);
-          }
+        const isCheckbox = fieldDef?.type === 'checkbox' ||
+          value === true || value === false ||
+          value === 'true' || value === 'false';
+
+        if (isCheckbox) {
+          customFieldsFormatted[key] = (value === true || value === 'true') ? '✓' : '✗';
+        } else if (fieldDef?.type === 'time') {
+          customFieldsFormatted[key] = String(value);
         } else {
           customFieldsFormatted[key] = String(value);
         }
@@ -594,7 +635,7 @@ export function Journal() {
           if (typeof value === 'string' && value.startsWith('data:image')) {
             console.log(`✅ Entry #${idx} has image field "${key}" with ${value.length} chars`);
           } else if (typeof value === 'string' && value === '') {
-            const fieldDef = storage.getJournalFields().find(f => f.name === key);
+            const fieldDef = getUserFields(currentUserId).find((f: any) => f.name === key);
             if (fieldDef?.type === 'image') {
               console.log(`❌ Entry #${idx} has EMPTY image field "${key}" (was removed by cleanup)`);
             }
@@ -638,131 +679,297 @@ export function Journal() {
                 Fields
               </Button>
             </DialogTrigger>
+
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
               <div className="p-6 pb-0">
                 <DialogHeader>
                   <DialogTitle>Customize Journal Fields</DialogTitle>
-                  <DialogDescription>Add or remove custom fields to track additional information in your journal entries.</DialogDescription>
+                  <DialogDescription>
+                    Add, edit, or remove fields. Free users: 3 custom fields. Premium: unlimited.
+                  </DialogDescription>
                 </DialogHeader>
               </div>
-              <div className="px-6 pb-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
-                <div className="space-y-4 pt-4">
-                  {!isPremium && customFields.length >= FREE_FIELD_LIMIT && (
-                    <PremiumGate 
-                      isPremium={false}
-                      featureName="Unlimited Custom Fields"
-                      description="Free users can add up to 3 custom fields. Upgrade to Premium for unlimited custom fields."
-                      variant="banner"
-                      onUpgrade={() => {
-                        setIsFieldsDialogOpen(false);
-                        setShowUpgradeModal(true);
-                      }}
-                    />
-                  )}
-                  
+              <div className="px-6 pb-6 overflow-y-auto" ref={fieldsDialogScrollRef} style={{ maxHeight: 'calc(90vh - 140px)' }}>
+                <div className="space-y-5 pt-4">
+
+                  {/* ── System fields (always present, cannot be removed) ── */}
                   <div className="space-y-2">
-                    <Label>Field Name</Label>
-                    <Input
-                      placeholder="e.g., SMT, Session, Setup Type"
-                      value={newField.name}
-                      onChange={(e) => setNewField({ ...newField, name: e.target.value })}
-                    />
+                    <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Built-in Fields (always included)</Label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { name: 'Date',          type: 'date'     },
+                        { name: 'Result (W/L/BE)',type: 'dropdown' },
+                        { name: 'Risk:Reward',   type: 'number'   },
+                        { name: 'P&L ($)',       type: 'number'   },
+                        { name: 'Description',   type: 'text'     },
+                        { name: 'Screenshot',    type: 'image'    },
+                      ].map(f => (
+                        <div key={f.name} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 border border-transparent">
+                          <span className="text-sm font-medium">{f.name}</span>
+                          <span className="text-xs text-muted-foreground">{f.type}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Field Type</Label>
-                    <Select
-                      value={newField.type}
-                      onValueChange={(value: any) => setNewField({ ...newField, type: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="text">Text Box</SelectItem>
-                        <SelectItem value="number">Number</SelectItem>
-                        <SelectItem value="checkbox">Checkbox</SelectItem>
-                        <SelectItem value="dropdown">Dropdown</SelectItem>
-                        <SelectItem value="time">Time</SelectItem>
-                        <SelectItem value="image">Image</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <div className="border-t pt-4 space-y-4">
+                    {/* ── Free limit warning ── */}
+                    {!isPremium && customFields.length >= FREE_FIELD_LIMIT && (
+                      <PremiumGate
+                        isPremium={false}
+                        featureName="Unlimited Custom Fields"
+                        description="Free users can add up to 3 custom fields. Upgrade to Premium for unlimited fields."
+                        variant="banner"
+                        onUpgrade={() => { setIsFieldsDialogOpen(false); setShowUpgradeModal(true); }}
+                      />
+                    )}
 
-                  {newField.type === 'dropdown' && (
-                    <div className="space-y-2">
-                      <Label>Dropdown Options</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add option"
-                          value={newFieldOption}
-                          onChange={(e) => setNewFieldOption(e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            if (newFieldOption) {
-                              setNewField({
-                                ...newField,
-                                options: [...newField.options, newFieldOption],
-                              });
-                              setNewFieldOption('');
+                    {/* ── Add / Edit form ── */}
+                    {(!editingField) ? (
+                      <div className="space-y-4">
+                        <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground">
+                          {!isPremium && customFields.length >= FREE_FIELD_LIMIT ? 'Upgrade to add more' : 'Add New Field'}
+                        </Label>
+
+                        {/* Category */}
+                        <div className="space-y-2">
+                          <Label>Category <span className="text-xs text-muted-foreground font-normal">(tells AI what to analyse)</span></Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {([
+                              { value: 'confluence',   label: 'Confluence / Setup', desc: 'e.g. OTE, CISD, Delta Flip', icon: '🎯' },
+                              { value: 'time',         label: 'Entry Time',          desc: '09:45 — unlocks session analysis', icon: '⏱' },
+                              { value: 'trade_number', label: 'Trade #',             desc: '1st, 2nd, 3rd trade of the day', icon: '🔢' },
+                              { value: 'emotion',      label: 'Emotion / Mental',   desc: 'Confident, Calm, Revenge…', icon: '🧠' },
+                              { value: 'other',        label: 'Other',              desc: 'Custom — you name it', icon: '📋' },
+                            ] as const).map(cat => (
+                              <button
+                                key={cat.value}
+                                type="button"
+                                onClick={() => setNewField({ ...newField, category: cat.value, type: cat.value === 'time' ? 'time' : 'text' })}
+                                className={`p-3 rounded-lg border text-left transition-all ${newField.category === cat.value ? 'border-primary bg-primary/10' : 'border-border bg-muted hover:border-primary/40'}`}
+                              >
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <span>{cat.icon}</span>
+                                  <span className="font-semibold text-xs">{cat.label}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground leading-tight">{cat.desc}</p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Other label */}
+                        {newField.category === 'other' && (
+                          <div className="space-y-2">
+                            <Label>What does "Other" mean for this field?</Label>
+                            <Input
+                              placeholder="e.g. News Event, HTF Bias, Spread, Notes..."
+                              value={newField.otherLabel}
+                              onChange={e => setNewField({ ...newField, otherLabel: e.target.value })}
+                            />
+                          </div>
+                        )}
+
+                        {/* Field name */}
+                        <div className="space-y-2">
+                          <Label>Field Name</Label>
+                          <Input
+                            placeholder={
+                              newField.category === 'confluence'   ? 'e.g. Confluences, ICT Concepts, Setup' :
+                              newField.category === 'time'         ? 'e.g. Entry Time, Session' :
+                              newField.category === 'trade_number' ? 'e.g. Trade Number' :
+                              newField.category === 'emotion'      ? 'e.g. Emotion, Mindset' :
+                              newField.otherLabel || 'Field name'
                             }
-                          }}
+                            value={newField.name}
+                            onChange={e => setNewField({ ...newField, name: e.target.value })}
+                          />
+                          {newField.category === 'time' && (
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => setNewField({ ...newField, name: 'Entry Time', type: 'time' })}
+                                className="text-xs px-2 py-1 rounded bg-muted border hover:border-primary/40 transition-all">
+                                + Entry Time
+                              </button>
+                              <button type="button" onClick={() => setNewField({ ...newField, name: 'Session', type: 'dropdown' })}
+                                className="text-xs px-2 py-1 rounded bg-muted border hover:border-primary/40 transition-all">
+                                + Session
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Field type */}
+                        <div className="space-y-2">
+                          <Label>Field Type</Label>
+                          <Select value={newField.type} onValueChange={(v: any) => setNewField({ ...newField, type: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {newField.category === 'time'
+                                ? <>
+                                    <SelectItem value="time">Time Picker</SelectItem>
+                                    <SelectItem value="text">Text Box</SelectItem>
+                                    <SelectItem value="dropdown">Dropdown (pick from list)</SelectItem>
+                                  </>
+                                : <>
+                                    <SelectItem value="text">Text Box</SelectItem>
+                                    <SelectItem value="checkbox">Checkbox (yes / no)</SelectItem>
+                                    <SelectItem value="dropdown">Dropdown (pick from list)</SelectItem>
+                                    {newField.category !== 'confluence' && newField.category !== 'emotion' && (
+                                      <SelectItem value="number">Number</SelectItem>
+                                    )}
+                                  </>
+                              }
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Dropdown options */}
+                        {newField.type === 'dropdown' && (
+                          <div className="space-y-2">
+                            <Label>Dropdown Options</Label>
+                            <div className="flex gap-2">
+                              <Input placeholder="Add option" value={newFieldOption} onChange={e => setNewFieldOption(e.target.value)}
+                                onKeyDown={e => { if (e.key==='Enter' && newFieldOption) { setNewField({ ...newField, options: [...newField.options, newFieldOption] }); setNewFieldOption(''); } }} />
+                              <Button type="button" size="sm" onClick={() => { if (newFieldOption) { setNewField({ ...newField, options: [...newField.options, newFieldOption] }); setNewFieldOption(''); } }}>Add</Button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {newField.options.map((opt, i) => (
+                                <Badge key={i} variant="secondary">{opt}
+                                  <button onClick={() => setNewField({ ...newField, options: newField.options.filter((_,idx)=>idx!==i) })} className="ml-1"><X className="w-3 h-3"/></button>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <Button
+                          onClick={handleAddField}
+                          disabled={!newField.name || (!isPremium && customFields.length >= FREE_FIELD_LIMIT)}
+                          className="w-full"
                         >
-                          Add
+                          Add Field
                         </Button>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {newField.options.map((opt, i) => (
-                          <Badge key={i} variant="secondary">
-                            {opt}
-                            <button
-                              onClick={() => setNewField({
-                                ...newField,
-                                options: newField.options.filter((_, idx) => idx !== i),
-                              })}
-                              className="ml-1"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    ) : (
+                      /* ── Edit existing field ── */
+                      <div className="space-y-4 p-4 rounded-xl border-2 border-primary/20 bg-primary/5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Editing: {editingField.name}</Label>
+                          <button onClick={() => setEditingField(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4"/></button>
+                        </div>
 
-                  <Button onClick={handleAddField} disabled={!newField.name || (customFields.length >= FREE_FIELD_LIMIT && !isPremium)} className="w-full">
-                    Add Field
-                  </Button>
-
-                  {customFields.length > 0 && (
-                    <div className="space-y-2 pt-4 border-t">
-                      <Label>Current Custom Fields</Label>
-                      {customFields.map((field) => (
-                        <div key={field.id} className="flex items-center justify-between p-2 bg-muted rounded">
-                          <div>
-                            <p className="font-medium text-sm">{field.name}</p>
-                            <p className="text-xs text-muted-foreground">{field.type}</p>
+                        {/* Category */}
+                        <div className="space-y-2">
+                          <Label>Category</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {([
+                              { value: 'confluence',   label: 'Confluence / Setup', icon: '🎯' },
+                              { value: 'time',         label: 'Entry Time',          icon: '⏱' },
+                              { value: 'trade_number', label: 'Trade #',             icon: '🔢' },
+                              { value: 'emotion',      label: 'Emotion / Mental',   icon: '🧠' },
+                              { value: 'other',        label: 'Other',              icon: '📋' },
+                            ] as const).map(cat => (
+                              <button key={cat.value} type="button"
+                                onClick={() => setEditingField({ ...editingField, category: cat.value })}
+                                className={`p-2.5 rounded-lg border text-left text-xs font-semibold flex items-center gap-1.5 transition-all ${editingField.category === cat.value ? 'border-primary bg-primary/10' : 'border-border bg-muted'}`}
+                              >
+                                <span>{cat.icon}</span>{cat.label}
+                              </button>
+                            ))}
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (confirm(`Delete "${field.name}" field? This will remove it from all future entries.`)) {
-                                storage.deleteJournalField(field.id);
-                                // Reload fields from storage
-                                setCustomFields(storage.getJournalFields());
+                        </div>
+
+                        {editingField.category === 'other' && (
+                          <div className="space-y-2">
+                            <Label>What does "Other" mean?</Label>
+                            <Input value={editingField.otherLabel||''} onChange={e => setEditingField({ ...editingField, otherLabel: e.target.value })} placeholder="e.g. News Event, HTF Bias…" />
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label>Field Name</Label>
+                          <Input value={editingField.name} onChange={e => setEditingField({ ...editingField, name: e.target.value })} />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Field Type</Label>
+                          <Select value={editingField.type} onValueChange={(v: any) => setEditingField({ ...editingField, type: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {editingField.category === 'time'
+                                ? <><SelectItem value="time">Time Picker</SelectItem><SelectItem value="text">Text Box</SelectItem></>
+                                : <><SelectItem value="text">Text Box</SelectItem><SelectItem value="checkbox">Checkbox</SelectItem><SelectItem value="dropdown">Dropdown</SelectItem><SelectItem value="number">Number</SelectItem></>
                               }
-                            }}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {editingField.type === 'dropdown' && (
+                          <div className="space-y-2">
+                            <Label>Dropdown Options</Label>
+                            <div className="flex gap-2">
+                              <Input placeholder="Add option" value={editFieldOption} onChange={e => setEditFieldOption(e.target.value)}
+                                onKeyDown={e => { if (e.key==='Enter' && editFieldOption) { setEditingField({ ...editingField, options: [...(editingField.options||[]), editFieldOption] }); setEditFieldOption(''); } }} />
+                              <Button type="button" size="sm" onClick={() => { if (editFieldOption) { setEditingField({ ...editingField, options: [...(editingField.options||[]), editFieldOption] }); setEditFieldOption(''); } }}>Add</Button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {(editingField.options||[]).map((opt: string, i: number) => (
+                                <Badge key={i} variant="secondary">{opt}
+                                  <button onClick={() => setEditingField({ ...editingField, options: editingField.options.filter((_:any,idx:number)=>idx!==i) })} className="ml-1"><X className="w-3 h-3"/></button>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button onClick={handleUpdateField} className="flex-1">Save Changes</Button>
+                          <Button variant="outline" onClick={() => setEditingField(null)} className="flex-1">Cancel</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Custom fields list ── */}
+                  {customFields.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Your Custom Fields ({customFields.length}{!isPremium ? `/${FREE_FIELD_LIMIT}` : ''})</Label>
+                      {customFields.map((field) => (
+                        <div key={field.id} className="flex items-center justify-between p-3 bg-muted rounded-lg group">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm">{field.name}</p>
+                              {(field as any).category && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                                  (field as any).category === 'confluence'   ? 'bg-primary/20 text-primary' :
+                                  (field as any).category === 'time'         ? 'bg-blue-500/20 text-blue-600' :
+                                  (field as any).category === 'trade_number' ? 'bg-purple-500/20 text-purple-600' :
+                                  (field as any).category === 'emotion'      ? 'bg-pink-500/20 text-pink-600' :
+                                  'bg-muted-foreground/20 text-muted-foreground'
+                                }`}>
+                                  {({confluence:'🎯 Confluence', time:'⏱ Time', trade_number:'🔢 Trade #', emotion:'🧠 Emotion', other:'📋 Other'} as any)[(field as any).category] || (field as any).category}
+                                  {(field as any).otherLabel && ` — ${(field as any).otherLabel}`}
+                                </span>
+                              )}
+                              <span className="text-xs text-muted-foreground">{field.type}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 ml-2">
+                            <Button variant="ghost" size="sm" onClick={() => { setEditingField({ ...field }); setTimeout(() => fieldsDialogScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 50); }}
+                              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="sm"
+                              onClick={() => { if (confirm(`Delete "${field.name}"? This removes it from all future entries.`)) { const updated = customFields.filter((f: any) => f.id !== field.id); saveUserFields(currentUserId, updated); setCustomFields(updated); if (editingField?.id === field.id) setEditingField(null); } }}
+                              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
+
                 </div>
               </div>
             </DialogContent>
@@ -812,7 +1019,7 @@ export function Journal() {
                         <Label>Result</Label>
                         <Select
                           value={newEntry.result}
-                          onValueChange={(value) => setNewEntry({ ...newEntry, result: value as any })}
+                          onValueChange={(value) => setNewEntry({ ...newEntry, result: value as any, beResolution: undefined })}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -826,6 +1033,26 @@ export function Journal() {
                       </div>
                     )}
                   </div>
+
+                  {/* BE Resolution — only shown when result is breakeven */}
+                  {newEntry.result === 'breakeven' && !newEntry.isNoTradeDay && !isLongTermHold && (
+                    <div className="space-y-2">
+                      <Label>How did it resolve? <span className="text-xs text-muted-foreground font-normal">(optional)</span></Label>
+                      <Select
+                        value={newEntry.beResolution || ''}
+                        onValueChange={(value) => setNewEntry({ ...newEntry, beResolution: value as any })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select outcome..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="continued_win">✅ Continued to Win</SelectItem>
+                          <SelectItem value="continued_loss">❌ Continued to Loss</SelectItem>
+                          <SelectItem value="stayed_breakeven">➖ Stayed Breakeven</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   {/* Only show Risk:Reward for non-Long Term Hold users */}
                   {!isLongTermHold && showingSystem('rr') && (
@@ -932,140 +1159,159 @@ export function Journal() {
                   </div>
                   )}
 
-                  {/* Custom Fields */}
-                  {customFields.length > 0 && (
-                    <div className="space-y-3 pt-2 border-t">
-                      <Label>Custom Fields</Label>
-                      {customFields
-                        .filter(field => !hiddenFieldsForEntry.includes(field.id))
-                        .map((field) => {
-                        return (
-                          <div key={field.id} className="space-y-2 p-3 bg-muted/50 rounded-lg relative">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-sm">{field.name}</Label>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                onClick={() => {
-                                  // Hide this field from the entry UI
-                                  setHiddenFieldsForEntry([...hiddenFieldsForEntry, field.id]);
-                                  // Also remove any saved value
-                                  const updatedFields = { ...newEntry.customFields };
-                                  delete updatedFields[field.name];
-                                  setNewEntry({ ...newEntry, customFields: updatedFields });
-                                }}
-                                title="Remove from this entry"
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
+                  {/* Custom Fields — grouped by category */}
+                  {customFields.length > 0 && (() => {
+                    const categories = [
+                      { key: 'confluence',   label: 'Confluences / Setup', icon: '🎯', color: 'text-primary' },
+                      { key: 'time',         label: 'Entry Time',           icon: '⏱', color: 'text-blue-500' },
+                      { key: 'trade_number', label: 'Trade #',              icon: '🔢', color: 'text-purple-500' },
+                      { key: 'emotion',      label: 'Emotion',              icon: '🧠', color: 'text-pink-500' },
+                      { key: 'other',        label: 'Other',                icon: '📋', color: 'text-muted-foreground' },
+                      { key: undefined,      label: 'Other Fields',         icon: '📋', color: 'text-muted-foreground' },
+                    ];
+
+                    const renderField = (field: any) => (
+                      <div key={field.id} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">{field.name}</Label>
+                          <Button
+                            variant="ghost" size="sm" className="h-5 w-5 p-0 opacity-40 hover:opacity-100"
+                            onClick={() => {
+                              setHiddenFieldsForEntry([...hiddenFieldsForEntry, field.id]);
+                              const updatedFields = { ...newEntry.customFields };
+                              delete updatedFields[field.name];
+                              setNewEntry({ ...newEntry, customFields: updatedFields });
+                            }}
+                            title="Hide from this entry"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+
+                        {field.type === 'checkbox' && (
+                          <div
+                            className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer select-none border transition-all ${
+                              newEntry.customFields[field.name] === true || newEntry.customFields[field.name] === 'true'
+                                ? 'bg-green-500/10 border-green-500/30'
+                                : 'bg-muted border-transparent'
+                            }`}
+                            onClick={() => setNewEntry({
+                              ...newEntry,
+                              customFields: {
+                                ...newEntry.customFields,
+                                [field.name]: !(newEntry.customFields[field.name] === true || newEntry.customFields[field.name] === 'true'),
+                              },
+                            })}
+                          >
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                              newEntry.customFields[field.name] === true || newEntry.customFields[field.name] === 'true'
+                                ? 'bg-green-500 border-green-500'
+                                : 'border-muted-foreground/40 bg-background'
+                            }`}>
+                              {(newEntry.customFields[field.name] === true || newEntry.customFields[field.name] === 'true') && (
+                                <span className="text-white text-xs font-bold">✓</span>
+                              )}
                             </div>
-                            
-                            {field.type === 'text' && (
-                              <Input
-                                value={newEntry.customFields[field.name] || ''}
-                                onChange={(e) => setNewEntry({
-                                  ...newEntry,
-                                  customFields: { ...newEntry.customFields, [field.name]: e.target.value },
-                                })}
-                                placeholder={`Enter ${field.name}`}
-                              />
-                            )}
-                            {field.type === 'number' && (
-                              <Input
-                                type="number"
-                        onWheel={(e) => e.currentTarget.blur()}
-                                value={newEntry.customFields[field.name] || ''}
-                                onChange={(e) => setNewEntry({
-                                  ...newEntry,
-                                  customFields: { ...newEntry.customFields, [field.name]: parseFloat(e.target.value) || 0 },
-                                })}
-                                placeholder={`Enter ${field.name}`}
-                              />
-                            )}
-                            {field.type === 'checkbox' && (
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={!!newEntry.customFields[field.name]}
-                                  onCheckedChange={(checked) => setNewEntry({
-                                    ...newEntry,
-                                    customFields: { ...newEntry.customFields, [field.name]: checked },
-                                  })}
-                                />
-                                <span className="text-xs text-muted-foreground">
-                                  {newEntry.customFields[field.name] ? '✓ Yes' : '✗ No'}
-                                </span>
-                              </div>
-                            )}
-                            {field.type === 'dropdown' && (
-                              <Select
-                                value={newEntry.customFields[field.name] || ''}
-                                onValueChange={(value) => setNewEntry({
-                                  ...newEntry,
-                                  customFields: { ...newEntry.customFields, [field.name]: value },
-                                })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select option" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {field.options?.map((opt) => (
-                                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                            {field.type === 'time' && (
-                              <Input
-                                type="time"
-                                value={newEntry.customFields[field.name] || ''}
-                                onChange={(e) => setNewEntry({
-                                  ...newEntry,
-                                  customFields: { ...newEntry.customFields, [field.name]: e.target.value },
-                                })}
-                              />
-                            )}
-                            {field.type === 'image' && (
-                              <div className="border-2 border-dashed rounded-lg p-4 text-center">
-                                <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => {
-                                        setNewEntry({
-                                          ...newEntry,
-                                          customFields: { ...newEntry.customFields, [field.name]: reader.result as string },
-                                        });
-                                      };
-                                      reader.readAsDataURL(file);
-                                    }
-                                  }}
-                                />
-                                {newEntry.customFields[field.name] && (
-                                  <div className="mt-2">
-                                    <img src={newEntry.customFields[field.name]} alt={`Image ${field.name}`} className="w-full h-20 object-cover rounded" />
-                                    <button
-                                      onClick={() => setNewEntry({
-                                        ...newEntry,
-                                        customFields: { ...newEntry.customFields, [field.name]: '' },
-                                      })}
-                                      className="absolute top-1 right-1 bg-destructive text-white rounded-full p-1"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                )}
+                            <span className={`text-sm font-medium ${
+                              newEntry.customFields[field.name] === true || newEntry.customFields[field.name] === 'true'
+                                ? 'text-green-700 dark:text-green-400'
+                                : 'text-muted-foreground'
+                            }`}>
+                              {newEntry.customFields[field.name] === true || newEntry.customFields[field.name] === 'true' ? 'Present ✓' : 'Not present'}
+                            </span>
+                          </div>
+                        )}
+                        {field.type === 'text' && (
+                          <Input
+                            value={newEntry.customFields[field.name] || ''}
+                            onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } })}
+                            placeholder={`Enter ${field.name}`}
+                          />
+                        )}
+                        {field.type === 'number' && (
+                          <Input
+                            type="number"
+                            onWheel={(e) => e.currentTarget.blur()}
+                            value={newEntry.customFields[field.name] || ''}
+                            onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: parseFloat(e.target.value) || 0 } })}
+                            placeholder={`Enter ${field.name}`}
+                          />
+                        )}
+                        {field.type === 'dropdown' && (
+                          <Select
+                            value={newEntry.customFields[field.name] || ''}
+                            onValueChange={(value) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: value } })}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select option" /></SelectTrigger>
+                            <SelectContent>
+                              {field.options?.map((opt: string) => (
+                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {field.type === 'time' && (
+                          <Input
+                            type="time"
+                            value={newEntry.customFields[field.name] || ''}
+                            onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } })}
+                          />
+                        )}
+                        {field.type === 'image' && (
+                          <div className="border-2 border-dashed rounded-lg p-4 text-center relative">
+                            <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                            <input type="file" accept="image/*" onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: reader.result as string } });
+                                reader.readAsDataURL(file);
+                              }
+                            }} />
+                            {newEntry.customFields[field.name] && (
+                              <div className="mt-2">
+                                <img src={newEntry.customFields[field.name]} alt={field.name} className="w-full h-20 object-cover rounded" />
+                                <button onClick={() => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: '' } })}
+                                  className="absolute top-1 right-1 bg-destructive text-white rounded-full p-1">
+                                  <X className="w-3 h-3" />
+                                </button>
                               </div>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    );
+
+                    return (
+                      <div className="space-y-4 pt-2 border-t">
+                        {categories.map(cat => {
+                          const catFields = customFields.filter(f =>
+                            !hiddenFieldsForEntry.includes(f.id) &&
+                            ((cat.key === undefined && !(f as any).category) || (f as any).category === cat.key)
+                          );
+                          if (catFields.length === 0) return null;
+                          return (
+                            <div key={cat.key || 'uncategorised'} className="space-y-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm">{cat.icon}</span>
+                                <span className={`text-xs font-bold uppercase tracking-wider ${cat.color}`}>{cat.label}</span>
+                              </div>
+                              {/* Confluence checkboxes get a compact grid layout */}
+                              {cat.key === 'confluence' ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {catFields.map(field => renderField(field))}
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {catFields.map(field => renderField(field))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
 
                   {/* Investment Fields for Long Term Hold Users */}
                   {isLongTermHold && (
@@ -1203,6 +1449,26 @@ export function Journal() {
                           <div className="p-4 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border-2 border-yellow-200 dark:border-yellow-800">
                             <p className="text-sm font-medium mb-2">💡 Investment Outcome Review</p>
                             <p className="text-xs text-muted-foreground">Reflect on your decision AFTER the investment completes</p>
+                          </div>
+
+                          <div className="space-y-2 p-3 bg-muted/50 rounded-lg relative">
+                            <Label className="text-sm font-medium">Sell Reason *</Label>
+                            <Select
+                              value={newEntry.sellReason || ''}
+                              onValueChange={(value) => setNewEntry({
+                                ...newEntry,
+                                sellReason: value as any,
+                              })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select reason..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="planned_exit">✅ Planned Exit — target reached</SelectItem>
+                                <SelectItem value="thesis_broken">📉 Thesis Broken — fundamentals changed</SelectItem>
+                                <SelectItem value="emotional_reaction">⚠️ Emotional Reaction — price action</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
 
                           <div className="space-y-2 p-3 bg-muted/50 rounded-lg relative">
