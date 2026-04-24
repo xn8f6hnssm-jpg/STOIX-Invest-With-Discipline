@@ -105,30 +105,34 @@ async function loadUserFromSupabase(userId: string): Promise<any | null> {
 // Sign up new user
 export async function signUp(data: SignUpData) {
   try {
-    const usernameExists = await checkUsernameExists(data.username);
-    if (usernameExists) {
+    // Check username availability directly in Supabase
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', data.username)
+      .maybeSingle();
+
+    if (existingUser) {
       toast.error('Username already taken');
       return { success: false, error: 'Username already taken' };
     }
 
-    const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ecfd718d/auth/signup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`
-      },
-      body: JSON.stringify(data)
+    // Sign up directly via Supabase Auth
+    const { data: authData, error } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: { username: data.username, name: data.name }
+      }
     });
 
-    if (!response.ok) {
-      const error = await response.json();
+    if (error) {
       toast.error(error.message || 'Failed to create account');
       return { success: false, error: error.message };
     }
 
-    const result = await response.json();
     toast.success('Account created! Please sign in.');
-    return { success: true, user: result.user };
+    return { success: true, user: authData.user };
   } catch (error: any) {
     console.error('Sign up error:', error);
     toast.error(error.message || 'Failed to create account');
