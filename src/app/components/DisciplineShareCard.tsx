@@ -1,214 +1,222 @@
+import { useState } from 'react';
 import { Button } from './ui/button';
 import { Share2, Download, Crown } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { storage, getLeague } from '../utils/storage';
-import { useRef, useState, useEffect } from 'react';
+import { useRef } from 'react';
 import { Logo } from './Logo';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/dialog';
-import { VisuallyHidden } from './ui/visually-hidden';
 
-interface DisciplineShareCardProps {
-  period?: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'overall';
-  periodTrades?: number;
-  periodWins?: number;
-  periodDiscipline?: number;
+type Range = 'today' | 'week' | 'month' | 'year' | 'overall';
+
+const LABELS: Record<Range, string> = {
+  today:   'Today',
+  week:    'This Week',
+  month:   'This Month',
+  year:    'This Year',
+  overall: 'All Time',
+};
+
+const PILLS: { key: Range; label: string }[] = [
+  { key: 'today',   label: 'Today' },
+  { key: 'week',    label: 'Week'  },
+  { key: 'month',   label: 'Month' },
+  { key: 'year',    label: 'Year'  },
+  { key: 'overall', label: 'All'   },
+];
+
+function getDateBounds(range: Range): { from: Date | null; todayStr: string } {
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  if (range === 'today') return { from: new Date(todayStr + 'T00:00:00'), todayStr };
+  if (range === 'week') {
+    const s = new Date(now);
+    s.setHours(0, 0, 0, 0);
+    s.setDate(now.getDate() - now.getDay());
+    return { from: s, todayStr };
+  }
+  if (range === 'month') {
+    const s = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: s, todayStr };
+  }
+  if (range === 'year') {
+    const s = new Date(now.getFullYear(), 0, 1);
+    return { from: s, todayStr };
+  }
+  return { from: null, todayStr };
 }
 
-export function DisciplineShareCard({
-  period = 'overall',
-  periodTrades,
-  periodWins,
-  periodDiscipline,
-}: DisciplineShareCardProps) {
-  const [isOpen, setIsOpen] = useState(false);
+function inRange(dateStr: string, from: Date | null): boolean {
+  if (!from) return true;
+  const d = new Date(dateStr + 'T00:00:00');
+  return d >= from;
+}
+
+export function DisciplineShareCard() {
+  const [range, setRange] = useState<Range>('overall');
   const cardRef = useRef<HTMLDivElement>(null);
   const currentUser = storage.getCurrentUser();
-
-  // Track current display values reactively — update whenever props change
-  const [displayPeriod, setDisplayPeriod]     = useState(period);
-  const [displayTrades, setDisplayTrades]     = useState<number | undefined>(periodTrades);
-  const [displayWins, setDisplayWins]         = useState<number | undefined>(periodWins);
-  const [displayDiscipline, setDisplayDiscipline] = useState<number | undefined>(periodDiscipline);
-
-  useEffect(() => {
-    setDisplayPeriod(period);
-    setDisplayTrades(periodTrades);
-    setDisplayWins(periodWins);
-    setDisplayDiscipline(periodDiscipline);
-  }, [period, periodTrades, periodWins, periodDiscipline]);
-
   if (!currentUser) return null;
 
+  const { from, todayStr } = getDateBounds(range);
+
+  // Trades & Wins
+  const allEntries = storage.getJournalEntries()
+    .filter((e: any) => e.userId === currentUser.id && !e.isNoTradeDay);
+  const periodEntries = allEntries.filter((e: any) => inRange(e.date, from));
+  const trades = periodEntries.length;
+  const wins   = periodEntries.filter((e: any) => e.result === 'win' || e.result === 'breakeven').length;
+
+  // Discipline Rate
+  const allDayLogs = (storage.getDayLogs ? storage.getDayLogs() : [])
+    .filter((l: any) => l.userId === currentUser.id);
+
+  let disciplineRate: number;
+
+  if (range === 'overall') {
+    const clean = currentUser.cleanDays ?? 0;
+    const total = clean + (currentUser.forfeitDays ?? 0);
+    disciplineRate = total > 0 ? Math.round(clean / total * 100) : 0;
+  } else if (range === 'today') {
+    const todayLog = allDayLogs.find((l: any) => l.date === todayStr);
+    disciplineRate = todayLog ? (todayLog.isClean === true ? 100 : 0) : 0;
+  } else {
+    const periodLogs = allDayLogs.filter((l: any) => inRange(l.date, from));
+    if (periodLogs.length === 0) {
+      const clean = currentUser.cleanDays ?? 0;
+      const total = clean + (currentUser.forfeitDays ?? 0);
+      disciplineRate = total > 0 ? Math.round(clean / total * 100) : 0;
+    } else {
+      const cleanCount = periodLogs.filter((l: any) => l.isClean === true).length;
+      disciplineRate = Math.round(cleanCount / periodLogs.length * 100);
+    }
+  }
+
+  const streak  = currentUser.currentStreak || 0;
+  const league  = getLeague(currentUser.totalPoints || 0);
   const isPremium = storage.isPremium();
-  const league = getLeague(currentUser.totalPoints || 0);
 
-  // All-time fallbacks
-  const journalEntries = storage.getJournalEntries().filter(e => e.userId === currentUser.id);
-  const allTimeTrades = journalEntries.length;
-  const allTimeWins = journalEntries.filter(e => e.result === 'win' || e.result === 'breakeven').length;
-  const totalDays = (currentUser.cleanDays || 0) + (currentUser.forfeitDays || 0);
-  const allTimeDiscipline = totalDays > 0 ? Math.round((currentUser.cleanDays / totalDays) * 100) : 0;
-
-  const trades      = displayTrades      ?? allTimeTrades;
-  const wins        = displayWins        ?? allTimeWins;
-  const discipline  = displayDiscipline  ?? allTimeDiscipline;
-  const streak      = currentUser.currentStreak || 0;
-
-  const periodLabel = {
-    daily:   'Today',
-    weekly:  'This Week',
-    monthly: 'This Month',
-    yearly:  'This Year',
-    overall: 'All Time',
-  }[displayPeriod];
+  const capture = () => cardRef.current
+    ? html2canvas(cardRef.current, { backgroundColor: '#000000', scale: 2 })
+    : Promise.resolve(null);
 
   const handleShare = async () => {
-    if (!cardRef.current) return;
-    try {
-      const canvas = await html2canvas(cardRef.current, {
-        backgroundColor: '#000000',
-        scale: 2,
-      });
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        if (navigator.share && navigator.canShare) {
-          const file = new File([blob], 'stoix-discipline-card.png', { type: 'image/png' });
-          navigator.share({
-            title: 'STOIX - My Trading Discipline',
-            text: `I'm maintaining ${discipline}% discipline rate in my trading journey! 🚀`,
-            files: [file],
-          }).catch((err) => console.log('Share cancelled', err));
-        } else {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'stoix-discipline-card.png';
-          link.click();
-          URL.revokeObjectURL(url);
-        }
-      });
-    } catch (error) {
-      console.error('Error generating share card:', error);
-    }
+    const canvas = await capture();
+    if (!canvas) return;
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      if (navigator.share && navigator.canShare) {
+        navigator.share({
+          title: 'STOIX',
+          text: `${disciplineRate}% discipline — ${LABELS[range]} 🚀`,
+          files: [new File([blob], 'stoix-card.png', { type: 'image/png' })],
+        }).catch(() => {});
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'stoix-card.png';
+        a.click();
+      }
+    });
   };
 
   const handleDownload = async () => {
-    if (!cardRef.current) return;
-    try {
-      const canvas = await html2canvas(cardRef.current, {
-        backgroundColor: '#000000',
-        scale: 2,
-      });
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'stoix-discipline-card.png';
-        link.click();
-        URL.revokeObjectURL(url);
-      });
-    } catch (error) {
-      console.error('Error downloading card:', error);
-    }
+    const canvas = await capture();
+    if (!canvas) return;
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'stoix-card.png';
+      a.click();
+    });
   };
 
   return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1 w-full"
-      >
-        <Share2 className="w-3 h-3" />
-        Share Card
-      </Button>
-
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-md">
-          <VisuallyHidden>
-            <DialogTitle>Share Your Discipline Card</DialogTitle>
-            <DialogDescription>
-              Share or download your trading discipline stats card
-            </DialogDescription>
-          </VisuallyHidden>
-          <div className="space-y-4">
-          <div
-            ref={cardRef}
-            key={`${displayPeriod}-${trades}-${wins}-${discipline}`}
-            className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-8 flex flex-col justify-between"
+    <div className="space-y-3">
+      {/* Range pills — inside the component, own state */}
+      <div className="flex gap-1.5 flex-wrap">
+        {PILLS.map(p => (
+          <button
+            key={p.key}
+            onClick={() => setRange(p.key)}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+              range === p.key
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
           >
-              {/* Top Header */}
-              <div className="text-center space-y-2">
-                <div className="flex justify-center">
-                  <Logo size="md" showText={false} darkMode={true} />
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-lg font-semibold text-white">{currentUser.name}</span>
-                  {isPremium && (
-                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600">
-                      <Crown className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 uppercase tracking-widest">{periodLabel}</p>
-              </div>
+            {p.label}
+          </button>
+        ))}
+      </div>
 
-              {/* Main Stat */}
-              <div className="text-center space-y-2">
-                <div className="text-7xl font-bold text-white">{discipline}%</div>
-                <p className="text-xl text-slate-300 font-semibold">Discipline Rate</p>
+      {/* Card */}
+      <div
+        ref={cardRef}
+        className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-6 flex flex-col justify-between"
+      >
+        {/* Header */}
+        <div className="text-center space-y-1.5">
+          <div className="flex justify-center">
+            <Logo size="sm" showText={false} darkMode={true} />
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-base font-semibold text-white">{currentUser.name}</span>
+            {isPremium && (
+              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center">
+                <Crown className="w-2.5 h-2.5 text-white" />
               </div>
+            )}
+          </div>
+          <p className="text-xs text-slate-400 uppercase tracking-widest">{LABELS[range]}</p>
+        </div>
 
-              {/* Stats */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-white">{trades}</div>
-                    <p className="text-sm text-slate-400">Trades</p>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-white">{wins}</div>
-                    <p className="text-sm text-slate-400">Wins</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-white">🔥 {streak}</div>
-                    <p className="text-sm text-slate-400">Streak</p>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-white">{league.tier} {league.roman}</div>
-                    <p className="text-sm text-slate-400">League</p>
-                  </div>
-                </div>
-              </div>
+        {/* Discipline */}
+        <div className="text-center space-y-1">
+          <div className="text-6xl font-bold text-white">{disciplineRate}%</div>
+          <p className="text-base text-slate-300 font-semibold">Discipline Rate</p>
+        </div>
 
-              {/* Footer */}
-              <div className="text-center space-y-1">
-                <p className="text-sm font-semibold text-white">STOIX</p>
-                <p className="text-xs text-slate-400">Trade With Discipline</p>
-                <p className="text-xs text-slate-500">
-                  {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
+        {/* Stats */}
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div>
+              <div className="text-xl font-bold text-white">{trades}</div>
+              <p className="text-xs text-slate-400">Trades</p>
             </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={handleShare} className="w-full">
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
-              </Button>
-              <Button onClick={handleDownload} variant="outline" className="w-full">
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
+            <div>
+              <div className="text-xl font-bold text-white">{wins}</div>
+              <p className="text-xs text-slate-400">Wins</p>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div>
+              <div className="text-xl font-bold text-white">🔥 {streak}</div>
+              <p className="text-xs text-slate-400">Streak</p>
+            </div>
+            <div>
+              <div className="text-xl font-bold text-white">{league.tier} {league.roman}</div>
+              <p className="text-xs text-slate-400">League</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center space-y-0.5">
+          <p className="text-xs font-semibold text-white">STOIX</p>
+          <p className="text-xs text-slate-500">Trade With Discipline</p>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="grid grid-cols-2 gap-2">
+        <Button onClick={handleShare} size="sm" className="w-full">
+          <Share2 className="w-3.5 h-3.5 mr-1.5" /> Share
+        </Button>
+        <Button onClick={handleDownload} variant="outline" size="sm" className="w-full">
+          <Download className="w-3.5 h-3.5 mr-1.5" /> Download
+        </Button>
+      </div>
+    </div>
   );
 }

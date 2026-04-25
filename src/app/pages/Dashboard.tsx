@@ -11,9 +11,8 @@ import { Card, CardContent } from '../components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Plus, Trophy, XCircle, Target, TrendingUp, Trash2, Edit, Users } from 'lucide-react';
+import { Plus, Trophy, XCircle, Target, TrendingUp, Trash2, Edit, Users, Share2 } from 'lucide-react';
 
-// ── League tier gradient map ──────────────────────────────────────────────────
 const TIER_GRADIENTS: Record<string, { bg: string; shield: string; text: string }> = {
   Bronze:   { bg: 'from-amber-700 to-amber-900',   shield: '#b45309', text: '#fef3c7' },
   Silver:   { bg: 'from-slate-400 to-slate-600',   shield: '#94a3b8', text: '#f1f5f9' },
@@ -33,52 +32,25 @@ function LeagueBadgeIcon({ tier, size = 36 }: { tier: string; size?: number }) {
           <stop offset="100%" stopColor={colors.shield} stopOpacity="0.6" />
         </linearGradient>
       </defs>
-      <path
-        d="M20 2 L36 8 L36 22 C36 32 28 40 20 44 C12 40 4 32 4 22 L4 8 Z"
-        fill={`url(#${id})`}
-        stroke="rgba(255,255,255,0.3)"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M20 6 L33 11 L33 22 C33 30 26 37 20 40 C14 37 7 30 7 22 L7 11 Z"
-        fill="none"
-        stroke="rgba(255,255,255,0.2)"
-        strokeWidth="1"
-      />
+      <path d="M20 2 L36 8 L36 22 C36 32 28 40 20 44 C12 40 4 32 4 22 L4 8 Z" fill={`url(#${id})`} stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+      <path d="M20 6 L33 11 L33 22 C33 30 26 37 20 40 C14 37 7 30 7 22 L7 11 Z" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
       <circle cx="20" cy="21" r="5" fill="rgba(255,255,255,0.35)" />
-      <path
-        d="M20 16 L21.2 19.5 L25 19.5 L22 21.8 L23.1 25.3 L20 23 L16.9 25.3 L18 21.8 L15 19.5 L18.8 19.5 Z"
-        fill="rgba(255,255,255,0.9)"
-      />
+      <path d="M20 16 L21.2 19.5 L25 19.5 L22 21.8 L23.1 25.3 L20 23 L16.9 25.3 L18 21.8 L15 19.5 L18.8 19.5 Z" fill="rgba(255,255,255,0.9)" />
     </svg>
   );
 }
 
-// FIX: Check if streak should be reset due to no daily check within 24 hours
 const checkAndResetStreak = () => {
   const user = storage.getCurrentUser();
   if (!user || user.currentStreak === 0) return;
-
   const logs = storage.getDayLogs();
   const userLogs = logs.filter(l => l.userId === user.id);
-
   if (userLogs.length === 0) return;
-
-  // Get the most recent log
-  const sortedLogs = [...userLogs].sort((a, b) =>
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  const sortedLogs = [...userLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const lastLog = sortedLogs[0];
-
-  // Calculate hours since last check
-  const lastLogDate = new Date(lastLog.date);
-  const now = new Date();
-  const hoursSinceLastLog = (now.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60);
-
-  // FIX: If more than 24 hours since last daily check, reset streak to 0
+  const hoursSinceLastLog = (new Date().getTime() - new Date(lastLog.date).getTime()) / (1000 * 60 * 60);
   if (hoursSinceLastLog > 24) {
     storage.updateCurrentUser({ currentStreak: 0 });
-    console.log(`Streak reset: ${hoursSinceLastLog.toFixed(1)}h since last daily check`);
   }
 };
 
@@ -91,9 +63,8 @@ export function Dashboard() {
   const [disciplineRate, setDisciplineRate] = useState(0);
   const [hasLoggedToday, setHasLoggedToday] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  // NEW: followers/following modal
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
-  const [sharePeriod, setSharePeriod] = useState<'today'|'week'|'month'|'year'|'overall'>('overall');
+  const [showShareCard, setShowShareCard] = useState(false);
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -115,20 +86,16 @@ export function Dashboard() {
       const cleanDays = currentUser.cleanDays ?? 0;
       const forfeitDays = currentUser.forfeitDays ?? 0;
       const totalDays = cleanDays + forfeitDays;
-      const rate = getDisciplineRate(cleanDays, totalDays);
-      setDisciplineRate(rate);
-      const lg = getLeague(currentUser.totalPoints ?? 0);
-      setLeague(lg);
+      setDisciplineRate(getDisciplineRate(cleanDays, totalDays));
+      setLeague(getLeague(currentUser.totalPoints ?? 0));
       setIsDemoted(checkDemotion(currentUser.id));
     }
     setPosts(storage.getPosts());
-    const todayLog = storage.getTodayLog();
-    setHasLoggedToday(!!todayLog);
+    setHasLoggedToday(!!storage.getTodayLog());
   };
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      // FIX: Check and reset streak if 24h have passed without a daily check
       checkAndResetStreak();
       refreshData();
       setIsLoading(false);
@@ -136,14 +103,9 @@ export function Dashboard() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Re-sync when tab becomes visible (user comes back from daily check)
   useEffect(() => {
     const handleVisibility = () => {
-      if (!document.hidden) {
-        // FIX: Also check streak reset on visibility change
-        checkAndResetStreak();
-        refreshData();
-      }
+      if (!document.hidden) { checkAndResetStreak(); refreshData(); }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
@@ -178,24 +140,16 @@ export function Dashboard() {
   }
 
   const userPosts = posts.filter(p => p.userId === user.id);
-
   const journalEntries = storage.getJournalEntries().filter(e => e.userId === user.id);
-
   const isLongTermHold = user.tradingStyle === 'Long Term Hold';
-  const entriesForStats = isLongTermHold
-    ? journalEntries.filter(e => e.action === 'sell')
-    : journalEntries;
+  const entriesForStats = isLongTermHold ? journalEntries.filter(e => e.action === 'sell') : journalEntries;
 
   const tradingStats = {
     totalTrades: isLongTermHold ? entriesForStats.length : journalEntries.length,
     wins: entriesForStats.filter(e => e.result === 'win' || e.result === 'breakeven').length,
     losses: entriesForStats.filter(e => e.result === 'loss').length,
-    winRate: entriesForStats.length > 0 ?
-      Math.round((entriesForStats.filter(e => e.result === 'win' || e.result === 'breakeven').length / entriesForStats.length) * 100) :
-      0,
-    avgRR: entriesForStats.length > 0 ?
-      (entriesForStats.reduce((sum, e) => sum + (e.riskReward || 0), 0) / entriesForStats.length).toFixed(2) :
-      '0.00',
+    winRate: entriesForStats.length > 0 ? Math.round((entriesForStats.filter(e => e.result === 'win' || e.result === 'breakeven').length / entriesForStats.length) * 100) : 0,
+    avgRR: entriesForStats.length > 0 ? (entriesForStats.reduce((sum, e) => sum + (e.riskReward || 0), 0) / entriesForStats.length).toFixed(2) : '0.00',
   };
 
   const today = new Date();
@@ -207,24 +161,17 @@ export function Dashboard() {
   const totalPnL = entriesForStats.reduce((sum, e) => sum + (e.pnl || 0), 0);
   const dailyPnL = entriesForStats.filter(e => e.date === todayStr).reduce((sum, e) => sum + (e.pnl || 0), 0);
   const weeklyPnL = entriesForStats.filter(e => e.date >= weekStartStr).reduce((sum, e) => sum + (e.pnl || 0), 0);
-
   const fmtPnL = (val: number) => `${val >= 0 ? '+' : ''}$${Math.abs(val).toFixed(0)}`;
 
-
-  // Build follower/following lists
-  // getFollowing() returns array of user IDs that the CURRENT user follows
   const allUsers = storage.getAllUsers();
   const myFollowingIds = storage.getFollowing() || [];
   const followingList = allUsers.filter(u => myFollowingIds.includes(u.id) && u.id !== user.id);
-  // Followers: users who have the current user's id in their following list
   const followerList = allUsers.filter(u => {
     if (u.id === user.id) return false;
     try {
       const theirFollowing = (storage as any).getFollowingForUser?.(u.id) || [];
       return theirFollowing.includes(user.id);
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   });
 
   return (
@@ -249,11 +196,7 @@ export function Dashboard() {
               (followModal === 'followers' ? followerList : followingList).map(u => {
                 const uLeague = getLeague(u.totalPoints || 0);
                 return (
-                  <div
-                    key={u.id}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer transition-colors"
-                    onClick={() => { setFollowModal(null); navigate(`/app/profile/${u.id}`); }}
-                  >
+                  <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer transition-colors" onClick={() => { setFollowModal(null); navigate(`/app/profile/${u.id}`); }}>
                     <Avatar className="w-9 h-9 flex-shrink-0">
                       <AvatarImage src={u.profilePicture} />
                       <AvatarFallback className="text-sm">{u.name?.[0] || u.username?.[0] || '?'}</AvatarFallback>
@@ -270,6 +213,16 @@ export function Dashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* Share Card Dialog */}
+      <Dialog open={showShareCard} onOpenChange={setShowShareCard}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Share Your Card</DialogTitle>
+          </DialogHeader>
+          <DisciplineShareCard />
+        </DialogContent>
+      </Dialog>
+
       {/* Daily Check CTA */}
       {!hasLoggedToday && (
         <Card className="bg-gradient-to-r from-blue-600 to-blue-800 text-white border-0">
@@ -279,13 +232,7 @@ export function Dashboard() {
                 <h3 className="text-lg font-semibold mb-1">Ready to log your day?</h3>
                 <p className="text-blue-100 text-sm">Keep your streak alive and earn points!</p>
               </div>
-              <Button
-                onClick={() => navigate('/app/daily-check')}
-                variant="secondary"
-                size="lg"
-              >
-                Daily Check-In
-              </Button>
+              <Button onClick={() => navigate('/app/daily-check')} variant="secondary" size="lg">Daily Check-In</Button>
             </div>
           </CardContent>
         </Card>
@@ -307,26 +254,14 @@ export function Dashboard() {
                   {user.profilePicture ? (
                     <AvatarImage src={user.profilePicture} alt="Profile Picture" />
                   ) : (
-                    <AvatarFallback className="text-2xl">
-                      {user.name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
+                    <AvatarFallback className="text-2xl">{user.name.charAt(0).toUpperCase()}</AvatarFallback>
                   )}
                 </Avatar>
-                <label
-                  htmlFor="profile-pic-upload"
-                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors shadow-lg border-2 border-background"
-                >
+                <label htmlFor="profile-pic-upload" className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors shadow-lg border-2 border-background">
                   <Plus className="w-4 h-4" />
-                  <input
-                    id="profile-pic-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleProfilePictureChange}
-                    className="hidden"
-                  />
+                  <input id="profile-pic-upload" type="file" accept="image/*" onChange={handleProfilePictureChange} className="hidden" />
                 </label>
               </div>
-
               <div className={`relative px-4 py-3 rounded-xl bg-gradient-to-br ${TIER_GRADIENTS[league.tier]?.bg || 'from-slate-400 to-slate-600'} text-white shadow-lg flex flex-col items-center gap-1`}>
                 <LeagueBadgeIcon tier={league.tier} size={36} />
                 <div className="text-center leading-tight">
@@ -334,10 +269,7 @@ export function Dashboard() {
                   <div className="text-sm font-bold">{league.roman}</div>
                 </div>
               </div>
-              {isDemoted && (
-                <Badge variant="destructive" className="text-xs">⚠ Demotion Risk</Badge>
-              )}
-
+              {isDemoted && <Badge variant="destructive" className="text-xs">⚠ Demotion Risk</Badge>}
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">{disciplineRate}%</div>
                 <div className="text-xs text-muted-foreground">Discipline</div>
@@ -357,36 +289,23 @@ export function Dashboard() {
                       <>
                         <span className="text-muted-foreground">•</span>
                         <div className="flex items-center gap-1.5 text-sm font-medium text-primary">
-                          <TrendingUp className="w-3.5 h-3.5" />
-                          {user.tradingStyle}
+                          <TrendingUp className="w-3.5 h-3.5" />{user.tradingStyle}
                         </div>
                       </>
                     )}
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/app/profile/${user.id}`)}
-                  className="flex items-center gap-2"
-                >
-                  <Edit className="w-4 h-4" />
-                  Edit Profile
+                <Button variant="outline" size="sm" onClick={() => navigate(`/app/profile/${user.id}`)} className="flex items-center gap-2">
+                  <Edit className="w-4 h-4" /> Edit Profile
                 </Button>
               </div>
 
               <div className="flex gap-6 text-sm">
-                <button
-                  className="text-left hover:opacity-70 transition-opacity"
-                  onClick={() => setFollowModal('followers')}
-                >
+                <button className="text-left hover:opacity-70 transition-opacity" onClick={() => setFollowModal('followers')}>
                   <span className="font-bold">{user.followers ?? 0}</span>
                   <span className="text-muted-foreground ml-1">Followers</span>
                 </button>
-                <button
-                  className="text-left hover:opacity-70 transition-opacity"
-                  onClick={() => setFollowModal('following')}
-                >
+                <button className="text-left hover:opacity-70 transition-opacity" onClick={() => setFollowModal('following')}>
                   <span className="font-bold">{user.following ?? 0}</span>
                   <span className="text-muted-foreground ml-1">Following</span>
                 </button>
@@ -401,8 +320,7 @@ export function Dashboard() {
 
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3" />
-                  {user.currentStreak ?? 0} Day Streak
+                  <TrendingUp className="w-3 h-3" />{user.currentStreak ?? 0} Day Streak
                 </Badge>
               </div>
             </div>
@@ -410,23 +328,12 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* ── Share Card ── */}
+      {/* Share Card Button */}
       <Card className="border border-border">
-        <CardContent className="pt-4 pb-4 space-y-3">
-          <div className="flex gap-1 bg-muted rounded-lg p-1">
-            {(['today','week','month','year','overall'] as const).map(p => (
-              <button
-                key={p}
-                onClick={() => setSharePeriod(p)}
-                className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  sharePeriod === p ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {p === 'today' ? 'Today' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : p === 'year' ? 'Year' : 'All'}
-              </button>
-            ))}
-          </div>
-          <DisciplineShareCard key={sharePeriod} range={sharePeriod} />
+        <CardContent className="pt-4 pb-4">
+          <Button className="w-full" variant="outline" onClick={() => setShowShareCard(true)}>
+            <Share2 className="w-4 h-4 mr-2" /> Share Card
+          </Button>
         </CardContent>
       </Card>
 
@@ -443,7 +350,6 @@ export function Dashboard() {
             <div className="text-sm text-muted-foreground">Clean Days</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="pt-6 text-center">
             <div className="flex justify-center mb-2">
@@ -455,7 +361,6 @@ export function Dashboard() {
             <div className="text-sm text-muted-foreground">Forfeit Days</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="pt-6 text-center">
             <div className="flex justify-center mb-2">
@@ -475,49 +380,19 @@ export function Dashboard() {
           <CardContent className="pt-6">
             <h3 className="font-semibold mb-4 text-sm">Trading Performance</h3>
             <div className="grid grid-cols-5 gap-3 mb-4">
+              <div className="text-center"><div className="text-xl font-bold">{tradingStats.totalTrades}</div><div className="text-xs text-muted-foreground">Total</div></div>
+              <div className="text-center"><div className="text-xl font-bold text-green-500">{tradingStats.wins}</div><div className="text-xs text-muted-foreground">Wins</div></div>
+              <div className="text-center"><div className="text-xl font-bold text-red-500">{tradingStats.losses}</div><div className="text-xs text-muted-foreground">Losses</div></div>
+              <div className="text-center"><div className="text-xl font-bold text-blue-500">{tradingStats.winRate}%</div><div className="text-xs text-muted-foreground">Win Rate</div></div>
               <div className="text-center">
-                <div className="text-xl font-bold">{tradingStats.totalTrades}</div>
-                <div className="text-xs text-muted-foreground">Total</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-bold text-green-500">{tradingStats.wins}</div>
-                <div className="text-xs text-muted-foreground">Wins</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-bold text-red-500">{tradingStats.losses}</div>
-                <div className="text-xs text-muted-foreground">Losses</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-bold text-blue-500">{tradingStats.winRate}%</div>
-                <div className="text-xs text-muted-foreground">Win Rate</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-bold text-purple-500">
-                  {isLongTermHold ? `${Number(tradingStats.avgRR) > 0 ? '+' : ''}${tradingStats.avgRR}%` : tradingStats.avgRR}
-                </div>
+                <div className="text-xl font-bold text-purple-500">{isLongTermHold ? `${Number(tradingStats.avgRR) > 0 ? '+' : ''}${tradingStats.avgRR}%` : tradingStats.avgRR}</div>
                 <div className="text-xs text-muted-foreground">{isLongTermHold ? '% Gain' : 'Avg R:R'}</div>
               </div>
             </div>
-
             <div className="grid grid-cols-3 gap-3 pt-3 border-t border-purple-200/50 dark:border-purple-800/30">
-              <div className="text-center">
-                <div className={`text-lg font-bold ${dailyPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {fmtPnL(dailyPnL)}
-                </div>
-                <div className="text-xs text-muted-foreground">Today P&L</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-lg font-bold ${weeklyPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {fmtPnL(weeklyPnL)}
-                </div>
-                <div className="text-xs text-muted-foreground">This Week</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-lg font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {fmtPnL(totalPnL)}
-                </div>
-                <div className="text-xs text-muted-foreground">All Time</div>
-              </div>
+              <div className="text-center"><div className={`text-lg font-bold ${dailyPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>{fmtPnL(dailyPnL)}</div><div className="text-xs text-muted-foreground">Today P&L</div></div>
+              <div className="text-center"><div className={`text-lg font-bold ${weeklyPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>{fmtPnL(weeklyPnL)}</div><div className="text-xs text-muted-foreground">This Week</div></div>
+              <div className="text-center"><div className={`text-lg font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>{fmtPnL(totalPnL)}</div><div className="text-xs text-muted-foreground">All Time</div></div>
             </div>
           </CardContent>
         </Card>
@@ -538,31 +413,14 @@ export function Dashboard() {
               <Card key={post.id} className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow group">
                 <div className="aspect-square bg-muted relative">
                   {post.photoUrl ? (
-                    <img
-                      src={post.photoUrl}
-                      alt="Post"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={post.photoUrl} alt="Post" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                      No image
-                    </div>
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">No image</div>
                   )}
-                  <Badge
-                    className="absolute top-1 right-1 text-xs py-0"
-                    variant={post.type === 'clean' ? 'default' : 'secondary'}
-                  >
+                  <Badge className="absolute top-1 right-1 text-xs py-0" variant={post.type === 'clean' ? 'default' : 'secondary'}>
                     {post.type === 'clean' ? '✓' : '⚡'}
                   </Badge>
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeletePost(post.id);
-                    }}
-                    size="sm"
-                    variant="destructive"
-                    className="absolute top-1 left-1 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
+                  <Button onClick={(e) => { e.stopPropagation(); handleDeletePost(post.id); }} size="sm" variant="destructive" className="absolute top-1 left-1 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
