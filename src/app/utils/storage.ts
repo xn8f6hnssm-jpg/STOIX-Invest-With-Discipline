@@ -656,16 +656,29 @@ export const storage = {
 
   addPost: (post: Omit<Post, 'id' | 'likes' | 'comments' | 'timestamp'>): Post => {
     const posts = storage.getPosts();
-    const newPost: Post = { ...post, id: generateUniqueId(), likes: 0, comments: [], timestamp: Date.now() };
+    const newPost: Post = {
+      ...post,
+      // Strip base64 profile pictures — only store URLs
+      avatarUrl: post.avatarUrl?.startsWith('data:image') ? '' : (post.avatarUrl || ''),
+      // Strip base64 screenshots from posts to save space
+      photoUrl: post.photoUrl?.startsWith('data:image') ? '' : (post.photoUrl || ''),
+      images: (post.images || []).filter(img => !img.startsWith('data:image')),
+      id: generateUniqueId(),
+      likes: 0,
+      comments: [],
+      timestamp: Date.now(),
+    };
     posts.unshift(newPost);
     safeSetItem(KEYS.POSTS, JSON.stringify(posts));
+    // Sync to Supabase
     supabase.from('posts').upsert({
       id: newPost.id, user_id: newPost.userId, username: newPost.username,
+      avatar_url: newPost.avatarUrl || null,
       league: newPost.league, is_verified: newPost.isVerified, type: newPost.type,
       photo_url: newPost.photoUrl || null, images: newPost.images || [],
       caption: newPost.caption, likes: 0, journal_data: newPost.journalData || null,
       timestamp: newPost.timestamp,
-    }).then(({ error }) => { if (error) console.error('Post sync error:', error); });
+    }).then(({ error }) => { if (error) console.error('Post sync error:', JSON.stringify(error)); });
     return newPost;
   },
 

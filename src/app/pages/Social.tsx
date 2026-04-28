@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { storage, getLeague, getDisciplineRate } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -31,8 +32,51 @@ export function Social() {
   const currentUser = storage.getCurrentUser();
 
   useEffect(() => {
-    initializeDemoData();
-    setPosts(storage.getPosts());
+    // Load posts from Supabase first, fall back to localStorage
+    const loadPosts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .select('*, comments(*)')
+          .order('timestamp', { ascending: false })
+          .limit(50);
+
+        if (data && !error) {
+          const mapped = data.map((p: any) => ({
+            id: p.id,
+            userId: p.user_id,
+            username: p.username,
+            avatarUrl: p.avatar_url || '',
+            league: p.league || '0',
+            isVerified: p.is_verified || false,
+            type: p.type || 'general',
+            photoUrl: p.photo_url || '',
+            images: p.images || [],
+            caption: p.caption || '',
+            likes: p.likes || 0,
+            comments: (p.comments || []).map((c: any) => ({
+              id: c.id,
+              userId: c.user_id,
+              username: c.username,
+              text: c.text,
+              timestamp: c.timestamp,
+            })),
+            timestamp: p.timestamp || Date.now(),
+            journalData: p.journal_data || null,
+          }));
+          setPosts(mapped);
+          // Also update localStorage cache
+          localStorage.setItem('tradeforge_posts', JSON.stringify(mapped));
+        } else {
+          // Fall back to localStorage
+          setPosts(storage.getPosts());
+        }
+      } catch {
+        setPosts(storage.getPosts());
+      }
+    };
+
+    loadPosts();
   }, []);
 
   const handleLike = (postId: string) => {
