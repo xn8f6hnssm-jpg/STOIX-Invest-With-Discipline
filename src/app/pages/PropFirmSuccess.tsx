@@ -4,18 +4,15 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
-import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
-  Trophy, Target, Lock, ChevronRight, AlertCircle, Plus, Trash2,
-  Edit2, Shield, AlertTriangle, CheckCircle, Calculator, BarChart3,
-  Brain, Zap, RefreshCw, TrendingDown, TrendingUp, Activity, XCircle, Flame,
-  Lightbulb, CheckSquare, Gauge, Calendar, Star, ArrowUp, ArrowDown
+  Trophy, Target, Lock, ChevronRight, AlertCircle, Shield, AlertTriangle,
+  CheckCircle, Calculator, BarChart3, Brain, Zap, RefreshCw, TrendingUp,
+  Activity, XCircle, Flame, Lightbulb, CheckSquare, Gauge, Calendar, Star,
+  ArrowUp, ArrowDown
 } from 'lucide-react';
 import { storage } from '../utils/storage';
 import { toast } from 'sonner';
-
-interface AccountRule { id: string; title: string; description?: string; userId: string; }
 
 interface PropFirmSettings {
   dailyLossLimit: number;
@@ -89,13 +86,48 @@ const CHECKLIST_ITEMS = [
   { id: 'confirm',    label: 'I have waited for confirmation' },
 ];
 
+// ── Number input that allows negatives and no leading zero ────────────────────
+function NumInput({ value, onChange, allowNegative = false, label }: {
+  value: number; onChange: (v: number) => void; allowNegative?: boolean; label: string;
+}) {
+  const [raw, setRaw] = useState(value === 0 ? '' : String(value));
+
+  useEffect(() => {
+    setRaw(value === 0 ? '' : String(value));
+  }, [value]);
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input
+        type="number"
+        onWheel={e => e.currentTarget.blur()}
+        value={raw}
+        placeholder="0"
+        onChange={e => {
+          const str = e.target.value;
+          setRaw(str);
+          const num = parseFloat(str);
+          if (!isNaN(num) && (allowNegative || num >= 0)) {
+            onChange(num);
+          } else if (str === '' || str === '-') {
+            onChange(0);
+          }
+        }}
+        onBlur={() => {
+          const num = parseFloat(raw);
+          if (isNaN(num)) { setRaw(''); onChange(0); }
+          else setRaw(String(num));
+        }}
+      />
+    </div>
+  );
+}
+
 export function PropFirmSuccess() {
   const currentUser = storage.getCurrentUser();
   const isPremium = currentUser?.isPremium;
 
-  const [accountRules, setAccountRules] = useState<AccountRule[]>([]);
-  const [newRule, setNewRule] = useState({ title: '', description: '' });
-  const [editingRule, setEditingRule] = useState<AccountRule | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [disciplineLocked, setDisciplineLocked] = useState(false);
   const [lockConfirmText, setLockConfirmText] = useState('');
@@ -120,11 +152,9 @@ export function PropFirmSuccess() {
 
   useEffect(() => {
     if (currentUser) {
-      setAccountRules(storage.getAccountRules(currentUser.id) || []);
       const saved = localStorage.getItem(`prop_firm_settings_${currentUser.id}`);
       if (saved) setSettings(JSON.parse(saved));
-      const locked = localStorage.getItem(`prop_firm_locked_${currentUser.id}`);
-      if (locked === 'true') setDisciplineLocked(true);
+      if (localStorage.getItem(`prop_firm_locked_${currentUser.id}`) === 'true') setDisciplineLocked(true);
       const impact = localStorage.getItem(`prop_firm_discipline_impact_${currentUser.id}`);
       if (impact) setDisciplineImpact(parseInt(impact) || 0);
     }
@@ -132,23 +162,41 @@ export function PropFirmSuccess() {
 
   const tradeRisk = contracts * stopSize * (INSTRUMENTS[instrument] ?? 20);
 
+  // ── Use journal P&L data to calculate today's loss ──────────────────────────
+  // Reads the pnl field directly from journal entries (not custom fields)
   const todayLoss = (() => {
     const today = new Date().toISOString().split('T')[0];
+    const entries = storage.getJournalEntries()
+      .filter(e => e.date === today && e.userId === currentUser?.id);
+
+    let totalLoss = 0;
+    entries.forEach(e => {
+      // Use the dedicated pnl field first
+      if (typeof e.pnl === 'number' && e.pnl < 0) {
+        totalLoss += Math.abs(e.pnl);
+      } else if (e.result === 'loss') {
+        // Fall back to risk per trade estimate if no P&L
+        totalLoss += settings.averageRiskPerTrade;
+      }
+    });
+    return totalLoss;
+  })();
+
+  // Also calculate today's total P&L (positive or negative)
+  const todayPnL = (() => {
+    const today = new Date().toISOString().split('T')[0];
     return storage.getJournalEntries()
-      .filter(e => e.date === today && e.userId === currentUser?.id && e.result === 'loss')
-      .reduce((sum, e) => {
-        const pnl = parseFloat(e.customFields?.['P&L'] ?? '0') || 0;
-        return sum + (pnl < 0 ? Math.abs(pnl) : 0);
-      }, 0);
+      .filter(e => e.date === today && e.userId === currentUser?.id)
+      .reduce((sum, e) => sum + (typeof e.pnl === 'number' ? e.pnl : 0), 0);
   })();
 
   const remainingLoss = Math.max(settings.dailyLossLimit - todayLoss, 0);
-  const lossPercent = Math.min((todayLoss / settings.dailyLossLimit) * 100, 100);
+  const lossPercent = Math.min((todayLoss / Math.max(settings.dailyLossLimit, 1)) * 100, 100);
   const zone = getZone(lossPercent);
   const cfg = ZONE_CONFIG[zone];
   const guidance = ZONE_GUIDANCE[zone];
   const remainingProfit = Math.max(settings.profitTarget - settings.currentProfit, 0);
-  const challengeProgress = Math.min((settings.currentProfit / settings.profitTarget) * 100, 100);
+  const challengeProgress = Math.min((settings.currentProfit / Math.max(settings.profitTarget, 1)) * 100, 100);
   const recommendedMaxRisk = remainingLoss * 0.30;
 
   useEffect(() => {
@@ -156,7 +204,7 @@ export function PropFirmSuccess() {
       setDisciplineLocked(true);
       setAutoLockTriggered(true);
       localStorage.setItem(`prop_firm_locked_${currentUser?.id}`, 'true');
-      toast.error('🔒 Auto-Lock activated — daily loss limit reached. Trading locked to protect account.');
+      toast.error('🔒 Auto-Lock activated — daily loss limit reached.');
     }
   }, [lossPercent]);
 
@@ -175,24 +223,18 @@ export function PropFirmSuccess() {
 
     if (entries.length >= 3) {
       const risks = entries.slice(-3).map(e => e.riskReward || 0);
-      if (risks[2] > risks[1] * 1.5 && risks[1] > risks[0] * 1.5) {
+      if (risks[2] > risks[1] * 1.5 && risks[1] > risks[0] * 1.5)
         signals.push({ text: 'Position size increasing after each trade — classic tilt pattern', level: 'critical' });
-      }
-    }
-
-    if (entries.length >= 3) {
-      const lastThreeTimes = entries.slice(-3).map(e => e.customFields?.['Entry Time'] || '');
-      const hours = lastThreeTimes.map(t => t ? parseInt(t.split(':')[0]) : -1).filter(h => h >= 0);
-      if (hours.length === 3 && hours[0] === hours[1] && hours[1] === hours[2]) {
-        signals.push({ text: 'Multiple rapid entries in same hour — slow down', level: 'warning' });
-      }
     }
 
     const style = currentUser?.tradingStyle || 'Day Trader';
-    const maxTrades = { 'Day Trader': 8, 'Swing Trader': 3, 'Long Term Hold': 2, 'Other': 5 }[style] ?? 5;
-    if (entries.length > maxTrades) {
+    const maxTrades = ({ 'Day Trader': 8, 'Swing Trader': 3, 'Long Term Hold': 2, 'Other': 5 } as any)[style] ?? 5;
+    if (entries.length > maxTrades)
       signals.push({ text: `${entries.length} trades today — above normal for ${style}`, level: 'warning' });
-    }
+
+    // Warn if today's loss is more than 50% of daily limit
+    if (todayLoss > settings.dailyLossLimit * 0.5)
+      signals.push({ text: `Lost $${todayLoss.toLocaleString()} today — over 50% of daily limit used`, level: 'warning' });
 
     return signals;
   };
@@ -205,12 +247,11 @@ export function PropFirmSuccess() {
   const getSmartTradeLimit = () => {
     const entries = storage.getJournalEntries().filter(e => e.userId === currentUser?.id);
     if (entries.length < 5) return Math.max(0, Math.floor(remainingLoss / settings.averageRiskPerTrade));
-    const wins   = entries.filter(e => e.result === 'win').length;
-    const losses = entries.filter(e => e.result === 'loss').length;
-    const total  = wins + losses;
+    const wins = entries.filter(e => e.result === 'win').length;
+    const total = entries.filter(e => e.result === 'win' || e.result === 'loss').length;
     const winRate = total > 0 ? wins / total : 0.5;
-    const rrEntries = entries.filter(e => e.riskReward > 0);
-    const avgRR = rrEntries.length > 0 ? rrEntries.reduce((s, e) => s + e.riskReward, 0) / rrEntries.length : 1;
+    const rrEntries = entries.filter(e => (e.riskReward || 0) > 0);
+    const avgRR = rrEntries.length > 0 ? rrEntries.reduce((s, e) => s + (e.riskReward || 0), 0) / rrEntries.length : 1;
     const kellySizing = Math.max(0.1, winRate * avgRR - (1 - winRate));
     const base = Math.max(0, Math.floor(remainingLoss / settings.averageRiskPerTrade));
     return Math.max(0, Math.floor(base * kellySizing));
@@ -232,7 +273,7 @@ export function PropFirmSuccess() {
     if (tradeRisk > remainingLoss) return `This trade would violate your daily limit. Reduce to ${Math.floor(remainingLoss / (stopSize * (INSTRUMENTS[instrument] ?? 20)))} contract(s) or skip.`;
     if (tradeRisk > recommendedMaxRisk) return `Size is above recommended max. Consider ${Math.floor(getDynamicMaxRisk() / (stopSize * (INSTRUMENTS[instrument] ?? 20)))} contract(s) for safe risk management.`;
     const hour = new Date().getHours();
-    if (hour >= 9 && hour < 11) return `Account in ${zone} zone. ${getSmartTradeLimit()} smart trades remaining. You're in the Open session — historically the best window. Stay disciplined.`;
+    if (hour >= 9 && hour < 11) return `Account in ${zone} zone. ${getSmartTradeLimit()} smart trades remaining. You're in the NY Open — historically the best window. Stay disciplined.`;
     if (hour >= 11 && hour < 13) return `Midday session — lower volatility. Account in ${zone} zone. ${getSmartTradeLimit()} smart trades remaining. Only A+ setups.`;
     return `Account in ${zone} zone. Approximately ${getSmartTradeLimit()} smart trades remain today. Stay selective.`;
   };
@@ -286,16 +327,12 @@ export function PropFirmSuccess() {
   const tradeWarning = !tradeBreach && tradeRisk > recommendedMaxRisk;
 
   const projectedDaysToGoal = settings.averageDailyProfit > 0 && remainingProfit > 0
-    ? Math.ceil(remainingProfit / settings.averageDailyProfit)
-    : null;
+    ? Math.ceil(remainingProfit / settings.averageDailyProfit) : null;
   const projectedDate = projectedDaysToGoal
     ? new Date(Date.now() + projectedDaysToGoal * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : null;
 
   const shouldSuggestStop = (() => {
-    const todayEntries = storage.getJournalEntries()
-      .filter(e => e.date === new Date().toISOString().split('T')[0] && e.userId === currentUser?.id);
-    const todayPnL = todayEntries.reduce((s, e) => s + (e.pnl || 0), 0);
     const upSignificantly   = todayPnL > settings.averageDailyProfit * 2;
     const downSignificantly = lossPercent >= 65;
     return {
@@ -307,18 +344,14 @@ export function PropFirmSuccess() {
   if (!isPremium) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Prop Firm Success</h1>
-        </div>
+        <div className="mb-8"><h1 className="text-3xl font-bold mb-2">Prop Firm Success</h1></div>
         <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
           <CardContent className="py-16 text-center space-y-4">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
               <Lock className="w-8 h-8 text-primary" />
             </div>
             <h2 className="text-2xl font-bold">Premium Feature</h2>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Tilt detection, blow-up probability, dynamic risk, discipline lock, auto-lock, pre-trade checklist, and full account protection.
-            </p>
+            <p className="text-muted-foreground max-w-md mx-auto">Tilt detection, blow-up probability, dynamic risk, discipline lock, and full account protection.</p>
             <Button size="lg" className="mt-4" onClick={() => window.location.href = '/app/upgrade'}>
               Upgrade to Premium <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
@@ -337,7 +370,6 @@ export function PropFirmSuccess() {
           <Shield className="w-8 h-8 text-green-600" />
           <h1 className="text-2xl font-bold">Account Protection Center</h1>
         </div>
-        {/* FIX: Renamed from "Settings" to "Prop Firm Rules" */}
         <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
           <RefreshCw className="w-4 h-4 mr-2" /> Prop Firm Rules
         </Button>
@@ -349,21 +381,16 @@ export function PropFirmSuccess() {
           <CardHeader><CardTitle>Challenge Settings</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {([
-                ['Daily Loss Limit ($)', 'dailyLossLimit'],
-                ['Overall Drawdown ($)', 'overallDrawdownLimit'],
-                ['Profit Target ($)', 'profitTarget'],
-                ['Current Profit ($)', 'currentProfit'],
-                ['Avg Daily Profit ($)', 'averageDailyProfit'],
-                ['Avg Risk Per Trade ($)', 'averageRiskPerTrade'],
-              ] as [string, keyof PropFirmSettings][]).map(([label, key]) => (
-                <div key={key} className="space-y-1">
-                  <Label className="text-xs">{label}</Label>
-                  <Input type="number" onWheel={e => e.currentTarget.blur()} value={settings[key]}
-                    onChange={e => setSettings(s => ({ ...s, [key]: parseFloat(e.target.value) || 0 }))} />
-                </div>
-              ))}
+              <NumInput label="Daily Loss Limit ($)" value={settings.dailyLossLimit} onChange={v => setSettings(s => ({ ...s, dailyLossLimit: v }))} />
+              <NumInput label="Overall Drawdown ($)" value={settings.overallDrawdownLimit} onChange={v => setSettings(s => ({ ...s, overallDrawdownLimit: v }))} />
+              <NumInput label="Profit Target ($)" value={settings.profitTarget} onChange={v => setSettings(s => ({ ...s, profitTarget: v }))} />
+              <NumInput label="Current Profit ($)" value={settings.currentProfit} onChange={v => setSettings(s => ({ ...s, currentProfit: v }))} allowNegative />
+              <NumInput label="Avg Daily Profit ($)" value={settings.averageDailyProfit} onChange={v => setSettings(s => ({ ...s, averageDailyProfit: v }))} />
+              <NumInput label="Avg Risk Per Trade ($)" value={settings.averageRiskPerTrade} onChange={v => setSettings(s => ({ ...s, averageRiskPerTrade: v }))} />
             </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              💡 Daily loss is auto-calculated from your journal P&L entries. Settings override only if no P&L is logged.
+            </p>
             <div className="flex gap-2 mt-4">
               <Button onClick={saveSettings}>Save</Button>
               <Button variant="ghost" onClick={() => setShowSettings(false)}>Cancel</Button>
@@ -372,7 +399,7 @@ export function PropFirmSuccess() {
         </Card>
       )}
 
-      {/* ── Discipline Score Impact ── */}
+      {/* Discipline Score */}
       <Card className={`border ${disciplineImpact >= 0 ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
         <CardContent className="pt-4 pb-4">
           <div className="flex items-center justify-between">
@@ -393,7 +420,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── Zone Banner ── */}
+      {/* Zone Banner */}
       <Card className={`border-2 ${cfg.border} ${cfg.bg}`}>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-3">
@@ -402,10 +429,15 @@ export function PropFirmSuccess() {
           </div>
           <p className={`font-semibold ${cfg.color} mb-1`}>{guidance.title}</p>
           <p className="text-sm text-muted-foreground">{guidance.msg}</p>
+          {todayPnL !== 0 && (
+            <div className={`mt-3 p-3 rounded-lg text-sm font-semibold ${todayPnL > 0 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
+              Today's P&L from journal: {todayPnL >= 0 ? '+' : ''}${todayPnL.toLocaleString()}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* ── Daily Stop Suggestion ── */}
+      {/* Daily Stop Suggestion */}
       {shouldSuggestStop.suggest && (
         <Card className="border-2 border-blue-500/30 bg-blue-500/5">
           <CardContent className="pt-4 pb-4">
@@ -420,7 +452,7 @@ export function PropFirmSuccess() {
         </Card>
       )}
 
-      {/* ── Discipline Lock ── */}
+      {/* Discipline Lock */}
       {disciplineLocked ? (
         <Card className="border-2 border-red-500/50 bg-red-500/5">
           <CardContent className="pt-6">
@@ -459,7 +491,7 @@ export function PropFirmSuccess() {
         </Card>
       )}
 
-      {/* ── Tilt Detection ── */}
+      {/* Tilt Detection */}
       {tiltSignals.length > 0 && (
         <Card className={`border-2 ${isTilting ? 'border-red-500/50 bg-red-500/5' : 'border-orange-500/30 bg-orange-500/5'}`}>
           <CardContent className="pt-6">
@@ -489,7 +521,7 @@ export function PropFirmSuccess() {
         </Card>
       )}
 
-      {/* ── Blow-Up Probability — with 10-day projection ── */}
+      {/* Blow-Up Probability */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-4">
@@ -520,7 +552,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── Daily Loss Gauge — animated ── */}
+      {/* Daily Loss Gauge */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-4">
@@ -549,8 +581,6 @@ export function PropFirmSuccess() {
               <div key={r}><div className={`font-semibold ${c}`}>{r}</div><div className="text-muted-foreground">{l}</div></div>
             ))}
           </div>
-
-          {/* Performance Pressure Meter */}
           {lossPercent >= 40 && (
             <div className={`mb-3 p-3 rounded-lg border text-xs font-medium flex items-center gap-2 ${
               lossPercent >= 85 ? 'bg-red-500/10 border-red-500/20 text-red-600'
@@ -558,18 +588,16 @@ export function PropFirmSuccess() {
               : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-400'
             }`}>
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {lossPercent >= 85
-                ? '🚨 High pressure zone — one trade from a rule violation. Reduce size immediately.'
-                : lossPercent >= 65
-                ? '⚠️ Elevated pressure zone — you are in danger territory. Reduce size by 50%.'
+              {lossPercent >= 85 ? '🚨 High pressure zone — one trade from a rule violation. Reduce size immediately.'
+                : lossPercent >= 65 ? '⚠️ Elevated pressure zone — danger territory. Reduce size by 50%.'
                 : '⚡ Caution zone — cut position size by 50% and only take high-conviction setups.'}
             </div>
           )}
           <div className="grid grid-cols-3 gap-3 mt-2">
             {[
-              { label: 'Lost Today',   val: `$${todayLoss.toLocaleString()}`,     color: 'text-red-500' },
-              { label: 'Remaining',    val: `$${remainingLoss.toLocaleString()}`,  color: zone === 'critical' ? 'text-red-500' : 'text-green-500' },
-              { label: 'Smart Trades', val: getSmartTradeLimit().toString(),        color: 'text-blue-500' },
+              { label: 'Lost Today',   val: `$${todayLoss.toLocaleString()}`,    color: 'text-red-500' },
+              { label: 'Remaining',    val: `$${remainingLoss.toLocaleString()}`, color: zone === 'critical' ? 'text-red-500' : 'text-green-500' },
+              { label: 'Smart Trades', val: getSmartTradeLimit().toString(),       color: 'text-blue-500' },
             ].map(({ label, val, color }) => (
               <div key={label} className="p-3 rounded-lg bg-muted text-center">
                 <div className={`text-xl font-bold ${color}`}>{val}</div>
@@ -580,7 +608,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── Risk Calculator — with blocking warning ── */}
+      {/* Risk Calculator */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-4">
@@ -597,11 +625,11 @@ export function PropFirmSuccess() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Contracts</Label>
-              <Input type="number" min={1} value={contracts} onWheel={e => e.currentTarget.blur()} onChange={e => setContracts(parseInt(e.target.value) || 1)} />
+              <Input type="number" min={1} value={contracts || ''} placeholder="1" onWheel={e => e.currentTarget.blur()} onChange={e => setContracts(parseInt(e.target.value) || 1)} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Stop (pts)</Label>
-              <Input type="number" min={1} value={stopSize} onWheel={e => e.currentTarget.blur()} onChange={e => setStopSize(parseInt(e.target.value) || 1)} />
+              <Input type="number" min={1} value={stopSize || ''} placeholder="10" onWheel={e => e.currentTarget.blur()} onChange={e => setStopSize(parseInt(e.target.value) || 1)} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Trade Risk</Label>
@@ -610,12 +638,10 @@ export function PropFirmSuccess() {
               </div>
             </div>
           </div>
-
           <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 mb-4">
-            <p className="text-xs text-muted-foreground mb-1">Dynamic Max Risk (adjusted for behavior)</p>
+            <p className="text-xs text-muted-foreground mb-1">Dynamic Max Risk (adjusted for tilt behavior)</p>
             <p className="font-bold text-blue-600">${getDynamicMaxRisk().toLocaleString()}</p>
           </div>
-
           <div className="p-4 rounded-xl bg-muted/50 border mb-4">
             <div className="grid grid-cols-3 gap-4">
               <div><p className="text-xs text-muted-foreground mb-1">Trade Risk</p><p className="text-lg font-bold">${tradeRisk.toLocaleString()}</p></div>
@@ -627,14 +653,13 @@ export function PropFirmSuccess() {
               </div>
             </div>
           </div>
-
           {tradeBreach ? (
             <div className="p-4 rounded-lg bg-red-500/10 border-2 border-red-500/50">
               <div className="flex items-start gap-3">
                 <XCircle className="w-6 h-6 text-red-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-bold text-red-600 text-base mb-1">🚫 This trade violates your risk rules.</p>
-                  <p className="text-sm text-muted-foreground">This trade exceeds your daily loss limit. Reduce to {Math.max(0, Math.floor(remainingLoss / (stopSize * (INSTRUMENTS[instrument] ?? 20))))} contracts or skip this trade entirely.</p>
+                  <p className="text-sm text-muted-foreground">Exceeds daily loss limit. Reduce to {Math.max(0, Math.floor(remainingLoss / (stopSize * (INSTRUMENTS[instrument] ?? 20))))} contracts or skip entirely.</p>
                 </div>
               </div>
             </div>
@@ -652,7 +677,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── Pre-Trade Checklist ── */}
+      {/* Pre-Trade Checklist */}
       <Card className="border-2 border-blue-500/20">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-4">
@@ -686,7 +711,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── AI Recommendation — session-aware ── */}
+      {/* AI Recommendation */}
       <Card className="border-2 border-blue-500/20 bg-blue-500/5">
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-3">
@@ -700,7 +725,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── Max Allowed Positions ── */}
+      {/* Max Allowed Positions */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-2">
@@ -723,7 +748,7 @@ export function PropFirmSuccess() {
         </CardContent>
       </Card>
 
-      {/* ── Emergency Protection ── */}
+      {/* Emergency Protection */}
       {lossPercent >= 60 && (
         <Card className="border-2 border-red-500/30 bg-red-500/5">
           <CardContent className="pt-6">
@@ -737,16 +762,14 @@ export function PropFirmSuccess() {
             </Button>
             <div className="p-4 bg-background border border-red-500/20 rounded-lg space-y-2">
               {['Stop trading for today', 'Micro-size only if continuing', 'Only A+ setups with full confirmation', 'Set hard stop equal to remaining buffer'].map((item, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className="text-red-500 font-bold mt-0.5">•</span><span>{item}</span>
-                </div>
+                <div key={i} className="flex items-start gap-2 text-sm"><span className="text-red-500 font-bold mt-0.5">•</span><span>{item}</span></div>
               ))}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* ── Challenge Progress — with trajectory ── */}
+      {/* Challenge Progress */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3 mb-4">
@@ -757,7 +780,7 @@ export function PropFirmSuccess() {
             <div><p className="text-xs text-muted-foreground mb-1">Target</p><p className="text-xl font-bold">${settings.profitTarget.toLocaleString()}</p></div>
             <div>
               <p className="text-xs text-muted-foreground mb-1">Current</p>
-              <p className="text-xl font-bold text-green-600">${settings.currentProfit.toLocaleString()}</p>
+              <p className={`text-xl font-bold ${settings.currentProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>${settings.currentProfit.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">{challengeProgress.toFixed(0)}% complete</p>
             </div>
             <div><p className="text-xs text-muted-foreground mb-1">Remaining</p><p className="text-xl font-bold">${remainingProfit.toLocaleString()}</p></div>
@@ -777,15 +800,8 @@ export function PropFirmSuccess() {
               </div>
             </div>
           )}
-          {settings.averageDailyProfit > 0 && (
-            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm mt-3">
-              <span className="text-muted-foreground">At ${settings.averageDailyProfit}/day: </span>
-              <span className="font-semibold">~{Math.ceil(remainingProfit / settings.averageDailyProfit)} trading days remaining</span>
-            </div>
-          )}
         </CardContent>
       </Card>
-      {/* FIX: Account Rules block removed — duplicate of settings */}
     </div>
   );
 }

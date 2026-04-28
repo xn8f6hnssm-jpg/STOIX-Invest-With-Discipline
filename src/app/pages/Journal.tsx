@@ -1594,7 +1594,13 @@ export function Journal() {
       </Card>
 
       {/* Tabs for Live Trading and Backtesting */}
-      <Tabs defaultValue="live" className="w-full" onValueChange={(value) => setActiveTab(value as 'live' | 'backtesting')}>
+      <Tabs defaultValue="live" className="w-full" onValueChange={(value) => {
+        setActiveTab(value as 'live' | 'backtesting');
+        // Reset custom fields when switching tabs so user starts fresh
+        setNewEntry(prev => ({ ...prev, customFields: {}, screenshots: [], description: '', riskReward: 0, pnl: undefined, isNoTradeDay: false, beResolution: undefined }));
+        setHiddenFieldsForEntry([]);
+        setHiddenSystemFields([]);
+      }}>
         {/* Strategy Selector */}
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-1 flex items-center gap-2">
@@ -1615,7 +1621,13 @@ export function Journal() {
               </>
             ) : (
               <>
-                <Select value={selectedStrategy} onValueChange={(value) => setSelectedStrategy(value)} className="flex-1">
+                <Select value={selectedStrategy} onValueChange={(value) => {
+                setSelectedStrategy(value);
+                // Reset entry form when switching strategies
+                setNewEntry(prev => ({ ...prev, customFields: {}, screenshots: [], description: '', riskReward: 0, pnl: undefined, isNoTradeDay: false, beResolution: undefined, strategyId: value === 'all' ? undefined : value }));
+                setHiddenFieldsForEntry([]);
+                setHiddenSystemFields([]);
+              }} className="flex-1">
                   <SelectTrigger>
                     <SelectValue placeholder={customStrategiesName} />
                   </SelectTrigger>
@@ -1650,6 +1662,10 @@ export function Journal() {
             onStrategyCreated={(strategy) => {
               setStrategies([...strategies, strategy]);
               setSelectedStrategy(strategy.id);
+              // Reset entry form so user starts fresh with new strategy
+              setNewEntry(prev => ({ ...prev, customFields: {}, screenshots: [], description: '', riskReward: 0, pnl: undefined, isNoTradeDay: false, beResolution: undefined, strategyId: strategy.id }));
+              setHiddenFieldsForEntry([]);
+              setHiddenSystemFields([]);
             }}
           />
         </div>
