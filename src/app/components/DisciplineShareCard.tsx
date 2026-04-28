@@ -82,9 +82,7 @@ export function DisciplineShareCard() {
   } else {
     const periodLogs = allDayLogs.filter((l: any) => inRange(l.date, from));
     if (periodLogs.length === 0) {
-      const clean = currentUser.cleanDays ?? 0;
-      const total = clean + (currentUser.forfeitDays ?? 0);
-      disciplineRate = total > 0 ? Math.round(clean / total * 100) : 0;
+      disciplineRate = 0;
     } else {
       const cleanCount = periodLogs.filter((l: any) => l.isClean === true).length;
       disciplineRate = Math.round(cleanCount / periodLogs.length * 100);

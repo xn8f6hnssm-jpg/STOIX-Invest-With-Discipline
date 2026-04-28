@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,7 +9,7 @@ import {
   Trophy, Target, Lock, ChevronRight, AlertCircle, Shield, AlertTriangle,
   CheckCircle, Calculator, BarChart3, Brain, Zap, RefreshCw, TrendingUp,
   Activity, XCircle, Flame, Lightbulb, CheckSquare, Gauge, Calendar, Star,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown, Plus, Trash2, DollarSign
 } from 'lucide-react';
 import { storage } from '../utils/storage';
 import { toast } from 'sonner';
@@ -23,19 +23,26 @@ interface PropFirmSettings {
   averageRiskPerTrade: number;
 }
 
+interface ManualTrade {
+  id: string;
+  pnl: number;
+  label: string;
+  timestamp: number;
+}
+
 type Zone = 'optimal' | 'caution' | 'danger' | 'critical';
 
 const ZONE_CONFIG = {
-  optimal:  { label: '🟢 Optimal Zone',  color: 'text-green-600',  bg: 'bg-green-500/10',  border: 'border-green-500/30',  bar: 'bg-green-500'  },
-  caution:  { label: '🟡 Caution Zone',  color: 'text-yellow-600', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', bar: 'bg-yellow-500' },
-  danger:   { label: '🔴 Danger Zone',   color: 'text-orange-600', bg: 'bg-orange-500/10', border: 'border-orange-500/30', bar: 'bg-orange-500' },
-  critical: { label: '🚨 Stop Trading',  color: 'text-red-600',    bg: 'bg-red-500/10',    border: 'border-red-500/30',    bar: 'bg-red-500'    },
+  optimal:  { label: '🟢 Optimal Zone',  color: 'text-green-600',  bg: 'bg-green-500/10',  border: 'border-green-500/30' },
+  caution:  { label: '🟡 Caution Zone',  color: 'text-yellow-600', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30' },
+  danger:   { label: '🔴 Danger Zone',   color: 'text-orange-600', bg: 'bg-orange-500/10', border: 'border-orange-500/30' },
+  critical: { label: '🚨 Stop Trading',  color: 'text-red-600',    bg: 'bg-red-500/10',    border: 'border-red-500/30'   },
 };
 
 const ZONE_GUIDANCE = {
   optimal:  { title: 'Optimal Zone — Trade your plan.',      msg: 'Account is in great shape. Focus on A+ setups only. Protect your gains as much as you grow them.' },
-  caution:  { title: 'Caution Zone — Reduce your size.',     msg: 'You\'ve used 40%+ of your daily limit. Cut position size by 50%. Only take high-conviction setups.' },
-  danger:   { title: 'Danger Zone — High violation risk.',   msg: 'You\'re approaching your limit. Strong recommendation to stop. If you continue, micro-size only.' },
+  caution:  { title: 'Caution Zone — Reduce your size.',     msg: "You've used 40%+ of your daily limit. Cut position size by 50%. Only take high-conviction setups." },
+  danger:   { title: 'Danger Zone — High violation risk.',   msg: "You're approaching your limit. Strong recommendation to stop. If you continue, micro-size only." },
   critical: { title: 'Stop Trading — Protect the account.',  msg: 'One average loss from a rule violation. Stop now. Come back tomorrow with a fresh mindset.' },
 };
 
@@ -80,45 +87,29 @@ function projectBlowUpOver(currentBlowUp: number, days: number): number {
 
 const CHECKLIST_ITEMS = [
   { id: 'setup',      label: 'Setup matches my trading plan' },
-  { id: 'risk',       label: 'Risk is within today\'s allowed limit' },
+  { id: 'risk',       label: "Risk is within today's allowed limit" },
   { id: 'no_revenge', label: 'This is NOT a revenge trade' },
   { id: 'emotion',    label: 'I am calm and not emotional' },
   { id: 'confirm',    label: 'I have waited for confirmation' },
 ];
 
-// ── Number input that allows negatives and no leading zero ────────────────────
-function NumInput({ value, onChange, allowNegative = false, label }: {
-  value: number; onChange: (v: number) => void; allowNegative?: boolean; label: string;
+function NumInput({ value, onChange, allowNegative = false, label, placeholder = '0' }: {
+  value: number; onChange: (v: number) => void; allowNegative?: boolean; label: string; placeholder?: string;
 }) {
   const [raw, setRaw] = useState(value === 0 ? '' : String(value));
-
-  useEffect(() => {
-    setRaw(value === 0 ? '' : String(value));
-  }, [value]);
-
+  useEffect(() => { setRaw(value === 0 ? '' : String(value)); }, [value]);
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       <Input
-        type="number"
-        onWheel={e => e.currentTarget.blur()}
-        value={raw}
-        placeholder="0"
+        type="number" onWheel={e => e.currentTarget.blur()} value={raw} placeholder={placeholder}
         onChange={e => {
-          const str = e.target.value;
-          setRaw(str);
+          const str = e.target.value; setRaw(str);
           const num = parseFloat(str);
-          if (!isNaN(num) && (allowNegative || num >= 0)) {
-            onChange(num);
-          } else if (str === '' || str === '-') {
-            onChange(0);
-          }
+          if (!isNaN(num) && (allowNegative || num >= 0)) onChange(num);
+          else if (str === '' || str === '-') onChange(0);
         }}
-        onBlur={() => {
-          const num = parseFloat(raw);
-          if (isNaN(num)) { setRaw(''); onChange(0); }
-          else setRaw(String(num));
-        }}
+        onBlur={() => { const num = parseFloat(raw); if (isNaN(num)) { setRaw(''); onChange(0); } else setRaw(String(num)); }}
       />
     </div>
   );
@@ -137,6 +128,12 @@ export function PropFirmSuccess() {
   const [disciplineImpact, setDisciplineImpact] = useState(0);
   const [autoLockTriggered, setAutoLockTriggered] = useState(false);
 
+  // Manual P&L logger
+  const [manualTrades, setManualTrades] = useState<ManualTrade[]>([]);
+  const [manualPnL, setManualPnL] = useState<number>(0);
+  const [manualPnLRaw, setManualPnLRaw] = useState('');
+  const [manualLabel, setManualLabel] = useState('');
+
   const [settings, setSettings] = useState<PropFirmSettings>({
     dailyLossLimit: 2500,
     overallDrawdownLimit: 5000,
@@ -150,6 +147,8 @@ export function PropFirmSuccess() {
   const [contracts, setContracts] = useState(1);
   const [stopSize, setStopSize] = useState(10);
 
+  const todayKey = new Date().toISOString().split('T')[0];
+
   useEffect(() => {
     if (currentUser) {
       const saved = localStorage.getItem(`prop_firm_settings_${currentUser.id}`);
@@ -157,38 +156,64 @@ export function PropFirmSuccess() {
       if (localStorage.getItem(`prop_firm_locked_${currentUser.id}`) === 'true') setDisciplineLocked(true);
       const impact = localStorage.getItem(`prop_firm_discipline_impact_${currentUser.id}`);
       if (impact) setDisciplineImpact(parseInt(impact) || 0);
+      // Load today's manual trades
+      const savedTrades = localStorage.getItem(`prop_firm_trades_${currentUser.id}_${todayKey}`);
+      if (savedTrades) setManualTrades(JSON.parse(savedTrades));
     }
   }, [currentUser?.id]);
 
+  const saveManualTrades = (trades: ManualTrade[]) => {
+    setManualTrades(trades);
+    localStorage.setItem(`prop_firm_trades_${currentUser?.id}_${todayKey}`, JSON.stringify(trades));
+  };
+
+  const logManualTrade = () => {
+    if (manualPnL === 0) { toast.error('Enter a P&L amount first'); return; }
+    const trade: ManualTrade = {
+      id: Date.now().toString(),
+      pnl: manualPnL,
+      label: manualLabel.trim() || (manualPnL > 0 ? 'Win' : 'Loss'),
+      timestamp: Date.now(),
+    };
+    saveManualTrades([...manualTrades, trade]);
+    setManualPnLRaw('');
+    setManualPnL(0);
+    setManualLabel('');
+    toast.success(`Trade logged: ${manualPnL >= 0 ? '+' : ''}$${manualPnL}`);
+  };
+
+  const removeManualTrade = (id: string) => {
+    saveManualTrades(manualTrades.filter(t => t.id !== id));
+  };
+
+  // Total manual P&L today
+  const manualTotalPnL = manualTrades.reduce((sum, t) => sum + t.pnl, 0);
+  const manualTotalLoss = manualTrades.filter(t => t.pnl < 0).reduce((sum, t) => sum + Math.abs(t.pnl), 0);
+
   const tradeRisk = contracts * stopSize * (INSTRUMENTS[instrument] ?? 20);
 
-  // ── Use journal P&L data to calculate today's loss ──────────────────────────
-  // Reads the pnl field directly from journal entries (not custom fields)
-  const todayLoss = (() => {
+  // Combined loss: journal entries + manual trades
+  const journalLoss = (() => {
     const today = new Date().toISOString().split('T')[0];
     const entries = storage.getJournalEntries()
       .filter(e => e.date === today && e.userId === currentUser?.id);
-
     let totalLoss = 0;
     entries.forEach(e => {
-      // Use the dedicated pnl field first
-      if (typeof e.pnl === 'number' && e.pnl < 0) {
-        totalLoss += Math.abs(e.pnl);
-      } else if (e.result === 'loss') {
-        // Fall back to risk per trade estimate if no P&L
-        totalLoss += settings.averageRiskPerTrade;
-      }
+      if (typeof e.pnl === 'number' && e.pnl < 0) totalLoss += Math.abs(e.pnl);
+      else if (e.result === 'loss') totalLoss += settings.averageRiskPerTrade;
     });
     return totalLoss;
   })();
 
-  // Also calculate today's total P&L (positive or negative)
-  const todayPnL = (() => {
+  const journalPnL = (() => {
     const today = new Date().toISOString().split('T')[0];
     return storage.getJournalEntries()
       .filter(e => e.date === today && e.userId === currentUser?.id)
       .reduce((sum, e) => sum + (typeof e.pnl === 'number' ? e.pnl : 0), 0);
   })();
+
+  const todayLoss = journalLoss + manualTotalLoss;
+  const todayPnL = journalPnL + manualTotalPnL;
 
   const remainingLoss = Math.max(settings.dailyLossLimit - todayLoss, 0);
   const lossPercent = Math.min((todayLoss / Math.max(settings.dailyLossLimit, 1)) * 100, 100);
@@ -210,32 +235,23 @@ export function PropFirmSuccess() {
 
   const getTiltSignals = () => {
     const today = new Date().toISOString().split('T')[0];
-    const entries = storage.getJournalEntries()
-      .filter(e => e.date === today && e.userId === currentUser?.id);
+    const entries = storage.getJournalEntries().filter(e => e.date === today && e.userId === currentUser?.id);
     const signals: { text: string; level: 'warning' | 'critical' }[] = [];
-
     if (entries.length >= 2) {
       const last3 = entries.slice(-3);
       const consecLosses = last3.filter(e => e.result === 'loss').length;
       if (consecLosses === 3) signals.push({ text: '3 consecutive losses — tilt probability very high', level: 'critical' });
       else if (consecLosses === 2) signals.push({ text: '2 losses in a row — revenge trading risk elevated', level: 'warning' });
     }
-
     if (entries.length >= 3) {
       const risks = entries.slice(-3).map(e => e.riskReward || 0);
       if (risks[2] > risks[1] * 1.5 && risks[1] > risks[0] * 1.5)
         signals.push({ text: 'Position size increasing after each trade — classic tilt pattern', level: 'critical' });
     }
-
     const style = currentUser?.tradingStyle || 'Day Trader';
     const maxTrades = ({ 'Day Trader': 8, 'Swing Trader': 3, 'Long Term Hold': 2, 'Other': 5 } as any)[style] ?? 5;
-    if (entries.length > maxTrades)
-      signals.push({ text: `${entries.length} trades today — above normal for ${style}`, level: 'warning' });
-
-    // Warn if today's loss is more than 50% of daily limit
-    if (todayLoss > settings.dailyLossLimit * 0.5)
-      signals.push({ text: `Lost $${todayLoss.toLocaleString()} today — over 50% of daily limit used`, level: 'warning' });
-
+    if (entries.length > maxTrades) signals.push({ text: `${entries.length} trades today — above normal for ${style}`, level: 'warning' });
+    if (todayLoss > settings.dailyLossLimit * 0.5) signals.push({ text: `Lost $${todayLoss.toLocaleString()} today — over 50% of daily limit used`, level: 'warning' });
     return signals;
   };
 
@@ -293,13 +309,8 @@ export function PropFirmSuccess() {
   };
 
   const unlockDiscipline = () => {
-    if (lockConfirmText.toLowerCase() !== 'i understand the risk') {
-      toast.error('Type exactly: I understand the risk');
-      return;
-    }
-    setDisciplineLocked(false);
-    setLockConfirmText('');
-    setAutoLockTriggered(false);
+    if (lockConfirmText.toLowerCase() !== 'i understand the risk') { toast.error('Type exactly: I understand the risk'); return; }
+    setDisciplineLocked(false); setLockConfirmText(''); setAutoLockTriggered(false);
     localStorage.removeItem(`prop_firm_locked_${currentUser?.id}`);
     toast.success('Lock removed. Trade with discipline.');
   };
@@ -307,13 +318,8 @@ export function PropFirmSuccess() {
   const handleChecklistSubmit = () => {
     const allPassed = CHECKLIST_ITEMS.every(item => checklistState[item.id]);
     setChecklistPassed(allPassed);
-    if (allPassed) {
-      adjustDisciplineImpact(+3, '— Pre-trade checklist followed');
-      toast.success('Pre-trade checklist passed ✓ Proceed with your trade.');
-    } else {
-      adjustDisciplineImpact(-2, '— Checklist not fully completed');
-      toast.error('Checklist failed — do not take this trade.');
-    }
+    if (allPassed) { adjustDisciplineImpact(+3, '— Pre-trade checklist followed'); toast.success('Pre-trade checklist passed ✓'); }
+    else { adjustDisciplineImpact(-2, '— Checklist not fully completed'); toast.error('Checklist failed — do not take this trade.'); }
   };
 
   const saveSettings = () => {
@@ -337,7 +343,7 @@ export function PropFirmSuccess() {
     const downSignificantly = lossPercent >= 65;
     return {
       suggest: upSignificantly || downSignificantly,
-      reason: upSignificantly ? 'You\'re up significantly — protect your gains.' : 'You\'re in the danger zone — protect the account.',
+      reason: upSignificantly ? "You're up significantly — protect your gains." : "You're in the danger zone — protect the account.",
     };
   })();
 
@@ -347,9 +353,7 @@ export function PropFirmSuccess() {
         <div className="mb-8"><h1 className="text-3xl font-bold mb-2">Prop Firm Success</h1></div>
         <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
           <CardContent className="py-16 text-center space-y-4">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-              <Lock className="w-8 h-8 text-primary" />
-            </div>
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto"><Lock className="w-8 h-8 text-primary" /></div>
             <h2 className="text-2xl font-bold">Premium Feature</h2>
             <p className="text-muted-foreground max-w-md mx-auto">Tilt detection, blow-up probability, dynamic risk, discipline lock, and full account protection.</p>
             <Button size="lg" className="mt-4" onClick={() => window.location.href = '/app/upgrade'}>
@@ -388,9 +392,7 @@ export function PropFirmSuccess() {
               <NumInput label="Avg Daily Profit ($)" value={settings.averageDailyProfit} onChange={v => setSettings(s => ({ ...s, averageDailyProfit: v }))} />
               <NumInput label="Avg Risk Per Trade ($)" value={settings.averageRiskPerTrade} onChange={v => setSettings(s => ({ ...s, averageRiskPerTrade: v }))} />
             </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              💡 Daily loss is auto-calculated from your journal P&L entries. Settings override only if no P&L is logged.
-            </p>
+            <p className="text-xs text-muted-foreground mt-3">💡 Daily loss combines your journal P&L and manually logged trades here.</p>
             <div className="flex gap-2 mt-4">
               <Button onClick={saveSettings}>Save</Button>
               <Button variant="ghost" onClick={() => setShowSettings(false)}>Cancel</Button>
@@ -431,8 +433,98 @@ export function PropFirmSuccess() {
           <p className="text-sm text-muted-foreground">{guidance.msg}</p>
           {todayPnL !== 0 && (
             <div className={`mt-3 p-3 rounded-lg text-sm font-semibold ${todayPnL > 0 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
-              Today's P&L from journal: {todayPnL >= 0 ? '+' : ''}${todayPnL.toLocaleString()}
+              Today's P&L: {todayPnL >= 0 ? '+' : ''}${todayPnL.toLocaleString()}
+              {journalPnL !== 0 && manualTotalPnL !== 0 && (
+                <span className="text-xs font-normal text-muted-foreground ml-2">
+                  (Journal: {journalPnL >= 0 ? '+' : ''}${journalPnL} · Manual: {manualTotalPnL >= 0 ? '+' : ''}${manualTotalPnL})
+                </span>
+              )}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Manual P&L Logger ── */}
+      <Card className="border-2 border-primary/20">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3 mb-4">
+            <DollarSign className="w-6 h-6 text-primary" />
+            <div>
+              <h2 className="text-xl font-bold">Log Today's Trades</h2>
+              <p className="text-xs text-muted-foreground">Enter each trade's P&L — updates your daily loss gauge in real time</p>
+            </div>
+          </div>
+
+          {/* Input row */}
+          <div className="flex gap-2 mb-4">
+            <div className="flex-1">
+              <Input
+                type="number"
+                onWheel={e => e.currentTarget.blur()}
+                placeholder="P&L e.g. -500 or +300"
+                value={manualPnLRaw}
+                onChange={e => {
+                  setManualPnLRaw(e.target.value);
+                  const num = parseFloat(e.target.value);
+                  setManualPnL(isNaN(num) ? 0 : num);
+                }}
+                onKeyDown={e => { if (e.key === 'Enter') logManualTrade(); }}
+                className={manualPnL < 0 ? 'border-red-400 focus-visible:ring-red-400' : manualPnL > 0 ? 'border-green-400 focus-visible:ring-green-400' : ''}
+              />
+            </div>
+            <Input
+              placeholder="Label (optional)"
+              value={manualLabel}
+              onChange={e => setManualLabel(e.target.value)}
+              className="flex-1"
+              onKeyDown={e => { if (e.key === 'Enter') logManualTrade(); }}
+            />
+            <Button onClick={logManualTrade} className="flex-shrink-0">
+              <Plus className="w-4 h-4 mr-1" /> Log
+            </Button>
+          </div>
+
+          {/* Logged trades list */}
+          {manualTrades.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {manualTrades.map(trade => (
+                <div key={trade.id} className={`flex items-center justify-between p-3 rounded-lg border ${trade.pnl >= 0 ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-base font-bold ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toLocaleString()}
+                    </span>
+                    <span className="text-sm text-muted-foreground">{trade.label}</span>
+                  </div>
+                  <button onClick={() => removeManualTrade(trade.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Summary */}
+          {manualTrades.length > 0 && (
+            <div className="grid grid-cols-3 gap-3 p-3 rounded-lg bg-muted">
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground mb-1">Trades</div>
+                <div className="font-bold">{manualTrades.length}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground mb-1">Total P&L</div>
+                <div className={`font-bold ${manualTotalPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {manualTotalPnL >= 0 ? '+' : ''}${manualTotalPnL.toLocaleString()}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground mb-1">Total Loss</div>
+                <div className="font-bold text-red-500">${manualTotalLoss.toLocaleString()}</div>
+              </div>
+            </div>
+          )}
+
+          {manualTrades.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-2">No trades logged yet today. Enter a P&L above to start tracking.</p>
           )}
         </CardContent>
       </Card>
@@ -458,9 +550,7 @@ export function PropFirmSuccess() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 mb-2">
               <Lock className="w-6 h-6 text-red-600" />
-              <h2 className="text-xl font-bold text-red-600">
-                {autoLockTriggered ? '🔒 Auto-Lock Active — Daily Limit Reached' : 'Discipline Lock Active'}
-              </h2>
+              <h2 className="text-xl font-bold text-red-600">{autoLockTriggered ? '🔒 Auto-Lock Active — Daily Limit Reached' : 'Discipline Lock Active'}</h2>
             </div>
             {autoLockTriggered && (
               <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
@@ -582,15 +672,9 @@ export function PropFirmSuccess() {
             ))}
           </div>
           {lossPercent >= 40 && (
-            <div className={`mb-3 p-3 rounded-lg border text-xs font-medium flex items-center gap-2 ${
-              lossPercent >= 85 ? 'bg-red-500/10 border-red-500/20 text-red-600'
-              : lossPercent >= 65 ? 'bg-orange-500/10 border-orange-500/20 text-orange-600'
-              : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-400'
-            }`}>
+            <div className={`mb-3 p-3 rounded-lg border text-xs font-medium flex items-center gap-2 ${lossPercent >= 85 ? 'bg-red-500/10 border-red-500/20 text-red-600' : lossPercent >= 65 ? 'bg-orange-500/10 border-orange-500/20 text-orange-600' : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-400'}`}>
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {lossPercent >= 85 ? '🚨 High pressure zone — one trade from a rule violation. Reduce size immediately.'
-                : lossPercent >= 65 ? '⚠️ Elevated pressure zone — danger territory. Reduce size by 50%.'
-                : '⚡ Caution zone — cut position size by 50% and only take high-conviction setups.'}
+              {lossPercent >= 85 ? '🚨 High pressure zone — one trade from a rule violation. Reduce size immediately.' : lossPercent >= 65 ? '⚠️ Elevated pressure zone — danger territory. Reduce size by 50%.' : '⚡ Caution zone — cut position size by 50% and only take high-conviction setups.'}
             </div>
           )}
           <div className="grid grid-cols-3 gap-3 mt-2">
@@ -633,9 +717,7 @@ export function PropFirmSuccess() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Trade Risk</Label>
-              <div className={`px-3 py-2 rounded-lg font-bold text-xl ${tradeBreach ? 'bg-red-500/10 text-red-600' : tradeWarning ? 'bg-amber-500/10 text-amber-600' : 'bg-green-500/10 text-green-600'}`}>
-                ${tradeRisk.toLocaleString()}
-              </div>
+              <div className={`px-3 py-2 rounded-lg font-bold text-xl ${tradeBreach ? 'bg-red-500/10 text-red-600' : tradeWarning ? 'bg-amber-500/10 text-amber-600' : 'bg-green-500/10 text-green-600'}`}>${tradeRisk.toLocaleString()}</div>
             </div>
           </div>
           <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 mb-4">

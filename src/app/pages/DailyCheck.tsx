@@ -311,7 +311,7 @@ export function DailyCheck() {
     setNote('');
   };
 
-  const submitCleanDay = () => {
+  const submitCleanDay = async () => {
     if (storage.isDailyCheckLocked()) return;
 
     // Points 26-30
@@ -338,17 +338,32 @@ export function DailyCheck() {
       posted: createPost,
     });
 
-    // FIX: Post appears in social feed when createPost is true
+    // Post appears in social feed when createPost is true
     if (createPost) {
+      // Compress image before posting to save storage
+      let postPhoto = photoPreview;
+      if (photoPreview && photoPreview.startsWith('data:image')) {
+        try {
+          const canvas = document.createElement('canvas');
+          const img = new Image();
+          await new Promise<void>(resolve => { img.onload = () => resolve(); img.src = photoPreview; });
+          const maxW = 800;
+          let w = img.width, h = img.height;
+          if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+          postPhoto = canvas.toDataURL('image/jpeg', 0.6);
+        } catch { postPhoto = ''; }
+      }
       storage.addPost({
         userId: user.id,
         username: user.username,
-        avatarUrl: user.profilePicture,
+        avatarUrl: '',
         league: `${user.totalPoints}`,
         isVerified: user.isVerified || false,
         type: 'clean',
-        photoUrl: photoPreview,
-        images: photoPreview ? [photoPreview] : [],
+        photoUrl: postPhoto,
+        images: postPhoto ? [postPhoto] : [],
         caption: note,
       });
     }
@@ -358,7 +373,7 @@ export function DailyCheck() {
     setStep('summary');
   };
 
-  const submitForfeit = () => {
+  const submitForfeit = async () => {
     if (storage.isDailyCheckLocked()) return;
 
     // Points 26-30
@@ -403,17 +418,31 @@ export function DailyCheck() {
       posted: createPost,
     });
 
-    // FIX: Post appears in social feed when createPost is true
+    // Post appears in social feed when createPost is true
     if (createPost) {
+      let postPhoto = photoPreview;
+      if (photoPreview && photoPreview.startsWith('data:image')) {
+        try {
+          const canvas = document.createElement('canvas');
+          const img = new Image();
+          await new Promise<void>(resolve => { img.onload = () => resolve(); img.src = photoPreview; });
+          const maxW = 800;
+          let w = img.width, h = img.height;
+          if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+          postPhoto = canvas.toDataURL('image/jpeg', 0.6);
+        } catch { postPhoto = ''; }
+      }
       storage.addPost({
         userId: user.id,
         username: user.username,
-        avatarUrl: user.profilePicture,
+        avatarUrl: '',
         league: `${user.totalPoints}`,
         isVerified: user.isVerified || false,
         type: 'forfeit',
-        photoUrl: photoPreview,
-        images: photoPreview ? [photoPreview] : [],
+        photoUrl: postPhoto,
+        images: postPhoto ? [postPhoto] : [],
         caption: `${note}${note ? ' — ' : ''}Forfeit completed: ${selectedForfeit}`,
       });
     }

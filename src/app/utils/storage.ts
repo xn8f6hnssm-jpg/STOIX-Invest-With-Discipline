@@ -215,12 +215,18 @@ const generateUniqueId = (): string => {
 
 const cleanupOldData = () => {
   try {
-    // Trim posts to last 10, strip images
+    // Trim posts to last 10 (keep images — they live in Supabase)
     try {
       const postsStr = localStorage.getItem(KEYS.POSTS);
       if (postsStr) {
         const posts = JSON.parse(postsStr);
-        const cleaned = posts.slice(-10).map((p: any) => ({ ...p, photoUrl: '', images: [] }));
+        // Strip base64 images from old posts to save space, keep URLs
+        const cleaned = posts.slice(-10).map((p: any) => ({
+          ...p,
+          photoUrl: p.photoUrl?.startsWith('data:image') ? '' : (p.photoUrl || ''),
+          images: (p.images || []).filter((img: string) => !img.startsWith('data:image')),
+          avatarUrl: p.avatarUrl?.startsWith('data:image') ? '' : (p.avatarUrl || ''),
+        }));
         localStorage.removeItem(KEYS.POSTS);
         localStorage.setItem(KEYS.POSTS, JSON.stringify(cleaned));
       }
@@ -658,11 +664,8 @@ export const storage = {
     const posts = storage.getPosts();
     const newPost: Post = {
       ...post,
-      // Strip base64 profile pictures — only store URLs
+      // Strip base64 profile pictures only — keep post images
       avatarUrl: post.avatarUrl?.startsWith('data:image') ? '' : (post.avatarUrl || ''),
-      // Strip base64 screenshots from posts to save space
-      photoUrl: post.photoUrl?.startsWith('data:image') ? '' : (post.photoUrl || ''),
-      images: (post.images || []).filter(img => !img.startsWith('data:image')),
       id: generateUniqueId(),
       likes: 0,
       comments: [],

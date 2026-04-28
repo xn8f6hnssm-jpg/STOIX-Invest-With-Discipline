@@ -8,19 +8,25 @@ import {
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { CheckCircle, Shield, Target, Trophy, Users } from 'lucide-react';
+import { storage } from '../utils/storage';
 
 export function WelcomeDialog() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
+    // Per-user key so it only shows once per account, not every device load
+    const user = storage.getCurrentUser();
+    const key = user ? `hasSeenWelcome_${user.id}` : 'hasSeenWelcome';
+    const hasSeenWelcome = localStorage.getItem(key);
     if (!hasSeenWelcome) {
       setOpen(true);
     }
   }, []);
 
   const handleClose = () => {
-    localStorage.setItem('hasSeenWelcome', 'true');
+    const user = storage.getCurrentUser();
+    const key = user ? `hasSeenWelcome_${user.id}` : 'hasSeenWelcome';
+    localStorage.setItem(key, 'true');
     setOpen(false);
   };
 

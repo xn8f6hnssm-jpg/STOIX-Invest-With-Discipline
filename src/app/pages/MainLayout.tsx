@@ -7,6 +7,7 @@ import { signOut, syncUserToSupabase } from '../utils/auth';
 import { PremiumBadge } from '../components/PremiumBadge';
 import { getCurrentUser } from '../utils/supabase';
 import { storage } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 import { initializeDemoData } from '../utils/demo-data';
 import {
   Sheet,
@@ -17,6 +18,92 @@ import {
   SheetTrigger,
 } from '../components/ui/sheet';
 import { Separator } from '../components/ui/separator';
+
+// Load user's journal entries and day logs from Supabase into localStorage
+async function syncDataFromSupabase(userId: string) {
+  try {
+    // Sync journal entries
+    const { data: journalData } = await supabase
+      .from('journal_entries')
+      .select('*')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false })
+      .limit(200);
+
+    if (journalData && journalData.length > 0) {
+      const mapped = journalData.map((e: any) => ({
+        id: e.id,
+        userId: e.user_id,
+        date: e.date,
+        result: e.result,
+        description: e.description || '',
+        screenshots: e.screenshots || [],
+        customFields: e.custom_fields || {},
+        riskReward: e.risk_reward || 0,
+        pnl: e.pnl || null,
+        isNoTradeDay: e.is_no_trade_day || false,
+        pointsAwarded: e.points_awarded || false,
+        timestamp: e.timestamp || Date.now(),
+        strategyId: e.strategy_id || null,
+        assetName: e.asset_name || null,
+        action: e.action || null,
+        investmentThesis: e.investment_thesis || null,
+        sellReason: e.sell_reason || null,
+        beResolution: e.be_resolution || null,
+      }));
+      localStorage.setItem('tradeforge_journal_entries', JSON.stringify(mapped));
+      console.log(`✅ Synced ${mapped.length} journal entries from Supabase`);
+    }
+
+    // Sync day logs
+    const { data: logsData } = await supabase
+      .from('day_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .limit(100);
+
+    if (logsData && logsData.length > 0) {
+      const mapped = logsData.map((l: any) => ({
+        id: l.id,
+        userId: l.user_id,
+        date: l.date,
+        isClean: l.is_clean,
+        photoUrl: l.photo_url || '',
+        note: l.note || '',
+        forfeitCompleted: l.forfeit_completed || null,
+        pointsEarned: l.points_earned || 0,
+        posted: l.posted || false,
+      }));
+      localStorage.setItem('tradeforge_daily_logs', JSON.stringify(mapped));
+      console.log(`✅ Synced ${mapped.length} day logs from Supabase`);
+    }
+
+    // Sync strategies
+    const { data: strategiesData } = await supabase
+      .from('strategies')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (strategiesData && strategiesData.length > 0) {
+      const existing = JSON.parse(localStorage.getItem('tradeforge_strategies') || '[]');
+      const mapped = strategiesData.map((s: any) => ({
+        id: s.id,
+        userId: s.user_id,
+        name: s.name,
+        description: s.description || '',
+        color: s.color || '#3b82f6',
+        createdAt: s.created_at || Date.now(),
+      }));
+      // Merge with existing, deduplicate by id
+      const merged = [...mapped, ...existing.filter((e: any) => !mapped.find((m: any) => m.id === e.id))];
+      localStorage.setItem('tradeforge_strategies', JSON.stringify(merged));
+      console.log(`✅ Synced ${mapped.length} strategies from Supabase`);
+    }
+  } catch (err) {
+    console.error('syncDataFromSupabase error:', err);
+  }
+}
 
 export function MainLayout() {
   const navigate = useNavigate();
@@ -32,14 +119,14 @@ export function MainLayout() {
       if (justCompletedOnboarding) {
         console.log('🎓 User just completed onboarding, skipping sync');
         sessionStorage.removeItem('just_completed_onboarding');
-        // Still sync to Supabase even after onboarding
         await syncUserToSupabase();
         return;
       }
 
       if (localUser) {
         console.log('✅ LocalStorage user found:', localUser.username);
-        // Sync to Supabase in background every time app loads
+        // Sync data FROM Supabase on every load to keep cross-device in sync
+        syncDataFromSupabase(localUser.id).catch(console.error);
         syncUserToSupabase().catch(err => console.error('Background sync failed:', err));
         return;
       }
@@ -68,6 +155,8 @@ export function MainLayout() {
         storage.setCurrentUser(userData);
         console.log('✅ User synced from Supabase to localStorage:', userData.username);
         await syncUserToSupabase();
+        // Also pull their data from Supabase
+        await syncDataFromSupabase(supabaseUser.id);
         initializeDemoData();
       } else {
         console.log('⚠️ No user found, redirecting to onboarding');
@@ -99,10 +188,10 @@ export function MainLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex justify-center">
-      <div className="w-[1200px] flex flex-col">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-3xl mx-auto flex flex-col min-h-screen">
         {/* Top bar */}
-        <div className="border-b bg-card">
+        <div className="border-b bg-card sticky top-0 z-10">
           <div className="px-4 py-3 flex items-center justify-between">
             <Logo size="sm" />
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -165,14 +254,14 @@ export function MainLayout() {
           </div>
         </div>
 
-        {/* Main content */}
+        {/* Main content — full width on mobile, padded on desktop */}
         <div className="flex-1 overflow-auto pb-20">
           <Outlet />
         </div>
 
-        {/* Bottom navigation */}
-        <div className="fixed bottom-0 left-0 right-0 bg-card border-t">
-          <div className="container mx-auto px-2 py-2">
+        {/* Bottom navigation — full width, fixed */}
+        <div className="fixed bottom-0 left-0 right-0 bg-card border-t z-10">
+          <div className="max-w-3xl mx-auto px-2 py-2">
             <nav className="flex items-center justify-around">
               {navigation.map((item) => {
                 const Icon = item.icon;
