@@ -239,19 +239,15 @@ export function DailyCheck() {
     const cooldown = getCooldownRemaining();
 
     if (todayLog) {
-      // Always restore today's log data regardless of cooldown
+      // Restore today's log data
       setPointsEarned(todayLog.pointsEarned ?? 0);
       setIsClean(todayLog.isClean ?? true);
       setNote(todayLog.note || '');
       setPhotoPreview(todayLog.photoUrl || '');
       setSelectedForfeit(todayLog.forfeitCompleted || '');
       setIsNoTradeDay(!!todayLog.isNoTradeDay);
-
-      if (cooldown !== null) {
-        // Still on cooldown — show summary
-        setStep('summary');
-      }
-      // If cooldown expired, stay on question so they can log again
+      // Always show summary if today's log exists — regardless of cooldown timer
+      setStep('summary');
     }
 
     setCooldownRemaining(cooldown);

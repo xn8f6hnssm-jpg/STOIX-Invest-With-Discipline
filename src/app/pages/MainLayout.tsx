@@ -131,11 +131,31 @@ async function syncDataFromSupabase(userId: string) {
     if (fieldsData && fieldsData.length > 0) {
       const mapped = fieldsData.map((f: any) => ({
         id: f.id, name: f.name, type: f.type,
-        options: f.options || [], category: f.category || 'confluence',
+        options: Array.isArray(f.options) ? f.options : [],
+        category: f.category || 'confluence',
         otherLabel: f.other_label || '',
       }));
       localStorage.setItem(`tradeforge_journal_fields_${userId}`, JSON.stringify(mapped));
       console.log(`✅ Synced ${mapped.length} journal fields`);
+    } else {
+      // No fields in Supabase — check if user has fields in localStorage and migrate them up
+      const localFields = JSON.parse(localStorage.getItem(`tradeforge_journal_fields_${userId}`) || '[]');
+      if (localFields.length > 0) {
+        console.log(`🔄 Migrating ${localFields.length} local fields to Supabase...`);
+        const rows = localFields.map((f: any) => ({
+          id: String(f.id),
+          user_id: userId,
+          name: f.name,
+          type: f.type,
+          options: Array.isArray(f.options) ? f.options : [],
+          category: f.category || 'confluence',
+          other_label: f.otherLabel || null,
+        }));
+        supabase.from('journal_fields').insert(rows).then(({ error }) => {
+          if (error) console.error('Field migration error:', JSON.stringify(error));
+          else console.log(`✅ Migrated ${rows.length} fields to Supabase`);
+        });
+      }
     }
 
   } catch (err) {

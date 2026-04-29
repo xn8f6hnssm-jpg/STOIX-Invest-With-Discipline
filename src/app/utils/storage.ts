@@ -561,7 +561,6 @@ export const storage = {
       else { updates.forfeitDays = (user.forfeitDays || 0) + 1; updates.currentStreak = 0; }
       storage.updateCurrentUser(updates);
       localStorage.setItem(`daily_check_last_${user.id}`, Date.now().toString());
-      // Immediately sync updated points/streak to Supabase
       const updatedUser = storage.getCurrentUser();
       if (updatedUser) {
         supabase.from('users').update({
@@ -571,16 +570,47 @@ export const storage = {
           current_streak: updatedUser.currentStreak,
         }).eq('id', updatedUser.id).then(({ error }) => {
           if (error) console.error('User points sync error:', error);
-          else console.log('✅ User points synced to Supabase:', updatedUser.totalPoints);
+          else console.log('✅ User points synced:', updatedUser.totalPoints);
         });
       }
     }
-    // Sync day log to Supabase
-    supabase.from('day_logs').upsert({
-      id: newLog.id, user_id: newLog.userId, date: newLog.date, is_clean: newLog.isClean,
-      photo_url: newLog.photoUrl || null, note: newLog.note || null,
-      forfeit_completed: newLog.forfeitCompleted || null, points_earned: newLog.pointsEarned, posted: newLog.posted,
-    }).then(({ error }) => { if (error) console.error('Day log sync error:', error); else console.log('✅ Day log synced to Supabase'); });
+
+    // Upload photo to Supabase Storage if base64, then sync log
+    const syncLog = async () => {
+      let photoUrl = newLog.photoUrl || '';
+
+      if (photoUrl && photoUrl.startsWith('data:image')) {
+        try {
+          const uploadedUrl = await uploadImageToStorage(
+            photoUrl, newLog.userId, newLog.id, 'photo', 'dailycheck'
+          );
+          if (uploadedUrl && !uploadedUrl.startsWith('data:image')) {
+            photoUrl = uploadedUrl;
+            // Update localStorage with the URL
+            const updatedLogs = storage.getDayLogs().map(l =>
+              l.id === newLog.id ? { ...l, photoUrl } : l
+            );
+            safeSetItem(KEYS.DAILY_LOGS, JSON.stringify(updatedLogs));
+            console.log('✅ Day log photo uploaded to Storage:', photoUrl);
+          }
+        } catch (err) {
+          console.error('Photo upload error:', err);
+          photoUrl = ''; // Don't store base64 in Supabase
+        }
+      }
+
+      await supabase.from('day_logs').upsert({
+        id: newLog.id, user_id: newLog.userId, date: newLog.date, is_clean: newLog.isClean,
+        photo_url: photoUrl || null, note: newLog.note || null,
+        forfeit_completed: newLog.forfeitCompleted || null,
+        points_earned: newLog.pointsEarned, posted: newLog.posted,
+      }).then(({ error }) => {
+        if (error) console.error('Day log sync error:', error);
+        else console.log('✅ Day log synced to Supabase');
+      });
+    };
+
+    syncLog();
     return newLog;
   },
 
@@ -668,20 +698,20 @@ export const storage = {
 
   // Sync user-specific fields to Supabase
   syncUserFieldsToSupabase: (userId: string, fields: any[]) => {
-    // Delete existing and re-insert
     supabase.from('journal_fields').delete().eq('user_id', userId).then(() => {
       if (fields.length === 0) return;
       const rows = fields.map(f => ({
-        id: f.id,
+        id: String(f.id),
         user_id: userId,
         name: f.name,
         type: f.type,
-        options: f.options || [],
+        // Supabase options column is text[] — pass as array directly
+        options: Array.isArray(f.options) ? f.options : [],
         category: f.category || 'confluence',
         other_label: f.otherLabel || null,
       }));
       supabase.from('journal_fields').insert(rows).then(({ error }) => {
-        if (error) console.error('Journal fields sync error:', error);
+        if (error) console.error('Journal fields sync error:', JSON.stringify(error));
         else console.log(`✅ Synced ${fields.length} journal fields to Supabase`);
       });
     });
