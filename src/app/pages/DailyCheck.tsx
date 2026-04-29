@@ -238,24 +238,26 @@ export function DailyCheck() {
     const todayLog = storage.getTodayLog();
     const cooldown = getCooldownRemaining();
 
-    if (todayLog && cooldown !== null) {
-      // Cooldown still active — show summary of what they already logged
-      setStep('summary');
+    if (todayLog) {
+      // Always restore today's log data regardless of cooldown
       setPointsEarned(todayLog.pointsEarned ?? 0);
       setIsClean(todayLog.isClean ?? true);
       setNote(todayLog.note || '');
       setPhotoPreview(todayLog.photoUrl || '');
       setSelectedForfeit(todayLog.forfeitCompleted || '');
       setIsNoTradeDay(!!todayLog.isNoTradeDay);
+
+      if (cooldown !== null) {
+        // Still on cooldown — show summary
+        setStep('summary');
+      }
+      // If cooldown expired, stay on question so they can log again
     }
-    // If cooldown expired (cooldown === null), always go to 'question' step
-    // so the user can do a new check regardless of whether they logged before
 
     setCooldownRemaining(cooldown);
     const interval = setInterval(() => {
       const remaining = getCooldownRemaining();
       setCooldownRemaining(remaining);
-      // When cooldown expires while on summary, kick user back to question
       if (remaining === null && step === 'summary') {
         setStep('question');
       }

@@ -19,10 +19,41 @@ import {
 } from '../components/ui/sheet';
 import { Separator } from '../components/ui/separator';
 
-// Load user's journal entries and day logs from Supabase into localStorage
+// Load ALL user data from Supabase into localStorage
 async function syncDataFromSupabase(userId: string) {
   try {
-    // Sync journal entries
+    console.log('🔄 Syncing all data from Supabase for user:', userId);
+
+    // ── 1. Sync user profile (points, streak, clean/forfeit days) ──
+    const { data: userData } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userData) {
+      const localUser = JSON.parse(localStorage.getItem('tradeforge_current_user') || '{}');
+      const merged = {
+        ...localUser,
+        totalPoints: userData.total_points || localUser.totalPoints || 0,
+        cleanDays: userData.clean_days || localUser.cleanDays || 0,
+        forfeitDays: userData.forfeit_days || localUser.forfeitDays || 0,
+        currentStreak: userData.current_streak || localUser.currentStreak || 0,
+        isPremium: userData.is_premium || localUser.isPremium || false,
+        profilePicture: userData.profile_picture || localUser.profilePicture || '',
+        achievements: userData.achievements || localUser.achievements || [],
+      };
+      localStorage.setItem('tradeforge_current_user', JSON.stringify(merged));
+      // Update all_users too
+      const allUsers = JSON.parse(localStorage.getItem('tradeforge_all_users') || '[]');
+      const idx = allUsers.findIndex((u: any) => u.id === userId);
+      if (idx !== -1) { allUsers[idx] = { ...allUsers[idx], ...merged }; }
+      else allUsers.push(merged);
+      localStorage.setItem('tradeforge_all_users', JSON.stringify(allUsers));
+      console.log(`✅ User profile synced — points: ${merged.totalPoints}, streak: ${merged.currentStreak}`);
+    }
+
+    // ── 2. Sync journal entries ──
     const { data: journalData } = await supabase
       .from('journal_entries')
       .select('*')
@@ -32,30 +63,21 @@ async function syncDataFromSupabase(userId: string) {
 
     if (journalData && journalData.length > 0) {
       const mapped = journalData.map((e: any) => ({
-        id: e.id,
-        userId: e.user_id,
-        date: e.date,
-        result: e.result,
-        description: e.description || '',
-        screenshots: e.screenshots || [],
-        customFields: e.custom_fields || {},
-        riskReward: e.risk_reward || 0,
-        pnl: e.pnl || null,
-        isNoTradeDay: e.is_no_trade_day || false,
+        id: e.id, userId: e.user_id, date: e.date, result: e.result,
+        description: e.description || '', screenshots: e.screenshots || [],
+        customFields: e.custom_fields || {}, riskReward: e.risk_reward || 0,
+        pnl: e.pnl ?? null, isNoTradeDay: e.is_no_trade_day || false,
         pointsAwarded: e.points_awarded || false,
         timestamp: e.timestamp || Date.now(),
-        strategyId: e.strategy_id || null,
-        assetName: e.asset_name || null,
-        action: e.action || null,
-        investmentThesis: e.investment_thesis || null,
-        sellReason: e.sell_reason || null,
-        beResolution: e.be_resolution || null,
+        strategyId: e.strategy_id || null, assetName: e.asset_name || null,
+        action: e.action || null, investmentThesis: e.investment_thesis || null,
+        sellReason: e.sell_reason || null, beResolution: e.be_resolution || null,
       }));
       localStorage.setItem('tradeforge_journal_entries', JSON.stringify(mapped));
-      console.log(`✅ Synced ${mapped.length} journal entries from Supabase`);
+      console.log(`✅ Synced ${mapped.length} journal entries`);
     }
 
-    // Sync day logs
+    // ── 3. Sync day logs ──
     const { data: logsData } = await supabase
       .from('day_logs')
       .select('*')
@@ -65,79 +87,55 @@ async function syncDataFromSupabase(userId: string) {
 
     if (logsData && logsData.length > 0) {
       const mapped = logsData.map((l: any) => ({
-        id: l.id,
-        userId: l.user_id,
-        date: l.date,
-        isClean: l.is_clean,
-        photoUrl: l.photo_url || '',
-        note: l.note || '',
+        id: l.id, userId: l.user_id, date: l.date, isClean: l.is_clean,
+        photoUrl: l.photo_url || '', note: l.note || '',
         forfeitCompleted: l.forfeit_completed || null,
-        pointsEarned: l.points_earned || 0,
-        posted: l.posted || false,
+        pointsEarned: l.points_earned || 0, posted: l.posted || false,
       }));
       localStorage.setItem('tradeforge_daily_logs', JSON.stringify(mapped));
-      console.log(`✅ Synced ${mapped.length} day logs from Supabase`);
+      console.log(`✅ Synced ${mapped.length} day logs`);
+
+      // Fix daily check cooldown across devices
+      const today = new Date().toISOString().split('T')[0];
+      const todayLog = mapped.find((l: any) => l.date === today);
+      if (todayLog) {
+        const cooldownKey = `daily_check_last_${userId}`;
+        const existing = localStorage.getItem(cooldownKey);
+        if (!existing) {
+          // Set cooldown to 5 hours ago + time of log (approximate)
+          localStorage.setItem(cooldownKey, (Date.now() - (1000 * 60 * 30)).toString());
+          console.log('✅ Daily check cooldown set from Supabase');
+        }
+      }
     }
 
-    // Sync strategies
+    // ── 4. Sync strategies ──
     const { data: strategiesData } = await supabase
-      .from('strategies')
-      .select('*')
-      .eq('user_id', userId);
+      .from('strategies').select('*').eq('user_id', userId);
 
     if (strategiesData && strategiesData.length > 0) {
       const existing = JSON.parse(localStorage.getItem('tradeforge_strategies') || '[]');
       const mapped = strategiesData.map((s: any) => ({
-        id: s.id,
-        userId: s.user_id,
-        name: s.name,
-        description: s.description || '',
-        color: s.color || '#3b82f6',
+        id: s.id, userId: s.user_id, name: s.name,
+        description: s.description || '', color: s.color || '#3b82f6',
         createdAt: s.created_at || Date.now(),
       }));
       const merged = [...mapped, ...existing.filter((e: any) => !mapped.find((m: any) => m.id === e.id))];
       localStorage.setItem('tradeforge_strategies', JSON.stringify(merged));
-      console.log(`✅ Synced ${mapped.length} strategies from Supabase`);
     }
 
-    // Sync custom journal fields (confluences etc)
+    // ── 5. Sync journal fields ──
     const { data: fieldsData } = await supabase
-      .from('journal_fields')
-      .select('*')
-      .eq('user_id', userId);
+      .from('journal_fields').select('*').eq('user_id', userId);
 
     if (fieldsData && fieldsData.length > 0) {
       const mapped = fieldsData.map((f: any) => ({
-        id: f.id,
-        name: f.name,
-        type: f.type,
-        options: f.options || [],
-        category: f.category || 'confluence',
+        id: f.id, name: f.name, type: f.type,
+        options: f.options || [], category: f.category || 'confluence',
         otherLabel: f.other_label || '',
       }));
       localStorage.setItem(`tradeforge_journal_fields_${userId}`, JSON.stringify(mapped));
-      console.log(`✅ Synced ${mapped.length} journal fields from Supabase`);
-    }
-
-    // Sync daily check cooldown — check if user already logged today in Supabase
-    // This fixes the cross-device "can log again" issue
-    const today = new Date().toISOString().split('T')[0];
-    const { data: todayLog } = await supabase
-      .from('day_logs')
-      .select('id, date')
-      .eq('user_id', userId)
-      .eq('date', today)
-      .maybeSingle();
-
-    if (todayLog) {
-      // They already logged today on another device — set the cooldown locally
-      const cooldownKey = `daily_check_last_${userId}`;
-      const existing = localStorage.getItem(cooldownKey);
-      if (!existing) {
-        // Set it to now so cooldown kicks in (they logged today, block re-log)
-        localStorage.setItem(cooldownKey, Date.now().toString());
-        console.log('✅ Daily check cooldown synced from Supabase — already logged today');
-      }
+      console.log(`✅ Synced ${mapped.length} journal fields`);
     }
 
   } catch (err) {

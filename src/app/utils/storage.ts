@@ -557,13 +557,26 @@ export const storage = {
       else { updates.forfeitDays = (user.forfeitDays || 0) + 1; updates.currentStreak = 0; }
       storage.updateCurrentUser(updates);
       localStorage.setItem(`daily_check_last_${user.id}`, Date.now().toString());
+      // Immediately sync updated points/streak to Supabase
+      const updatedUser = storage.getCurrentUser();
+      if (updatedUser) {
+        supabase.from('users').update({
+          total_points: updatedUser.totalPoints,
+          clean_days: updatedUser.cleanDays,
+          forfeit_days: updatedUser.forfeitDays,
+          current_streak: updatedUser.currentStreak,
+        }).eq('id', updatedUser.id).then(({ error }) => {
+          if (error) console.error('User points sync error:', error);
+          else console.log('✅ User points synced to Supabase:', updatedUser.totalPoints);
+        });
+      }
     }
-    // Sync to Supabase
+    // Sync day log to Supabase
     supabase.from('day_logs').upsert({
       id: newLog.id, user_id: newLog.userId, date: newLog.date, is_clean: newLog.isClean,
       photo_url: newLog.photoUrl || null, note: newLog.note || null,
       forfeit_completed: newLog.forfeitCompleted || null, points_earned: newLog.pointsEarned, posted: newLog.posted,
-    }).then(({ error }) => { if (error) console.error('Day log sync error:', error); });
+    }).then(({ error }) => { if (error) console.error('Day log sync error:', error); else console.log('✅ Day log synced to Supabase'); });
     return newLog;
   },
 
