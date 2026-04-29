@@ -209,8 +209,8 @@ export function MainLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="w-full max-w-2xl mx-auto flex flex-col min-h-screen">
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      <div className="w-full max-w-2xl mx-auto flex flex-col min-h-screen overflow-x-hidden">
         {/* Top bar */}
         <div className="border-b bg-card sticky top-0 z-10">
           <div className="px-4 py-3 flex items-center justify-between">
@@ -276,7 +276,7 @@ export function MainLayout() {
         </div>
 
         {/* Main content — full width on mobile, padded on desktop */}
-        <div className="flex-1 overflow-y-auto pb-20">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-20 w-full">
           <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
             <style>{`
               @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }

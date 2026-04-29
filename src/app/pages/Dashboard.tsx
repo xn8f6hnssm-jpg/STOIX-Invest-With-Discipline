@@ -247,7 +247,7 @@ export function Dashboard() {
       {/* Profile Section */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-6">
+          <div className="flex gap-3">
             <div className="flex flex-col items-center gap-2">
               <div className="relative">
                 <Avatar className="w-24 h-24">
@@ -277,26 +277,23 @@ export function Dashboard() {
             </div>
 
             <div className="flex-1 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-2xl font-bold">{user.name}</h2>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl font-bold truncate">{user.name}</h2>
                     {storage.isPremium() && <PremiumBadge size="md" />}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <p className="text-muted-foreground">@{user.username}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-muted-foreground text-sm">@{user.username}</p>
                     {user.tradingStyle && (
-                      <>
-                        <span className="text-muted-foreground">•</span>
-                        <div className="flex items-center gap-1.5 text-sm font-medium text-primary">
-                          <TrendingUp className="w-3.5 h-3.5" />{user.tradingStyle}
-                        </div>
-                      </>
+                      <div className="flex items-center gap-1 text-sm font-medium text-primary">
+                        <TrendingUp className="w-3 h-3" />{user.tradingStyle}
+                      </div>
                     )}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => navigate(`/app/profile/${user.id}`)} className="flex items-center gap-2">
-                  <Edit className="w-4 h-4" /> Edit Profile
+                <Button variant="outline" size="sm" onClick={() => navigate(`/app/profile/${user.id}`)} className="flex items-center gap-1 flex-shrink-0 text-xs px-2">
+                  <Edit className="w-3 h-3" /> Edit
                 </Button>
               </div>
 
