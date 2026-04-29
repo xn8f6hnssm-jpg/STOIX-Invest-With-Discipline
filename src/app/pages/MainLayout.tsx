@@ -149,56 +149,62 @@ export function MainLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isPremium] = useState(false);
 
+  const [syncing, setSyncing] = useState(true);
+
   useEffect(() => {
     const syncUser = async () => {
-      const localUser = storage.getCurrentUser();
+      setSyncing(true);
+      try {
+        const justCompletedOnboarding = sessionStorage.getItem('just_completed_onboarding');
+        if (justCompletedOnboarding) {
+          sessionStorage.removeItem('just_completed_onboarding');
+          await syncUserToSupabase();
+          setSyncing(false);
+          return;
+        }
 
-      const justCompletedOnboarding = sessionStorage.getItem('just_completed_onboarding');
-      if (justCompletedOnboarding) {
-        console.log('🎓 User just completed onboarding, skipping sync');
-        sessionStorage.removeItem('just_completed_onboarding');
-        await syncUserToSupabase();
-        return;
-      }
+        const localUser = storage.getCurrentUser();
 
-      if (localUser) {
-        console.log('✅ LocalStorage user found:', localUser.username);
-        // Sync data FROM Supabase on every load to keep cross-device in sync
-        syncDataFromSupabase(localUser.id).catch(console.error);
-        syncUserToSupabase().catch(err => console.error('Background sync failed:', err));
-        return;
-      }
+        if (localUser) {
+          // Always sync FROM Supabase first — wait for it before rendering
+          await syncDataFromSupabase(localUser.id);
+          syncUserToSupabase().catch(console.error);
+          setSyncing(false);
+          return;
+        }
 
-      const supabaseUser = await getCurrentUser();
-      if (supabaseUser) {
-        const userData = {
-          id: supabaseUser.id,
-          email: supabaseUser.email || '',
-          password: '',
-          username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || '',
-          name: supabaseUser.user_metadata?.name || 'Trader',
-          tradingStyle: supabaseUser.user_metadata?.tradingStyle || '',
-          instruments: supabaseUser.user_metadata?.instruments || [],
-          rules: [],
-          totalPoints: 0,
-          cleanDays: 0,
-          forfeitDays: 0,
-          currentStreak: 0,
-          followers: 0,
-          following: 0,
-          isVerified: false,
-          profilePicture: '',
-          isPremium: false,
-        };
-        storage.setCurrentUser(userData);
-        console.log('✅ User synced from Supabase to localStorage:', userData.username);
-        await syncUserToSupabase();
-        // Also pull their data from Supabase
-        await syncDataFromSupabase(supabaseUser.id);
-        initializeDemoData();
-      } else {
-        console.log('⚠️ No user found, redirecting to onboarding');
-        navigate('/');
+        const supabaseUser = await getCurrentUser();
+        if (supabaseUser) {
+          const userData = {
+            id: supabaseUser.id,
+            email: supabaseUser.email || '',
+            password: '',
+            username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || '',
+            name: supabaseUser.user_metadata?.name || 'Trader',
+            tradingStyle: supabaseUser.user_metadata?.tradingStyle || '',
+            instruments: supabaseUser.user_metadata?.instruments || [],
+            rules: [],
+            totalPoints: 0,
+            cleanDays: 0,
+            forfeitDays: 0,
+            currentStreak: 0,
+            followers: 0,
+            following: 0,
+            isVerified: false,
+            profilePicture: '',
+            isPremium: false,
+          };
+          storage.setCurrentUser(userData);
+          await syncDataFromSupabase(supabaseUser.id);
+          await syncUserToSupabase();
+          initializeDemoData();
+        } else {
+          navigate('/');
+        }
+      } catch (err) {
+        console.error('Sync error:', err);
+      } finally {
+        setSyncing(false);
       }
     };
 
@@ -224,6 +230,17 @@ export function MainLayout() {
     if (path === '/app') return location.pathname === path;
     return location.pathname.startsWith(path);
   };
+
+  if (syncing) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto"></div>
+          <p className="text-sm text-muted-foreground">Syncing your data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">

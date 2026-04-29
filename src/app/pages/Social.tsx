@@ -602,11 +602,12 @@ export function Social() {
                         <>
                           {/* Regular Post Image */}
                           {post.photoUrl && (
-                            <div className="relative rounded-lg overflow-hidden bg-muted" style={{ maxHeight: '400px' }}>
+                            <div className="relative rounded-lg overflow-hidden bg-muted">
                               <img
                                 src={post.photoUrl}
                                 alt="Post"
-                                className="w-full h-auto object-contain"
+                                className="w-full h-auto"
+                                style={{ maxHeight: '500px', objectFit: 'contain' }}
                               />
                               <Badge
                                 className="absolute top-2 right-2 text-xs"
@@ -872,11 +873,12 @@ export function Social() {
                         <>
                           {/* Regular Post Image */}
                           {post.photoUrl && (
-                            <div className="relative rounded-lg overflow-hidden bg-muted" style={{ maxHeight: '400px' }}>
+                            <div className="relative rounded-lg overflow-hidden bg-muted">
                               <img
                                 src={post.photoUrl}
                                 alt="Post"
-                                className="w-full h-auto object-contain"
+                                className="w-full h-auto"
+                                style={{ maxHeight: '500px', objectFit: 'contain' }}
                               />
                               <Badge
                                 className="absolute top-2 right-2 text-xs"

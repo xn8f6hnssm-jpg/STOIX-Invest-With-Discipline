@@ -262,7 +262,29 @@ export function DailyCheck() {
         setStep('question');
       }
     }, 30000);
-    return () => clearInterval(interval);
+
+    // Reload when tab becomes visible — catches cross-device sync
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        const freshLog = storage.getTodayLog();
+        if (freshLog) {
+          setPointsEarned(freshLog.pointsEarned ?? 0);
+          setIsClean(freshLog.isClean ?? true);
+          setNote(freshLog.note || '');
+          setPhotoPreview(freshLog.photoUrl || '');
+          setSelectedForfeit(freshLog.forfeitCompleted || '');
+          setIsNoTradeDay(!!freshLog.isNoTradeDay);
+          const remaining = getCooldownRemaining();
+          if (remaining) setStep('summary');
+          setCooldownRemaining(remaining);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const handleAnswer = (clean: boolean) => {

@@ -253,12 +253,16 @@ const cleanupOldData = () => {
       }
     } catch { localStorage.removeItem(KEYS.ACTIVITIES); }
 
-    // Trim daily logs to last 30, strip photos
+    // Trim daily logs to last 30, only strip base64 photos (keep URLs)
     try {
       const logsStr = localStorage.getItem(KEYS.DAILY_LOGS);
       if (logsStr) {
         const logs = JSON.parse(logsStr);
-        localStorage.setItem(KEYS.DAILY_LOGS, JSON.stringify(logs.slice(-30).map((l: DayLog) => ({ ...l, photoUrl: '' }))));
+        localStorage.setItem(KEYS.DAILY_LOGS, JSON.stringify(logs.slice(-30).map((l: DayLog) => ({
+          ...l,
+          // Only strip if it's base64, keep Supabase URLs
+          photoUrl: l.photoUrl?.startsWith('data:image') ? '' : (l.photoUrl || '')
+        }))));
       }
     } catch { localStorage.removeItem(KEYS.DAILY_LOGS); }
 
