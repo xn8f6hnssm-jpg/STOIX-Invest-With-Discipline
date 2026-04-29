@@ -27,27 +27,39 @@ async function uploadImageToStorage(
   base64Image: string, userId: string, entryId?: string, fieldName?: string,
   folder: 'journal' | 'dailycheck' | 'profile' = 'journal'
 ): Promise<string> {
-  if (base64Image.startsWith('http')) return base64Image;
   if (!base64Image || base64Image.length < 100) return base64Image;
-  let imageToUpload = base64Image;
-  try { imageToUpload = await compressImage(base64Image, 1200, 0.8); } catch {}
-  const bucketPath = `users/${userId}/${folder}/${entryId || Date.now()}_${fieldName || 'img'}.jpg`;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-ecfd718d/upload-image`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
-          body: JSON.stringify({ base64Image: imageToUpload, userId, entryId, fieldName, bucketPath }),
-        }
-      );
-      if (!response.ok) { if (attempt === 3) return base64Image; await new Promise(r => setTimeout(r, 1000 * attempt)); continue; }
-      const data = await response.json();
-      return data.url || base64Image;
-    } catch { if (attempt === 3) return base64Image; await new Promise(r => setTimeout(r, 1000 * attempt)); }
+  if (base64Image.startsWith('http')) return base64Image; // Already a URL
+
+  try {
+    // Compress first
+    let imageToUpload = base64Image;
+    try { imageToUpload = await compressImage(base64Image, 1200, 0.8); } catch {}
+
+    // Convert base64 to blob
+    const base64Data = imageToUpload.split(',')[1];
+    const mimeType = imageToUpload.match(/data:([^;]+);/)?.[1] || 'image/jpeg';
+    const byteChars = atob(base64Data);
+    const byteArray = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([byteArray], { type: mimeType });
+
+    const fileName = `${userId}/${folder}/${entryId || Date.now()}_${fieldName || 'img'}.jpg`;
+
+    const { data, error } = await supabase.storage
+      .from('images')
+      .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+
+    if (error) {
+      console.error('Storage upload error:', error);
+      return base64Image;
+    }
+
+    const { data: urlData } = supabase.storage.from('images').getPublicUrl(fileName);
+    return urlData.publicUrl || base64Image;
+  } catch (err) {
+    console.error('uploadImageToStorage error:', err);
+    return base64Image;
   }
-  return base64Image;
 }
 
 export function getStorageUsageMB(): number {
@@ -366,7 +378,21 @@ export const storage = {
 
   updateUserProfilePicture: (userId: string, imageUrl: string) => {
     const user = storage.getCurrentUser();
-    if (user && user.id === userId) { user.profilePicture = imageUrl; storage.setCurrentUser(user); }
+    if (!user || user.id !== userId) return;
+
+    if (imageUrl && imageUrl.startsWith('data:image')) {
+      // Upload to Supabase Storage, save URL instead of base64
+      uploadImageToStorage(imageUrl, userId, userId, 'profile', 'profile').then(url => {
+        user.profilePicture = url;
+        storage.setCurrentUser(user);
+        // Sync URL to Supabase users table
+        supabase.from('users').update({ profile_picture: url }).eq('id', userId)
+          .then(({ error }) => { if (error) console.error('Profile pic URL sync error:', error); });
+      });
+    } else {
+      user.profilePicture = imageUrl;
+      storage.setCurrentUser(user);
+    }
   },
 
   updateUser: (userId: string, updates: { name?: string; username?: string }) => {
@@ -664,7 +690,6 @@ export const storage = {
     const posts = storage.getPosts();
     const newPost: Post = {
       ...post,
-      // Strip base64 profile pictures only — keep post images
       avatarUrl: post.avatarUrl?.startsWith('data:image') ? '' : (post.avatarUrl || ''),
       id: generateUniqueId(),
       likes: 0,
@@ -673,15 +698,56 @@ export const storage = {
     };
     posts.unshift(newPost);
     safeSetItem(KEYS.POSTS, JSON.stringify(posts));
-    // Sync to Supabase
-    supabase.from('posts').upsert({
-      id: newPost.id, user_id: newPost.userId, username: newPost.username,
-      avatar_url: newPost.avatarUrl || null,
-      league: newPost.league, is_verified: newPost.isVerified, type: newPost.type,
-      photo_url: newPost.photoUrl || null, images: newPost.images || [],
-      caption: newPost.caption, likes: 0, journal_data: newPost.journalData || null,
-      timestamp: newPost.timestamp,
-    }).then(({ error }) => { if (error) console.error('Post sync error:', JSON.stringify(error)); });
+
+    // Upload images to Supabase Storage then sync post
+    const uploadAndSync = async () => {
+      try {
+        let photoUrl = newPost.photoUrl || '';
+        let images = newPost.images || [];
+
+        // Upload main photo if base64
+        if (photoUrl.startsWith('data:image')) {
+          photoUrl = await uploadImageToStorage(photoUrl, newPost.userId, newPost.id, 'photo', 'dailycheck');
+        }
+
+        // Upload all images if base64
+        images = await Promise.all(images.map(async (img, i) => {
+          if (img.startsWith('data:image')) {
+            return await uploadImageToStorage(img, newPost.userId, newPost.id, `img_${i}`, 'dailycheck');
+          }
+          return img;
+        }));
+
+        // Update local post with URLs
+        const updatedPost = { ...newPost, photoUrl, images };
+        const updatedPosts = storage.getPosts().map(p => p.id === newPost.id ? updatedPost : p);
+        safeSetItem(KEYS.POSTS, JSON.stringify(updatedPosts));
+
+        // Sync to Supabase with real URLs
+        await supabase.from('posts').upsert({
+          id: newPost.id, user_id: newPost.userId, username: newPost.username,
+          avatar_url: newPost.avatarUrl || null,
+          league: newPost.league, is_verified: newPost.isVerified, type: newPost.type,
+          photo_url: photoUrl || null, images: images,
+          caption: newPost.caption, likes: 0, journal_data: newPost.journalData || null,
+          timestamp: newPost.timestamp,
+        });
+        console.log('✅ Post synced with images:', newPost.id);
+      } catch (err) {
+        console.error('Post upload/sync error:', err);
+        // Still sync without images
+        supabase.from('posts').upsert({
+          id: newPost.id, user_id: newPost.userId, username: newPost.username,
+          avatar_url: newPost.avatarUrl || null,
+          league: newPost.league, is_verified: newPost.isVerified, type: newPost.type,
+          photo_url: null, images: [],
+          caption: newPost.caption, likes: 0, journal_data: newPost.journalData || null,
+          timestamp: newPost.timestamp,
+        }).then(({ error }) => { if (error) console.error('Post sync error:', error); });
+      }
+    };
+
+    uploadAndSync();
     return newPost;
   },
 

@@ -95,11 +95,32 @@ async function syncDataFromSupabase(userId: string) {
         color: s.color || '#3b82f6',
         createdAt: s.created_at || Date.now(),
       }));
-      // Merge with existing, deduplicate by id
       const merged = [...mapped, ...existing.filter((e: any) => !mapped.find((m: any) => m.id === e.id))];
       localStorage.setItem('tradeforge_strategies', JSON.stringify(merged));
       console.log(`✅ Synced ${mapped.length} strategies from Supabase`);
     }
+
+    // Sync daily check cooldown — check if user already logged today in Supabase
+    // This fixes the cross-device "can log again" issue
+    const today = new Date().toISOString().split('T')[0];
+    const { data: todayLog } = await supabase
+      .from('day_logs')
+      .select('id, date')
+      .eq('user_id', userId)
+      .eq('date', today)
+      .maybeSingle();
+
+    if (todayLog) {
+      // They already logged today on another device — set the cooldown locally
+      const cooldownKey = `daily_check_last_${userId}`;
+      const existing = localStorage.getItem(cooldownKey);
+      if (!existing) {
+        // Set it to now so cooldown kicks in (they logged today, block re-log)
+        localStorage.setItem(cooldownKey, Date.now().toString());
+        console.log('✅ Daily check cooldown synced from Supabase — already logged today');
+      }
+    }
+
   } catch (err) {
     console.error('syncDataFromSupabase error:', err);
   }
@@ -189,7 +210,7 @@ export function MainLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto flex flex-col min-h-screen">
+      <div className="w-full max-w-2xl mx-auto flex flex-col min-h-screen">
         {/* Top bar */}
         <div className="border-b bg-card sticky top-0 z-10">
           <div className="px-4 py-3 flex items-center justify-between">
@@ -255,13 +276,20 @@ export function MainLayout() {
         </div>
 
         {/* Main content — full width on mobile, padded on desktop */}
-        <div className="flex-1 overflow-auto pb-20">
-          <Outlet />
+        <div className="flex-1 overflow-auto pb-20 overscroll-none">
+          <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
+            <style>{`
+              @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+              * { -webkit-tap-highlight-color: transparent; }
+              button, a { touch-action: manipulation; }
+            `}</style>
+            <Outlet />
+          </div>
         </div>
 
         {/* Bottom navigation — full width, fixed */}
         <div className="fixed bottom-0 left-0 right-0 bg-card border-t z-10">
-          <div className="max-w-3xl mx-auto px-2 py-2">
+          <div className="max-w-2xl mx-auto px-2 py-2">
             <nav className="flex items-center justify-around">
               {navigation.map((item) => {
                 const Icon = item.icon;

@@ -31,52 +31,69 @@ export function Social() {
   const [searchQuery, setSearchQuery] = useState('');
   const currentUser = storage.getCurrentUser();
 
-  useEffect(() => {
-    // Load posts from Supabase first, fall back to localStorage
-    const loadPosts = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('posts')
-          .select('*, comments(*)')
-          .order('timestamp', { ascending: false })
-          .limit(50);
+  const loadPostsFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(50);
 
-        if (data && !error) {
-          const mapped = data.map((p: any) => ({
-            id: p.id,
-            userId: p.user_id,
-            username: p.username,
-            avatarUrl: p.avatar_url || '',
-            league: p.league || '0',
-            isVerified: p.is_verified || false,
-            type: p.type || 'general',
-            photoUrl: p.photo_url || '',
-            images: p.images || [],
-            caption: p.caption || '',
-            likes: p.likes || 0,
-            comments: (p.comments || []).map((c: any) => ({
-              id: c.id,
-              userId: c.user_id,
-              username: c.username,
-              text: c.text,
-              timestamp: c.timestamp,
-            })),
-            timestamp: p.timestamp || Date.now(),
-            journalData: p.journal_data || null,
-          }));
-          setPosts(mapped);
-          // Also update localStorage cache
-          localStorage.setItem('tradeforge_posts', JSON.stringify(mapped));
-        } else {
-          // Fall back to localStorage
-          setPosts(storage.getPosts());
-        }
-      } catch {
+      if (data && !error) {
+        // Also load comments separately
+        const postIds = data.map((p: any) => p.id);
+        const { data: commentsData } = await supabase
+          .from('comments')
+          .select('*')
+          .in('post_id', postIds);
+
+        const commentsByPost: Record<string, any[]> = {};
+        (commentsData || []).forEach((c: any) => {
+          if (!commentsByPost[c.post_id]) commentsByPost[c.post_id] = [];
+          commentsByPost[c.post_id].push({
+            id: c.id,
+            userId: c.user_id,
+            username: c.username,
+            text: c.text,
+            timestamp: c.timestamp,
+          });
+        });
+
+        const mapped = data.map((p: any) => ({
+          id: p.id,
+          userId: p.user_id,
+          username: p.username,
+          avatarUrl: p.avatar_url || '',
+          league: p.league || '0',
+          isVerified: p.is_verified || false,
+          type: p.type || 'general',
+          photoUrl: p.photo_url || '',
+          images: p.images || [],
+          caption: p.caption || '',
+          likes: p.likes || 0,
+          comments: commentsByPost[p.id] || [],
+          timestamp: p.timestamp || Date.now(),
+          journalData: p.journal_data || null,
+        }));
+        setPosts(mapped);
+        localStorage.setItem('tradeforge_posts', JSON.stringify(mapped));
+      } else {
         setPosts(storage.getPosts());
       }
-    };
+    } catch {
+      setPosts(storage.getPosts());
+    }
+  };
 
-    loadPosts();
+  useEffect(() => {
+    loadPostsFromSupabase();
+
+    // Reload posts when tab becomes visible (user switches back)
+    const handleVisibility = () => {
+      if (!document.hidden) loadPostsFromSupabase();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
   const handleLike = (postId: string) => {
@@ -184,7 +201,8 @@ export function Social() {
     });
 
     console.log('Updating state and closing dialog');
-    setPosts(storage.getPosts());
+    // Reload from Supabase to get the freshest data
+    setTimeout(() => loadPostsFromSupabase(), 500);
     setIsCreatePostOpen(false);
     setNewPostText('');
     setNewPostType('general');
