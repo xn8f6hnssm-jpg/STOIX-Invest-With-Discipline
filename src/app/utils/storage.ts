@@ -649,6 +649,27 @@ export const storage = {
     return newField;
   },
 
+  // Sync user-specific fields to Supabase
+  syncUserFieldsToSupabase: (userId: string, fields: any[]) => {
+    // Delete existing and re-insert
+    supabase.from('journal_fields').delete().eq('user_id', userId).then(() => {
+      if (fields.length === 0) return;
+      const rows = fields.map(f => ({
+        id: f.id,
+        user_id: userId,
+        name: f.name,
+        type: f.type,
+        options: f.options || [],
+        category: f.category || 'confluence',
+        other_label: f.otherLabel || null,
+      }));
+      supabase.from('journal_fields').insert(rows).then(({ error }) => {
+        if (error) console.error('Journal fields sync error:', error);
+        else console.log(`✅ Synced ${fields.length} journal fields to Supabase`);
+      });
+    });
+  },
+
   deleteJournalField: (id: string) => {
     safeSetItem(KEYS.CUSTOM_FIELDS, JSON.stringify(storage.getJournalFields().filter(f => f.id !== id)));
   },

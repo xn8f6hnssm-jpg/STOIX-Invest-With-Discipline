@@ -36,6 +36,8 @@ const getUserFields = (userId: string): any[] => {
 
 const saveUserFields = (userId: string, fields: any[]) => {
   localStorage.setItem(getUserFieldsKey(userId), JSON.stringify(fields));
+  // Sync to Supabase so fields appear on all devices
+  storage.syncUserFieldsToSupabase(userId, fields);
 };
 
 

@@ -100,6 +100,25 @@ async function syncDataFromSupabase(userId: string) {
       console.log(`✅ Synced ${mapped.length} strategies from Supabase`);
     }
 
+    // Sync custom journal fields (confluences etc)
+    const { data: fieldsData } = await supabase
+      .from('journal_fields')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (fieldsData && fieldsData.length > 0) {
+      const mapped = fieldsData.map((f: any) => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        options: f.options || [],
+        category: f.category || 'confluence',
+        otherLabel: f.other_label || '',
+      }));
+      localStorage.setItem(`tradeforge_journal_fields_${userId}`, JSON.stringify(mapped));
+      console.log(`✅ Synced ${mapped.length} journal fields from Supabase`);
+    }
+
     // Sync daily check cooldown — check if user already logged today in Supabase
     // This fixes the cross-device "can log again" issue
     const today = new Date().toISOString().split('T')[0];
