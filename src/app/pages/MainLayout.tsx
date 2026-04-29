@@ -276,7 +276,7 @@ export function MainLayout() {
         </div>
 
         {/* Main content — full width on mobile, padded on desktop */}
-        <div className="flex-1 overflow-auto pb-20 overscroll-none">
+        <div className="flex-1 overflow-y-auto pb-20">
           <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
             <style>{`
               @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
