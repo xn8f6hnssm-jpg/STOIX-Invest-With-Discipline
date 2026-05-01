@@ -308,11 +308,11 @@ export function Social() {
         };
       })
       .sort((a, b) => {
-        // Primary: discipline % DESC, Secondary: total points DESC
-        if (b.disciplineRate !== a.disciplineRate) {
-          return b.disciplineRate - a.disciplineRate;
+        // Primary: total points DESC, Secondary: discipline % DESC
+        if ((b.totalPoints || 0) !== (a.totalPoints || 0)) {
+          return (b.totalPoints || 0) - (a.totalPoints || 0);
         }
-        return (b.totalPoints || 0) - (a.totalPoints || 0);
+        return b.disciplineRate - a.disciplineRate;
       });
   };
 

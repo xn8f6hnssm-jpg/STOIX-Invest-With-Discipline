@@ -1257,6 +1257,7 @@ export function Journal() {
                             type="time"
                             value={newEntry.customFields[field.name] || ''}
                             onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } })}
+                            step="60"
                           />
                         )}
                         {field.type === 'image' && (
