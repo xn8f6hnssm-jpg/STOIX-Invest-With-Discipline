@@ -288,20 +288,19 @@ const cleanupOldData = () => {
       }
     } catch { localStorage.removeItem(KEYS.DAILY_LOGS); }
 
-    // Strip images from older journal entries (keep last 5 with images)
+    // Strip base64 images from journal entries (keep URLs)
     try {
       const journalStr = localStorage.getItem(KEYS.JOURNAL_ENTRIES);
       if (journalStr) {
         const entries = JSON.parse(journalStr);
-        const cleaned = entries.map((e: JournalEntry, i: number) => {
-          if (i >= entries.length - 5) return e;
-          return {
-            ...e, screenshots: [],
-            customFields: e.customFields ? Object.fromEntries(Object.entries(e.customFields).map(([k, v]) =>
-              [k, typeof v === 'string' && v.startsWith('data:image') ? '' : v]
-            )) : {}
-          };
-        });
+        const cleaned = entries.map((e: JournalEntry) => ({
+          ...e,
+          // Only strip base64, keep Supabase URLs
+          screenshots: (e.screenshots || []).filter((s: string) => !s.startsWith('data:image')),
+          customFields: e.customFields ? Object.fromEntries(Object.entries(e.customFields).map(([k, v]) =>
+            [k, typeof v === 'string' && v.startsWith('data:image') ? '' : v]
+          )) : {}
+        }));
         localStorage.removeItem(KEYS.JOURNAL_ENTRIES);
         localStorage.setItem(KEYS.JOURNAL_ENTRIES, JSON.stringify(cleaned));
       }
@@ -657,17 +656,63 @@ export const storage = {
     const newEntry = { ...entry, id: Date.now().toString() };
     entries.push(newEntry);
     safeSetItem(KEYS.JOURNAL_ENTRIES, JSON.stringify(entries));
-    // Sync to Supabase
-    supabase.from('journal_entries').upsert({
-      id: newEntry.id, user_id: newEntry.userId, date: newEntry.date, result: newEntry.result,
-      description: newEntry.description || null, screenshots: newEntry.screenshots || [],
-      custom_fields: newEntry.customFields || {}, risk_reward: newEntry.riskReward || null,
-      pnl: newEntry.pnl || null, is_no_trade_day: newEntry.isNoTradeDay || false,
-      points_awarded: newEntry.pointsAwarded || false, timestamp: newEntry.timestamp || Date.now(),
-      strategy_id: newEntry.strategyId || null, asset_name: newEntry.assetName || null,
-      action: newEntry.action || null, investment_thesis: newEntry.investmentThesis || null,
-      sell_reason: newEntry.sellReason || null,
-    }).then(({ data, error }) => { if (error) console.error('Journal entry sync error:', JSON.stringify(error)); else console.log('✅ Journal entry synced:', newEntry.id); });
+
+    // Upload screenshots and image custom fields to Supabase Storage
+    const uploadAndSync = async () => {
+      try {
+        // Upload screenshots
+        const screenshots = await Promise.all(
+          (newEntry.screenshots || []).map(async (img, i) => {
+            if (img && img.startsWith('data:image')) {
+              return await uploadImageToStorage(img, newEntry.userId, newEntry.id, `screenshot_${i}`, 'journal');
+            }
+            return img;
+          })
+        );
+
+        // Upload image custom fields
+        const customFields = { ...(newEntry.customFields || {}) };
+        for (const [key, value] of Object.entries(customFields)) {
+          if (typeof value === 'string' && value.startsWith('data:image')) {
+            customFields[key] = await uploadImageToStorage(value, newEntry.userId, newEntry.id, key, 'journal');
+          }
+        }
+
+        // Update localStorage with URLs
+        const updatedEntries = storage.getJournalEntries().map(e =>
+          e.id === newEntry.id ? { ...e, screenshots, customFields } : e
+        );
+        safeSetItem(KEYS.JOURNAL_ENTRIES, JSON.stringify(updatedEntries));
+
+        // Sync to Supabase with URLs
+        await supabase.from('journal_entries').upsert({
+          id: newEntry.id, user_id: newEntry.userId, date: newEntry.date, result: newEntry.result,
+          description: newEntry.description || null, screenshots,
+          custom_fields: customFields, risk_reward: newEntry.riskReward || null,
+          pnl: newEntry.pnl || null, is_no_trade_day: newEntry.isNoTradeDay || false,
+          points_awarded: newEntry.pointsAwarded || false, timestamp: newEntry.timestamp || Date.now(),
+          strategy_id: newEntry.strategyId || null, asset_name: newEntry.assetName || null,
+          action: newEntry.action || null, investment_thesis: newEntry.investmentThesis || null,
+          sell_reason: newEntry.sellReason || null,
+        });
+        console.log('✅ Journal entry synced with images:', newEntry.id);
+      } catch (err) {
+        console.error('Journal entry sync error:', err);
+        // Fallback sync without images
+        supabase.from('journal_entries').upsert({
+          id: newEntry.id, user_id: newEntry.userId, date: newEntry.date, result: newEntry.result,
+          description: newEntry.description || null, screenshots: [],
+          custom_fields: newEntry.customFields || {}, risk_reward: newEntry.riskReward || null,
+          pnl: newEntry.pnl || null, is_no_trade_day: newEntry.isNoTradeDay || false,
+          points_awarded: newEntry.pointsAwarded || false, timestamp: newEntry.timestamp || Date.now(),
+          strategy_id: newEntry.strategyId || null, asset_name: newEntry.assetName || null,
+          action: newEntry.action || null, investment_thesis: newEntry.investmentThesis || null,
+          sell_reason: newEntry.sellReason || null,
+        }).then(({ error }) => { if (error) console.error('Fallback sync error:', JSON.stringify(error)); });
+      }
+    };
+
+    uploadAndSync();
     return newEntry;
   },
 
