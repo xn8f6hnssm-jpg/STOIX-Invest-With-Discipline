@@ -227,6 +227,28 @@ const generateUniqueId = (): string => {
 
 const cleanupOldData = () => {
   try {
+    // Always strip base64 profile pictures from users — biggest space waster
+    try {
+      const userStr = localStorage.getItem(KEYS.CURRENT_USER);
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user.profilePicture?.startsWith('data:image')) {
+          user.profilePicture = '';
+          localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
+        }
+      }
+      const allUsersStr = localStorage.getItem(KEYS.ALL_USERS);
+      if (allUsersStr) {
+        const allUsers = JSON.parse(allUsersStr);
+        const cleaned = allUsers.map((u: any) => ({
+          ...u,
+          profilePicture: u.profilePicture?.startsWith('data:image') ? '' : (u.profilePicture || ''),
+        }));
+        localStorage.setItem(KEYS.ALL_USERS, JSON.stringify(cleaned));
+      }
+      localStorage.setItem(KEYS.MENTAL_PREP_TRACKING, '[]');
+    } catch {}
+
     // Trim posts to last 10 (keep images — they live in Supabase)
     try {
       const postsStr = localStorage.getItem(KEYS.POSTS);
@@ -344,11 +366,21 @@ export const storage = {
   },
 
   setCurrentUser: (user: User) => {
-    safeSetItem(KEYS.CURRENT_USER, JSON.stringify(user));
+    // Never store base64 profile pictures in localStorage — only URLs
+    const cleanUser = {
+      ...user,
+      profilePicture: user.profilePicture?.startsWith('data:image') ? '' : (user.profilePicture || ''),
+    };
+    safeSetItem(KEYS.CURRENT_USER, JSON.stringify(cleanUser));
     const allUsers = storage.getAllUsers();
-    const idx = allUsers.findIndex(u => u.id === user.id);
-    if (idx !== -1) allUsers[idx] = user; else allUsers.push(user);
-    safeSetItem(KEYS.ALL_USERS, JSON.stringify(allUsers));
+    const idx = allUsers.findIndex(u => u.id === cleanUser.id);
+    if (idx !== -1) allUsers[idx] = cleanUser; else allUsers.push(cleanUser);
+    // Strip base64 from all users before saving
+    const cleanAllUsers = allUsers.map((u: User) => ({
+      ...u,
+      profilePicture: u.profilePicture?.startsWith('data:image') ? '' : (u.profilePicture || ''),
+    }));
+    safeSetItem(KEYS.ALL_USERS, JSON.stringify(cleanAllUsers));
   },
 
   getAllUsers: (): User[] => {

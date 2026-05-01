@@ -186,6 +186,18 @@ export function MainLayout() {
         const localUser = storage.getCurrentUser();
 
         if (localUser) {
+          // Strip base64 profile pictures from localStorage to prevent quota errors
+          if (localUser.profilePicture?.startsWith('data:image')) {
+            localUser.profilePicture = '';
+            localStorage.setItem('tradeforge_current_user', JSON.stringify(localUser));
+          }
+          const allUsers = JSON.parse(localStorage.getItem('tradeforge_all_users') || '[]');
+          const cleaned = allUsers.map((u: any) => ({
+            ...u,
+            profilePicture: u.profilePicture?.startsWith('data:image') ? '' : (u.profilePicture || '')
+          }));
+          localStorage.setItem('tradeforge_all_users', JSON.stringify(cleaned));
+
           // Always sync FROM Supabase first — wait for it before rendering
           await syncDataFromSupabase(localUser.id);
           syncUserToSupabase().catch(console.error);
