@@ -7,6 +7,7 @@ import { PremiumBadge } from '../components/PremiumBadge';
 import { PremiumFeatures } from '../components/PremiumFeatures';
 import { AccountRulesWidget } from '../components/AccountRulesWidget';
 import { storage, getLeague, getDisciplineRate, checkDemotion } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
@@ -79,7 +80,7 @@ export function Dashboard() {
     }
   };
 
-  const refreshData = () => {
+  const refreshData = async () => {
     const currentUser = storage.getCurrentUser();
     if (currentUser) {
       setUser(currentUser);
@@ -89,8 +90,33 @@ export function Dashboard() {
       setDisciplineRate(getDisciplineRate(cleanDays, totalDays));
       setLeague(getLeague(currentUser.totalPoints ?? 0));
       setIsDemoted(checkDemotion(currentUser.id));
+
+      // Load posts from Supabase for recent activity
+      try {
+        const { data } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('timestamp', { ascending: false })
+          .limit(20);
+        if (data) {
+          const mapped = data.map((p: any) => ({
+            id: p.id, userId: p.user_id, username: p.username,
+            avatarUrl: p.avatar_url || '', league: p.league || '0',
+            isVerified: p.is_verified || false, type: p.type || 'general',
+            photoUrl: p.photo_url || '', images: p.images || [],
+            caption: p.caption || '', likes: p.likes || 0,
+            comments: [], timestamp: p.timestamp || Date.now(),
+            journalData: p.journal_data || null,
+          }));
+          setPosts(mapped);
+        } else {
+          setPosts(storage.getPosts().filter(p => p.userId === currentUser.id));
+        }
+      } catch {
+        setPosts(storage.getPosts().filter(p => p.userId === currentUser.id));
+      }
     }
-    setPosts(storage.getPosts());
     setHasLoggedToday(!!storage.getTodayLog());
   };
 

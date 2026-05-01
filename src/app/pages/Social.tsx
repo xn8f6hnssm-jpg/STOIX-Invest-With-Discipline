@@ -86,14 +86,22 @@ export function Social() {
   };
 
   useEffect(() => {
+    // Always load fresh from Supabase on mount
     loadPostsFromSupabase();
 
-    // Reload posts when tab becomes visible (user switches back)
+    // Reload when tab becomes visible
     const handleVisibility = () => {
       if (!document.hidden) loadPostsFromSupabase();
     };
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+
+    // Also poll every 30 seconds for new posts
+    const interval = setInterval(loadPostsFromSupabase, 30000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleLike = (postId: string) => {
