@@ -6,11 +6,10 @@ import { Crown, Check, X, TrendingUp, Zap, Shield, Star, Users, Upload, MessageS
 import { PremiumBadge } from '../components/PremiumBadge';
 import { storage } from '../utils/storage';
 import { toast } from 'sonner';
-import { supabase } from '../utils/supabase';
 
-const STRIPE_PRICES = {
-  monthly: 'price_1TSA5J5puHCnn56vFjYuDQCZ',
-  annual:  'price_1TSA5J5puHCnn56vdNHF5PHp',
+const STRIPE_LINKS = {
+  monthly: 'https://buy.stripe.com/14A3co2Q0aasf6k1t26kg00',
+  annual:  'https://buy.stripe.com/eVq9AM3U42I06zOefO6kg01',
 };
 
 export function Upgrade() {
@@ -19,45 +18,12 @@ export function Upgrade() {
   const [loading, setLoading] = useState<'monthly' | 'annual' | null>(null);
   const isPremium = currentUser?.isPremium || false;
 
-  const handleUpgrade = async (plan: 'monthly' | 'annual') => {
+  const handleUpgrade = (plan: 'monthly' | 'annual') => {
     const user = storage.getCurrentUser();
     if (!user) { toast.error('Please log in first'); return; }
-
     setLoading(plan);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-
-      const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_STRIPE_SECRET_KEY || ''}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          'mode': 'subscription',
-          'line_items[0][price]': STRIPE_PRICES[plan],
-          'line_items[0][quantity]': '1',
-          'success_url': `${window.location.origin}/app/upgrade/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan}`,
-          'cancel_url': `${window.location.origin}/app/upgrade`,
-          'customer_email': user.email,
-          'metadata[user_id]': user.id,
-          'metadata[plan]': plan,
-        }).toString(),
-      });
-
-      const session_data = await response.json();
-
-      if (session_data.url) {
-        window.location.href = session_data.url;
-      } else {
-        throw new Error(session_data.error?.message || 'Failed to create checkout session');
-      }
-    } catch (err: any) {
-      console.error('Checkout error:', err);
-      toast.error('Failed to start checkout. Please try again.');
-      setLoading(null);
-    }
+    // Redirect to Stripe Payment Link
+    window.location.href = STRIPE_LINKS[plan];
   };
 
   const premiumFeatures = [
