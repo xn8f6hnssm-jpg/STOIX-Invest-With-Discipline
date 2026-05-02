@@ -1,43 +1,78 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Crown, Check, X, TrendingUp, Zap, Shield, Star, Users, Upload, MessageSquare, Brain, BarChart3, Sparkles, AlertTriangle, CheckSquare } from 'lucide-react';
-import { Badge } from '../components/ui/badge';
+import { Crown, Check, X, TrendingUp, Zap, Shield, Star, Users, Upload, MessageSquare, Brain, BarChart3, Sparkles, AlertTriangle, CheckSquare, Loader2 } from 'lucide-react';
 import { PremiumBadge } from '../components/PremiumBadge';
 import { storage } from '../utils/storage';
 import { toast } from 'sonner';
+import { supabase } from '../utils/supabase';
+
+const STRIPE_PRICES = {
+  monthly: 'price_1TSA5J5puHCnn56vFjYuDQCZ',
+  annual:  'price_1TSA5J5puHCnn56vdNHF5PHp',
+};
 
 export function Upgrade() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(storage.getCurrentUser());
+  const [loading, setLoading] = useState<'monthly' | 'annual' | null>(null);
   const isPremium = currentUser?.isPremium || false;
 
-  const handleUpgrade = (plan: 'monthly' | 'annual') => {
-    // In a real app, this would integrate with a payment processor
-    storage.upgradeToPremium();
-    setCurrentUser(storage.getCurrentUser());
-    toast.success(`Welcome to Premium! 🎉`, {
-      description: 'You now have access to all premium features.',
-    });
-    setTimeout(() => {
-      navigate('/app');
-    }, 1500);
+  const handleUpgrade = async (plan: 'monthly' | 'annual') => {
+    const user = storage.getCurrentUser();
+    if (!user) { toast.error('Please log in first'); return; }
+
+    setLoading(plan);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_STRIPE_SECRET_KEY || ''}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          'mode': 'subscription',
+          'line_items[0][price]': STRIPE_PRICES[plan],
+          'line_items[0][quantity]': '1',
+          'success_url': `${window.location.origin}/app/upgrade/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan}`,
+          'cancel_url': `${window.location.origin}/app/upgrade`,
+          'customer_email': user.email,
+          'metadata[user_id]': user.id,
+          'metadata[plan]': plan,
+        }).toString(),
+      });
+
+      const session_data = await response.json();
+
+      if (session_data.url) {
+        window.location.href = session_data.url;
+      } else {
+        throw new Error(session_data.error?.message || 'Failed to create checkout session');
+      }
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      toast.error('Failed to start checkout. Please try again.');
+      setLoading(null);
+    }
   };
 
   const premiumFeatures = [
-    { icon: Shield, title: 'Account Rules Monitor', desc: 'Track prop firm limits & prevent violations', category: 'Protection' },
-    { icon: CheckSquare, title: 'Pre-Trade Checklist', desc: 'Ensure discipline before every trade', category: 'Protection' },
-    { icon: AlertTriangle, title: 'Behavior Risk Alerts', desc: 'Detect revenge trading & emotional patterns', category: 'Protection' },
-    { icon: Brain, title: 'AI Performance Psychology', desc: 'Behavior improvement insights & reports', category: 'Improvement' },
-    { icon: BarChart3, title: 'Advanced Analytics', desc: 'Deep insights & pattern detection', category: 'Improvement' },
-    { icon: TrendingUp, title: 'AI Journal Insights', desc: 'Identify what actually works for you', category: 'Improvement' },
-    { icon: Zap, title: 'Double XP Days', desc: 'Accelerate your discipline growth', category: 'Acceleration' },
-    { icon: Sparkles, title: 'Streak Savers', desc: 'Protect your progress (2/month)', category: 'Acceleration' },
-    { icon: Sparkles, title: 'Unlimited Custom Fields', desc: 'Track any data point you need', category: 'Acceleration' },
-    { icon: Users, title: 'Create Private Groups', desc: 'Build your own trading communities', category: 'Social' },
-    { icon: Upload, title: 'Upload Files', desc: 'Share images & files in groups & DMs', category: 'Social' },
-    { icon: Crown, title: 'Premium Badge', desc: 'Stand out with exclusive verification', category: 'Social' },
+    { icon: Shield, title: 'Account Rules Monitor', desc: 'Track prop firm limits & prevent violations' },
+    { icon: CheckSquare, title: 'Pre-Trade Checklist', desc: 'Ensure discipline before every trade' },
+    { icon: AlertTriangle, title: 'Behavior Risk Alerts', desc: 'Detect revenge trading & emotional patterns' },
+    { icon: Brain, title: 'AI Strategy Builder', desc: 'Behavior improvement insights & reports' },
+    { icon: BarChart3, title: 'Advanced Analytics', desc: 'Deep insights & pattern detection' },
+    { icon: TrendingUp, title: 'AI Journal Insights', desc: 'Identify what actually works for you' },
+    { icon: Zap, title: 'Double XP Days', desc: 'Accelerate your discipline growth' },
+    { icon: Sparkles, title: 'Streak Savers', desc: 'Protect your progress (2/month)' },
+    { icon: Sparkles, title: 'Unlimited Custom Fields', desc: 'Track any data point you need' },
+    { icon: Users, title: 'Create Private Groups', desc: 'Build your own trading communities' },
+    { icon: Upload, title: 'Upload Files', desc: 'Share images & files in groups & DMs' },
+    { icon: Crown, title: 'Premium Badge', desc: 'Stand out with exclusive verification' },
   ];
 
   const comparisonFeatures = [
@@ -62,12 +97,9 @@ export function Upgrade() {
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         <Card className="border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-950/20 dark:to-amber-950/20">
           <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <Crown className="w-16 h-16 text-yellow-500" />
-            </div>
+            <div className="flex justify-center mb-4"><Crown className="w-16 h-16 text-yellow-500" /></div>
             <CardTitle className="text-3xl flex items-center justify-center gap-2">
-              <span>You're Premium!</span>
-              <PremiumBadge size="lg" />
+              <span>You're Premium!</span><PremiumBadge size="lg" />
             </CardTitle>
             <CardDescription className="text-lg mt-2">
               Thank you for supporting STOIX! You have access to all premium features.
@@ -100,17 +132,17 @@ export function Upgrade() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-6xl">
+    <div className="container mx-auto px-4 py-6 max-w-4xl">
       <div className="mb-8 text-center">
         <div className="flex items-center justify-center gap-2 mb-2">
           <Crown className="w-8 h-8 text-yellow-500" />
-          <h1 className="text-4xl font-bold">Upgrade to Premium</h1>
+          <h1 className="text-3xl font-bold">Upgrade to Premium</h1>
         </div>
-        <p className="text-muted-foreground text-lg">Take your trading discipline to the next level</p>
+        <p className="text-muted-foreground">Take your trading discipline to the next level</p>
       </div>
 
       {/* Pricing Cards */}
-      <div className="grid md:grid-cols-2 gap-6 mb-12">
+      <div className="grid md:grid-cols-2 gap-6 mb-10">
         <Card className="border-2">
           <CardHeader>
             <CardTitle className="text-2xl">Monthly</CardTitle>
@@ -121,8 +153,12 @@ export function Upgrade() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={() => handleUpgrade('monthly')} size="lg" className="w-full" variant="outline">
-              Start Monthly Plan
+            <Button
+              onClick={() => handleUpgrade('monthly')}
+              size="lg" className="w-full" variant="outline"
+              disabled={!!loading}
+            >
+              {loading === 'monthly' ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Redirecting...</> : 'Start Monthly Plan'}
             </Button>
             <p className="text-xs text-center text-muted-foreground">Cancel anytime</p>
           </CardContent>
@@ -130,12 +166,11 @@ export function Upgrade() {
 
         <Card className="border-4 border-yellow-500 relative shadow-xl">
           <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-amber-500 text-black px-6 py-2 rounded-full text-sm font-bold shadow-lg">
-            BEST VALUE - SAVE $36.89
+            BEST VALUE — SAVE $36.89
           </div>
           <CardHeader>
             <CardTitle className="text-2xl flex items-center gap-2">
-              <Crown className="w-6 h-6 text-yellow-500" />
-              Annual
+              <Crown className="w-6 h-6 text-yellow-500" /> Annual
             </CardTitle>
             <CardDescription>Most popular choice</CardDescription>
             <div className="mt-4 space-y-1">
@@ -148,9 +183,12 @@ export function Upgrade() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button size="lg" className="w-full">
-              <Crown className="w-5 h-5 mr-2" />
-              Start Annual Plan
+            <Button
+              size="lg" className="w-full"
+              onClick={() => handleUpgrade('annual')}
+              disabled={!!loading}
+            >
+              {loading === 'annual' ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Redirecting...</> : <><Crown className="w-5 h-5 mr-2" />Start Annual Plan</>}
             </Button>
             <p className="text-xs text-center text-muted-foreground">30-day money-back guarantee</p>
           </CardContent>
@@ -158,9 +196,9 @@ export function Upgrade() {
       </div>
 
       {/* Feature Highlights */}
-      <div className="mb-12">
+      <div className="mb-10">
         <h2 className="text-2xl font-bold text-center mb-6">Premium Features</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-2 gap-4">
           {premiumFeatures.map((feature) => {
             const Icon = feature.icon;
             return (
@@ -183,7 +221,7 @@ export function Upgrade() {
       </div>
 
       {/* Comparison Table */}
-      <div className="mb-12">
+      <div className="mb-10">
         <h2 className="text-2xl font-bold text-center mb-6">Free vs Premium</h2>
         <Card>
           <CardContent className="p-0">
@@ -195,8 +233,7 @@ export function Upgrade() {
                     <th className="text-center p-4 font-semibold">Free</th>
                     <th className="text-center p-4 font-semibold bg-yellow-50 dark:bg-yellow-950/20">
                       <div className="flex items-center justify-center gap-2">
-                        <Crown className="w-4 h-4 text-yellow-500" />
-                        Premium
+                        <Crown className="w-4 h-4 text-yellow-500" /> Premium
                       </div>
                     </th>
                   </tr>
@@ -204,28 +241,16 @@ export function Upgrade() {
                 <tbody>
                   {comparisonFeatures.map((item, index) => (
                     <tr key={index} className="border-b last:border-0">
-                      <td className="p-4">{item.feature}</td>
+                      <td className="p-4 text-sm">{item.feature}</td>
                       <td className="p-4 text-center">
                         {typeof item.free === 'boolean' ? (
-                          item.free ? (
-                            <Check className="w-5 h-5 text-green-600 mx-auto" />
-                          ) : (
-                            <X className="w-5 h-5 text-gray-400 mx-auto" />
-                          )
-                        ) : (
-                          <span className="text-sm text-muted-foreground">{item.free}</span>
-                        )}
+                          item.free ? <Check className="w-5 h-5 text-green-600 mx-auto" /> : <X className="w-5 h-5 text-gray-400 mx-auto" />
+                        ) : <span className="text-sm text-muted-foreground">{item.free}</span>}
                       </td>
                       <td className="p-4 text-center bg-yellow-50 dark:bg-yellow-950/20">
                         {typeof item.premium === 'boolean' ? (
-                          item.premium ? (
-                            <Check className="w-5 h-5 text-yellow-600 mx-auto" />
-                          ) : (
-                            <X className="w-5 h-5 text-gray-400 mx-auto" />
-                          )
-                        ) : (
-                          <span className="text-sm font-medium">{item.premium}</span>
-                        )}
+                          item.premium ? <Check className="w-5 h-5 text-yellow-600 mx-auto" /> : <X className="w-5 h-5 text-gray-400 mx-auto" />
+                        ) : <span className="text-sm font-medium">{item.premium}</span>}
                       </td>
                     </tr>
                   ))}
@@ -239,14 +264,12 @@ export function Upgrade() {
       {/* Guarantee */}
       <Card className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border-blue-200">
         <CardContent className="p-6">
-          <div className="flex items-start gap-4 max-w-3xl mx-auto">
+          <div className="flex items-start gap-4">
             <Shield className="w-8 h-8 text-blue-600 shrink-0" />
             <div>
               <h3 className="font-bold text-lg mb-2">30-Day Money-Back Guarantee</h3>
-              <p className="text-muted-foreground">
-                Try Premium risk-free for 30 days. If you're not completely satisfied with your progress, 
-                we'll refund you in full, no questions asked. We're confident you'll love the advanced 
-                features and insights that will transform your trading discipline.
+              <p className="text-muted-foreground text-sm">
+                Try Premium risk-free for 30 days. If you're not completely satisfied, we'll refund you in full, no questions asked.
               </p>
             </div>
           </div>

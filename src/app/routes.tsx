@@ -19,6 +19,7 @@ import { Notifications } from "./pages/Notifications";
 import { Settings } from "./pages/Settings";
 import { EditRules } from "./pages/EditRules";
 import { Upgrade } from "./pages/Upgrade";
+import { UpgradeSuccess } from "./pages/UpgradeSuccess";
 import { AIAnalytics } from "./pages/AIAnalytics";
 import { Achievements } from "./pages/Achievements";
 import { PropFirmSuccess } from "./pages/PropFirmSuccess";
@@ -110,6 +111,10 @@ export const router = createBrowserRouter([
       {
         path: "upgrade",
         element: <Upgrade />,
+      },
+      {
+        path: "upgrade/success",
+        element: <UpgradeSuccess />,
       },
       {
         path: "ai-analytics",
