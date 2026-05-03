@@ -833,9 +833,13 @@ export const storage = {
 
   addPost: (post: Omit<Post, 'id' | 'likes' | 'comments' | 'timestamp'>): Post => {
     const posts = storage.getPosts();
+    // Get profile picture — use URL if available, strip base64
+    const currentUser = storage.getCurrentUser();
+    const avatarUrl = currentUser?.profilePicture?.startsWith('data:image')
+      ? '' : (currentUser?.profilePicture || post.avatarUrl || '');
     const newPost: Post = {
       ...post,
-      avatarUrl: post.avatarUrl?.startsWith('data:image') ? '' : (post.avatarUrl || ''),
+      avatarUrl,
       id: generateUniqueId(),
       likes: 0,
       comments: [],

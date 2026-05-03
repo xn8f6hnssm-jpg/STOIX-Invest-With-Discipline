@@ -8,7 +8,6 @@ import { PremiumBadge } from '../components/PremiumBadge';
 import { getCurrentUser } from '../utils/supabase';
 import { storage } from '../utils/storage';
 import { supabase } from '../utils/supabase';
-import { initializeDemoData } from '../utils/demo-data';
 import {
   Sheet,
   SheetContent,
@@ -229,8 +228,7 @@ export function MainLayout() {
           storage.setCurrentUser(userData);
           await syncDataFromSupabase(supabaseUser.id);
           await syncUserToSupabase();
-          initializeDemoData();
-        } else {
+          } else {
           navigate('/');
         }
       } catch (err) {

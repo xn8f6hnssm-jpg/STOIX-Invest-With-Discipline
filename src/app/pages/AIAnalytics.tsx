@@ -1140,6 +1140,117 @@ export function AIAnalytics() {
           </CardContent></Card>
         )}
 
+        {/* A+ Trade Pattern Analysis */}
+        {(() => {
+          const userId = currentUser?.id || '';
+          const aplusRaw = (() => { try { return JSON.parse(localStorage.getItem(`tradeforge_aplus_entries_${userId}`) || '[]'); } catch { return []; } })();
+          if (aplusRaw.length < 3) return (
+            <Card className="border-yellow-500/30 bg-yellow-500/5">
+              <CardContent className="pt-5">
+                <SH icon={Zap} title="⭐ A+ Trade Pattern Detector" sub="Log at least 3 A+ trades to unlock pattern detection" color="text-yellow-500"/>
+                <div className="p-4 rounded-lg bg-muted text-center">
+                  <p className="text-sm text-muted-foreground">You have {aplusRaw.length} A+ trade{aplusRaw.length !== 1 ? 's' : ''} logged. Need 3+ to find patterns.</p>
+                  <p className="text-xs text-yellow-600 font-semibold mt-2">Journal → ⭐ A+ Trade tab → Log A+ Trade</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+
+          // Find common confluences across all A+ trades
+          const sigCount: Record<string, number> = {};
+          aplusRaw.forEach((e: any) => {
+            if (!e.customFields) return;
+            Object.entries(e.customFields).forEach(([key, val]) => {
+              if (val === true || val === 'true' || (typeof val === 'string' && val && val !== 'false')) {
+                sigCount[key] = (sigCount[key] || 0) + 1;
+              }
+            });
+          });
+
+          const total = aplusRaw.length;
+          const commonSigs = Object.entries(sigCount)
+            .map(([sig, count]) => ({ sig, count, pct: Math.round(count / total * 100) }))
+            .sort((a, b) => b.pct - a.pct);
+
+          // Group by strategy
+          const byStrategy: Record<string, any[]> = {};
+          aplusRaw.forEach((e: any) => {
+            const key = e.strategyId || 'default';
+            if (!byStrategy[key]) byStrategy[key] = [];
+            byStrategy[key].push(e);
+          });
+
+          return (
+            <Card className="border-2 border-yellow-500/30 bg-yellow-500/5">
+              <CardContent className="pt-5">
+                <SH icon={Zap} title="⭐ A+ Trade Pattern Detector" sub={`${total} A+ trades analysed — what makes your best setups work`} color="text-yellow-500"/>
+
+                {/* Common confluences */}
+                {commonSigs.length > 0 && (
+                  <div className="mb-5">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Most Common Confluences in A+ Trades</p>
+                    <div className="space-y-2">
+                      {commonSigs.slice(0, 8).map(({ sig, count, pct }) => (
+                        <div key={sig} className={`p-3 rounded-lg border ${pct >= 80 ? 'border-yellow-500/40 bg-yellow-500/10' : 'border-transparent bg-muted'}`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              {pct >= 80 && <span className="text-xs font-black text-yellow-600">CORE</span>}
+                              <span className="font-medium text-sm">{sig}</span>
+                            </div>
+                            <span className="font-bold text-sm text-yellow-600">{pct}%</span>
+                          </div>
+                          <div className="w-full bg-background rounded-full h-1.5">
+                            <div className="h-1.5 rounded-full bg-yellow-500" style={{ width: `${pct}%` }}/>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">Present in {count} of {total} A+ trades</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Core pattern insight */}
+                {commonSigs.length > 0 && (
+                  <div className="p-4 rounded-xl bg-yellow-500/20 border border-yellow-500/30 mb-4">
+                    <p className="text-sm font-bold text-yellow-700 dark:text-yellow-300 mb-2">⭐ Your A+ Setup DNA</p>
+                    {(() => {
+                      const core = commonSigs.filter(s => s.pct >= 70);
+                      const supporting = commonSigs.filter(s => s.pct >= 40 && s.pct < 70);
+                      return (
+                        <div className="space-y-1.5">
+                          {core.length > 0 && <p className="text-sm"><span className="font-semibold">Required:</span> {core.map(s => s.sig).join(' + ')}</p>}
+                          {supporting.length > 0 && <p className="text-sm"><span className="font-semibold">Supporting:</span> {supporting.map(s => s.sig).join(', ')}</p>}
+                          {core.length === 0 && <p className="text-sm text-muted-foreground">No dominant pattern yet — log more A+ trades to find your core setup.</p>}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Compare A+ vs regular trades */}
+                {results && results.totalTrades > 0 && (
+                  <div className="p-3 rounded-lg bg-muted border">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">A+ vs Regular Trades</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="text-center p-2 bg-background rounded">
+                        <p className="text-lg font-bold text-yellow-600">{total}</p>
+                        <p className="text-xs text-muted-foreground">A+ Trades Logged</p>
+                      </div>
+                      <div className="text-center p-2 bg-background rounded">
+                        <p className="text-lg font-bold">{results.totalTrades}</p>
+                        <p className="text-xs text-muted-foreground">Regular Trades</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      {Math.round(total / results.totalTrades * 100)}% of your trades are A+ quality. {total / results.totalTrades < 0.3 ? 'Be more selective — only take A+ setups.' : 'Good selectivity.'}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {/* Next Steps */}
         <Card><CardContent className="pt-5">
           <SH icon={TrendingUp} title="🚀 How To Improve This Strategy" sub="Specific next steps based on your current data quality" color="text-blue-500"/>

@@ -27,6 +27,21 @@ import { BehaviorRiskAlert, BehaviorRiskType } from '../components/BehaviorRiskA
 // ── User-specific field storage helpers ──────────────────────────────────────
 // Fields are stored per-user so different accounts have independent field sets
 const getUserFieldsKey = (userId: string) => `tradeforge_journal_fields_${userId}`;
+const getAplusFieldsKey = (userId: string, strategyId: string) => `tradeforge_aplus_fields_${userId}_${strategyId}`;
+const getAplusEntriesKey = (userId: string) => `tradeforge_aplus_entries_${userId}`;
+
+const getAplusFields = (userId: string, strategyId: string): any[] => {
+  try { return JSON.parse(localStorage.getItem(getAplusFieldsKey(userId, strategyId)) || '[]'); } catch { return []; }
+};
+const saveAplusFields = (userId: string, strategyId: string, fields: any[]) => {
+  localStorage.setItem(getAplusFieldsKey(userId, strategyId), JSON.stringify(fields));
+};
+const getAplusEntries = (userId: string): any[] => {
+  try { return JSON.parse(localStorage.getItem(getAplusEntriesKey(userId)) || '[]'); } catch { return []; }
+};
+const saveAplusEntries = (userId: string, entries: any[]) => {
+  localStorage.setItem(getAplusEntriesKey(userId), JSON.stringify(entries));
+};
 
 const getUserFields = (userId: string): any[] => {
   try {
@@ -61,10 +76,17 @@ const getRandomJournalPoints = () => Math.floor(Math.random() * 5) + 8;
 
 export function Journal() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'live' | 'backtesting'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'backtesting' | 'aplus'>('live');
   const [selectedStrategy, setSelectedStrategy] = useState<string>('all'); // NEW: Strategy filter
   const [entries, setEntries] = useState(sortNewest(storage.getJournalEntries().filter(e => e.userId === (storage.getCurrentUser()?.id || ''))));
   const [backtestingEntries, setBacktestingEntries] = useState(sortNewest(storage.getBacktestingEntries()));
+  const [aplusEntries, setAplusEntries] = useState<any[]>([]);
+  const [aplusFields, setAplusFields] = useState<any[]>([]);
+  const [aplusEntry, setAplusEntry] = useState({ date: getTodayLocal(), description: '', screenshots: [] as string[], customFields: {} as Record<string, any> });
+  const [isAplusDialogOpen, setIsAplusDialogOpen] = useState(false);
+  const [newAplusField, setNewAplusField] = useState({ name: '', type: 'checkbox' as 'text' | 'checkbox' | 'dropdown', options: [] as string[] });
+  const [newAplusFieldOption, setNewAplusFieldOption] = useState('');
+  const [isAplusFieldsDialogOpen, setIsAplusFieldsDialogOpen] = useState(false);
   const currentUserId = storage.getCurrentUser()?.id || '';
   const [customFields, setCustomFields] = useState(getUserFields(currentUserId));
   const [strategies, setStrategies] = useState(storage.getStrategies()); // NEW: Strategies
@@ -647,6 +669,11 @@ export function Journal() {
     });
     
     setEntries(sortNewest(userEntries));
+    // Load A+ entries and fields
+    const aplusData = getAplusEntries(user.id);
+    setAplusEntries(sortNewest(aplusData));
+    const stratId = selectedStrategy === 'all' ? 'default' : selectedStrategy;
+    setAplusFields(getAplusFields(user.id, stratId));
   }, []);
 
   return (
@@ -1254,10 +1281,10 @@ export function Journal() {
                         )}
                         {field.type === 'time' && (
                           <Input
-                            type="time"
+                            type="text"
                             value={newEntry.customFields[field.name] || ''}
                             onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } })}
-                            step="60"
+                            placeholder="e.g. 09:30 or 14:45"
                           />
                         )}
                         {field.type === 'image' && (
@@ -1598,7 +1625,7 @@ export function Journal() {
 
       {/* Tabs for Live Trading and Backtesting */}
       <Tabs defaultValue="live" className="w-full" onValueChange={(value) => {
-        setActiveTab(value as 'live' | 'backtesting');
+        setActiveTab(value as 'live' | 'backtesting' | 'aplus');
         // Reset custom fields when switching tabs so user starts fresh
         setNewEntry(prev => ({ ...prev, customFields: {}, screenshots: [], description: '', riskReward: 0, pnl: undefined, isNoTradeDay: false, beResolution: undefined }));
         setHiddenFieldsForEntry([]);
@@ -1630,6 +1657,10 @@ export function Journal() {
                 setNewEntry(prev => ({ ...prev, customFields: {}, screenshots: [], description: '', riskReward: 0, pnl: undefined, isNoTradeDay: false, beResolution: undefined, strategyId: value === 'all' ? undefined : value }));
                 setHiddenFieldsForEntry([]);
                 setHiddenSystemFields([]);
+                // Load A+ fields for this strategy
+                const stratId = value === 'all' ? 'default' : value;
+                setAplusFields(getAplusFields(currentUserId, stratId));
+                setAplusEntries(sortNewest(getAplusEntries(currentUserId)));
               }} className="flex-1">
                   <SelectTrigger>
                     <SelectValue placeholder={customStrategiesName} />
@@ -1673,12 +1704,17 @@ export function Journal() {
           />
         </div>
         
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="live">Live Trading</TabsTrigger>
           <TabsTrigger value="backtesting" disabled={!isPremium}>
             <div className="flex items-center gap-2">
               Backtesting
               {!isPremium && <Lock className="w-3 h-3" />}
+            </div>
+          </TabsTrigger>
+          <TabsTrigger value="aplus">
+            <div className="flex items-center gap-1">
+              <span>⭐</span> A+ Trade
             </div>
           </TabsTrigger>
         </TabsList>
@@ -1722,6 +1758,240 @@ export function Journal() {
               isBacktesting={true}
             />
           )}
+        </TabsContent>
+        <TabsContent value="aplus">
+          <div className="space-y-4">
+            {/* A+ Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg">⭐ A+ Trade of the Day</h3>
+                <p className="text-sm text-muted-foreground">Log your best setup. AI finds what makes them work.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setIsAplusFieldsDialogOpen(true)}>
+                  <Settings className="w-4 h-4 mr-1" /> Fields
+                </Button>
+                <Button size="sm" onClick={() => setIsAplusDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-1" /> Log A+ Trade
+                </Button>
+              </div>
+            </div>
+
+            {/* A+ Fields Dialog */}
+            <Dialog open={isAplusFieldsDialogOpen} onOpenChange={setIsAplusFieldsDialogOpen}>
+              <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>A+ Trade Fields</DialogTitle>
+                  <DialogDescription>Customize what you track for your best setups. These are separate from your regular journal fields.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label>Field Name</Label>
+                    <Input placeholder="e.g. Market Structure, Entry Model, POI Type" value={newAplusField.name} onChange={e => setNewAplusField({ ...newAplusField, name: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Field Type</Label>
+                    <Select value={newAplusField.type} onValueChange={(v: any) => setNewAplusField({ ...newAplusField, type: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="checkbox">Checkbox (yes/no)</SelectItem>
+                        <SelectItem value="text">Text</SelectItem>
+                        <SelectItem value="dropdown">Dropdown</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {newAplusField.type === 'dropdown' && (
+                    <div className="space-y-2">
+                      <Label>Options</Label>
+                      <div className="flex gap-2">
+                        <Input placeholder="Add option" value={newAplusFieldOption} onChange={e => setNewAplusFieldOption(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newAplusFieldOption) { setNewAplusField({ ...newAplusField, options: [...newAplusField.options, newAplusFieldOption] }); setNewAplusFieldOption(''); }}} />
+                        <Button type="button" size="sm" onClick={() => { if (newAplusFieldOption) { setNewAplusField({ ...newAplusField, options: [...newAplusField.options, newAplusFieldOption] }); setNewAplusFieldOption(''); }}}>Add</Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {newAplusField.options.map((opt, i) => (
+                          <Badge key={i} variant="secondary">{opt}<button onClick={() => setNewAplusField({ ...newAplusField, options: newAplusField.options.filter((_, idx) => idx !== i) })} className="ml-1"><X className="w-3 h-3"/></button></Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <Button className="w-full" onClick={() => {
+                    if (!newAplusField.name) return;
+                    const field = { id: Date.now().toString(), name: newAplusField.name, type: newAplusField.type, options: newAplusField.options };
+                    const stratId = selectedStrategy === 'all' ? 'default' : selectedStrategy;
+                    const updated = [...aplusFields, field];
+                    saveAplusFields(currentUserId, stratId, updated);
+                    setAplusFields(updated);
+                    setNewAplusField({ name: '', type: 'checkbox', options: [] });
+                    setNewAplusFieldOption('');
+                  }}>Add Field</Button>
+
+                  {aplusFields.length > 0 && (
+                    <div className="space-y-2 border-t pt-4">
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Current Fields</Label>
+                      {aplusFields.map((f: any) => (
+                        <div key={f.id} className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                          <span className="text-sm font-medium">{f.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">{f.type}</span>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => {
+                              const stratId = selectedStrategy === 'all' ? 'default' : selectedStrategy;
+                              const updated = aplusFields.filter((af: any) => af.id !== f.id);
+                              saveAplusFields(currentUserId, stratId, updated);
+                              setAplusFields(updated);
+                            }}><X className="w-3 h-3 text-destructive"/></Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* A+ Log Dialog */}
+            <Dialog open={isAplusDialogOpen} onOpenChange={setIsAplusDialogOpen}>
+              <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>⭐ Log A+ Trade</DialogTitle>
+                  <DialogDescription>Record your best setup of the day</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label>Date</Label>
+                    <Input type="date" value={aplusEntry.date} onChange={e => setAplusEntry({ ...aplusEntry, date: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description / Notes</Label>
+                    <Textarea value={aplusEntry.description} onChange={e => setAplusEntry({ ...aplusEntry, description: e.target.value })} placeholder="What made this an A+ setup? What was perfect about it?" rows={3} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Screenshot</Label>
+                    <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                      <Upload className="w-6 h-6 mx-auto mb-1 text-muted-foreground" />
+                      <input type="file" accept="image/*" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) { const reader = new FileReader(); reader.onloadend = () => setAplusEntry({ ...aplusEntry, screenshots: [...aplusEntry.screenshots, reader.result as string] }); reader.readAsDataURL(file); }
+                      }} />
+                    </div>
+                    {aplusEntry.screenshots.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {aplusEntry.screenshots.map((img, i) => (
+                          <div key={i} className="relative">
+                            <img src={img} alt="" className="w-full h-20 object-cover rounded" />
+                            <button onClick={() => setAplusEntry({ ...aplusEntry, screenshots: aplusEntry.screenshots.filter((_, idx) => idx !== i) })} className="absolute top-1 right-1 bg-destructive text-white rounded-full p-1"><X className="w-3 h-3"/></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* A+ custom fields */}
+                  {aplusFields.length > 0 && (
+                    <div className="space-y-3 border-t pt-3">
+                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Setup Confluences</Label>
+                      {aplusFields.map((field: any) => (
+                        <div key={field.id} className="space-y-1">
+                          <Label className="text-sm">{field.name}</Label>
+                          {field.type === 'checkbox' && (
+                            <div className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer border transition-all ${aplusEntry.customFields[field.name] ? 'bg-green-500/10 border-green-500/30' : 'bg-muted border-transparent'}`}
+                              onClick={() => setAplusEntry({ ...aplusEntry, customFields: { ...aplusEntry.customFields, [field.name]: !aplusEntry.customFields[field.name] }})}>
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${aplusEntry.customFields[field.name] ? 'bg-green-500 border-green-500' : 'border-muted-foreground/40'}`}>
+                                {aplusEntry.customFields[field.name] && <span className="text-white text-xs font-bold">✓</span>}
+                              </div>
+                              <span className="text-sm">{aplusEntry.customFields[field.name] ? 'Present ✓' : 'Not present'}</span>
+                            </div>
+                          )}
+                          {field.type === 'text' && <Input value={aplusEntry.customFields[field.name] || ''} onChange={e => setAplusEntry({ ...aplusEntry, customFields: { ...aplusEntry.customFields, [field.name]: e.target.value }})} placeholder={`Enter ${field.name}`} />}
+                          {field.type === 'dropdown' && (
+                            <Select value={aplusEntry.customFields[field.name] || ''} onValueChange={v => setAplusEntry({ ...aplusEntry, customFields: { ...aplusEntry.customFields, [field.name]: v }})}>
+                              <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                              <SelectContent>{field.options?.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}</SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {aplusFields.length === 0 && (
+                    <div className="p-3 bg-muted rounded-lg text-center">
+                      <p className="text-sm text-muted-foreground">Add fields first using the Fields button to track your A+ setup confluences.</p>
+                    </div>
+                  )}
+
+                  <Button className="w-full" onClick={() => {
+                    const entry = {
+                      id: Date.now().toString(),
+                      userId: currentUserId,
+                      date: aplusEntry.date,
+                      description: aplusEntry.description,
+                      screenshots: aplusEntry.screenshots,
+                      customFields: aplusEntry.customFields,
+                      strategyId: selectedStrategy === 'all' ? 'default' : selectedStrategy,
+                      timestamp: Date.now(),
+                    };
+                    const updated = [entry, ...getAplusEntries(currentUserId)];
+                    saveAplusEntries(currentUserId, updated);
+                    setAplusEntries(sortNewest(updated));
+                    setAplusEntry({ date: getTodayLocal(), description: '', screenshots: [], customFields: {} });
+                    setIsAplusDialogOpen(false);
+                    toast.success('A+ Trade logged! ⭐');
+                  }}>Save A+ Trade</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* A+ Entries List */}
+            {aplusEntries.filter(e => e.userId === currentUserId && (selectedStrategy === 'all' || e.strategyId === selectedStrategy || (selectedStrategy === 'all' && e.strategyId === 'default'))).length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <div className="text-4xl mb-3">⭐</div>
+                  <p className="font-semibold mb-1">No A+ Trades Yet</p>
+                  <p className="text-sm text-muted-foreground mb-4">Log your best setups to help the AI find your highest-probability patterns.</p>
+                  <Button onClick={() => setIsAplusDialogOpen(true)}><Plus className="w-4 h-4 mr-2" />Log First A+ Trade</Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {aplusEntries
+                  .filter(e => e.userId === currentUserId && (selectedStrategy === 'all' || e.strategyId === selectedStrategy || e.strategyId === 'default'))
+                  .map((entry: any) => (
+                  <Card key={entry.id} className="border-yellow-500/30 bg-yellow-500/5">
+                    <CardContent className="pt-4 pb-3 px-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">⭐</span>
+                          <p className="font-semibold text-sm">{new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => {
+                          if (confirm('Delete this A+ trade?')) {
+                            const updated = getAplusEntries(currentUserId).filter(e => e.id !== entry.id);
+                            saveAplusEntries(currentUserId, updated);
+                            setAplusEntries(sortNewest(updated));
+                          }
+                        }}><X className="w-3.5 h-3.5"/></Button>
+                      </div>
+                      {entry.description && <p className="text-sm text-muted-foreground mb-2">{entry.description}</p>}
+                      {entry.screenshots?.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          {entry.screenshots.map((img: string, i: number) => <img key={i} src={img} alt="" className="w-full h-20 object-cover rounded" />)}
+                        </div>
+                      )}
+                      {entry.customFields && Object.keys(entry.customFields).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {Object.entries(entry.customFields).map(([key, val]) => {
+                            if (!val || val === false || val === 'false') return null;
+                            const displayVal = val === true || val === 'true' ? key : `${key}: ${val}`;
+                            return <span key={key} className="px-2 py-0.5 bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 rounded-full text-xs font-medium">{displayVal}</span>;
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 

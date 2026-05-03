@@ -209,8 +209,9 @@ export function Social() {
     });
 
     console.log('Updating state and closing dialog');
-    // Reload from Supabase to get the freshest data
-    setTimeout(() => loadPostsFromSupabase(), 500);
+    // Add post to local state immediately, then refresh from Supabase
+    setPosts(prev => [post, ...prev]);
+    setTimeout(() => loadPostsFromSupabase(), 2000);
     setIsCreatePostOpen(false);
     setNewPostText('');
     setNewPostType('general');
