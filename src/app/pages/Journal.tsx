@@ -1712,11 +1712,7 @@ export function Journal() {
               {!isPremium && <Lock className="w-3 h-3" />}
             </div>
           </TabsTrigger>
-          <TabsTrigger value="aplus">
-            <div className="flex items-center gap-1">
-              <span>⭐</span> A+ Trade
-            </div>
-          </TabsTrigger>
+          <TabsTrigger value="aplus">A+ Trade of Day</TabsTrigger>
         </TabsList>
 
         <TabsContent value="live">
@@ -1814,8 +1810,15 @@ export function Journal() {
                       </div>
                     </div>
                   )}
-                  <Button className="w-full" onClick={() => {
+                  {!isPremium && aplusFields.length >= 2 && (
+                    <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
+                      <p className="text-sm font-semibold text-yellow-600">Free users: 2 fields max</p>
+                      <Button size="sm" className="mt-2" onClick={() => { setIsAplusFieldsDialogOpen(false); navigate('/app/upgrade'); }}>Upgrade for Unlimited</Button>
+                    </div>
+                  )}
+                  <Button className="w-full" disabled={!isPremium && aplusFields.length >= 2} onClick={() => {
                     if (!newAplusField.name) return;
+                    if (!isPremium && aplusFields.length >= 2) return;
                     const field = { id: Date.now().toString(), name: newAplusField.name, type: newAplusField.type, options: newAplusField.options };
                     const stratId = selectedStrategy === 'all' ? 'default' : selectedStrategy;
                     const updated = [...aplusFields, field];
