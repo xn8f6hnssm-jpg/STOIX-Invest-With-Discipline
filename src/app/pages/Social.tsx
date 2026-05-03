@@ -16,7 +16,8 @@ import { PremiumBadge } from '../components/PremiumBadge';
 
 export function Social() {
   const navigate = useNavigate();
-  const [posts, setPosts] = useState(storage.getPosts());
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set(storage.getLikedPosts()));
@@ -33,31 +34,34 @@ export function Social() {
 
   const loadPostsFromSupabase = async () => {
     try {
+      setLoadingPosts(true);
       const { data, error } = await supabase
         .from('posts')
         .select('*')
         .order('timestamp', { ascending: false })
-        .limit(50);
+        .limit(100);
 
       if (data && !error) {
-        // Also load comments separately
         const postIds = data.map((p: any) => p.id);
-        const { data: commentsData } = await supabase
-          .from('comments')
-          .select('*')
-          .in('post_id', postIds);
+        let commentsByPost: Record<string, any[]> = {};
+        
+        if (postIds.length > 0) {
+          const { data: commentsData } = await supabase
+            .from('comments')
+            .select('*')
+            .in('post_id', postIds);
 
-        const commentsByPost: Record<string, any[]> = {};
-        (commentsData || []).forEach((c: any) => {
-          if (!commentsByPost[c.post_id]) commentsByPost[c.post_id] = [];
-          commentsByPost[c.post_id].push({
-            id: c.id,
-            userId: c.user_id,
-            username: c.username,
-            text: c.text,
-            timestamp: c.timestamp,
+          (commentsData || []).forEach((c: any) => {
+            if (!commentsByPost[c.post_id]) commentsByPost[c.post_id] = [];
+            commentsByPost[c.post_id].push({
+              id: c.id,
+              userId: c.user_id,
+              username: c.username,
+              text: c.text,
+              timestamp: c.timestamp,
+            });
           });
-        });
+        }
 
         const mapped = data.map((p: any) => ({
           id: p.id,
@@ -68,7 +72,7 @@ export function Social() {
           isVerified: p.is_verified || false,
           type: p.type || 'general',
           photoUrl: p.photo_url || '',
-          images: p.images || [],
+          images: Array.isArray(p.images) ? p.images : [],
           caption: p.caption || '',
           likes: p.likes || 0,
           comments: commentsByPost[p.id] || [],
@@ -76,18 +80,49 @@ export function Social() {
           journalData: p.journal_data || null,
         }));
         setPosts(mapped);
-        localStorage.setItem('tradeforge_posts', JSON.stringify(mapped));
-      } else {
-        setPosts(storage.getPosts());
+        console.log(`✅ Loaded ${mapped.length} posts from Supabase`);
       }
-    } catch {
-      setPosts(storage.getPosts());
+    } catch (err) {
+      console.error('loadPostsFromSupabase error:', err);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const [supabaseUsers, setSupabaseUsers] = useState<any[]>([]);
+
+  const loadUsersFromSupabase = async () => {
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('id, username, name, total_points, clean_days, forfeit_days, current_streak, is_verified, is_premium, profile_picture')
+        .order('total_points', { ascending: false })
+        .limit(100);
+      if (data) {
+        const mapped = data.map((u: any) => ({
+          id: u.id,
+          username: u.username,
+          name: u.name,
+          totalPoints: u.total_points || 0,
+          cleanDays: u.clean_days || 0,
+          forfeitDays: u.forfeit_days || 0,
+          currentStreak: u.current_streak || 0,
+          isVerified: u.is_verified || false,
+          isPremium: u.is_premium || false,
+          profilePicture: u.profile_picture || '',
+        }));
+        setSupabaseUsers(mapped);
+        console.log(`✅ Loaded ${mapped.length} users for leaderboard`);
+      }
+    } catch (err) {
+      console.error('loadUsersFromSupabase error:', err);
     }
   };
 
   useEffect(() => {
     // Always load fresh from Supabase on mount
     loadPostsFromSupabase();
+    loadUsersFromSupabase();
 
     // Reload when tab becomes visible
     const handleVisibility = () => {
@@ -282,10 +317,11 @@ export function Social() {
 
   // Get leaderboard data
   const getLeaderboardData = () => {
-    const allUsers = storage.getAllUsers();
-    
+    // Use Supabase users as primary source, fall back to localStorage
+    const localUsers = storage.getAllUsers();
+    const combined = supabaseUsers.length > 0 ? supabaseUsers : localUsers;
     const uniqueUsers = Array.from(
-      new Map(allUsers.map(user => [user.id, user])).values()
+      new Map(combined.map(user => [user.id, user])).values()
     );
     
     return uniqueUsers
@@ -440,7 +476,11 @@ export function Social() {
         </TabsList>
 
         <TabsContent value="recommended">
-          {posts.length === 0 ? (
+          {loadingPosts ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : posts.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <p className="text-muted-foreground">No posts yet. Be the first to share your journey!</p>
