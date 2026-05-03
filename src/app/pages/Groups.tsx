@@ -93,23 +93,23 @@ export function Groups() {
   if (!currentUser) return <div className="p-6">Please log in to view groups</div>;
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2 mb-2"><Users className="w-8 h-8 text-blue-500" />Groups</h1>
-          <p className="text-muted-foreground">Join communities, share strategies, and compete in challenges</p>
+    <div className="container mx-auto px-4 py-6 max-w-4xl">
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="w-6 h-6 text-blue-500" />Groups</h1>
+          <Button onClick={() => navigate('/app/credits')} variant="outline" size="sm"><DollarSign className="w-4 h-4 mr-1" />Credits</Button>
         </div>
+        <p className="text-sm text-muted-foreground mb-3">Join communities, share strategies, and compete in challenges</p>
         <div className="flex gap-2">
-          <Button onClick={() => navigate('/app/credits')} variant="outline"><DollarSign className="w-4 h-4 mr-2" />Credits</Button>
-          <Button onClick={() => setShowJoinByCodeModal(true)} variant="outline"><Search className="w-4 h-4 mr-2" />Join by Code</Button>
-          <Button onClick={() => setShowCreateModal(true)}><Plus className="w-4 h-4 mr-2" />Create Group</Button>
+          <Button onClick={() => setShowJoinByCodeModal(true)} variant="outline" className="flex-1"><Search className="w-4 h-4 mr-2" />Join by Code</Button>
+          <Button onClick={() => setShowCreateModal(true)} className="flex-1"><Plus className="w-4 h-4 mr-2" />Create Group</Button>
         </div>
       </div>
 
       {myGroups.length > 0 && (
         <div className="mb-8">
           <h2 className="text-xl font-bold mb-4">My Groups ({myGroups.length})</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {myGroups.map(group => (
               <Card key={group.id} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/app/groups/${group.id}`)}>
                 <CardHeader>
@@ -147,7 +147,7 @@ export function Groups() {
         {filteredGroups.length === 0 ? (
           <Card><CardContent className="py-12 text-center"><Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" /><p className="text-muted-foreground mb-2">No groups found</p><p className="text-sm text-muted-foreground">Create your own group or join with an invite code</p></CardContent></Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filteredGroups.map(group => (
               <Card key={group.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
