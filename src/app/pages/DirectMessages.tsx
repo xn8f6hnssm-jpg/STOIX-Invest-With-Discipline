@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { MessageCircle, Search, Send, ArrowLeft, Image as ImageIcon, Crown, X, Trash2 } from 'lucide-react';
 import { storage } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 
 export function DirectMessages() {
   const { userId: paramUserId } = useParams<{ userId?: string }>();
@@ -23,7 +24,14 @@ export function DirectMessages() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isPremium = storage.isPremium();
 
-  useEffect(() => { if (currentUser) loadConversations(); }, []);
+  useEffect(() => {
+    if (currentUser) {
+      loadConversations();
+      // Poll for new messages every 10 seconds
+      const interval = setInterval(loadConversations, 10000);
+      return () => clearInterval(interval);
+    }
+  }, []);
   useEffect(() => { if (paramUserId && paramUserId !== activePartnerId) setActivePartnerId(paramUserId); }, [paramUserId]);
   useEffect(() => {
     if (!activePartnerId || !currentUser) return;
@@ -36,9 +44,48 @@ export function DirectMessages() {
   }, [activePartnerId]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  const loadConversations = () => {
+  const loadConversations = async () => {
     if (!currentUser) return;
+    // Pull new messages from Supabase into localStorage
+    try {
+      const { data } = await supabase
+        .from('direct_messages')
+        .select('*')
+        .or(`from_id.eq.${currentUser.id},to_id.eq.${currentUser.id}`)
+        .order('timestamp', { ascending: true });
+
+      if (data && data.length > 0) {
+        // Group by conversation and merge into localStorage
+        data.forEach((msg: any) => {
+          const partnerId = msg.from_id === currentUser.id ? msg.to_id : msg.from_id;
+          const key = `dm_${[currentUser.id, partnerId].sort().join('_')}`;
+          try {
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            const existingIds = new Set(existing.map((m: any) => m.id));
+            if (!existingIds.has(msg.id)) {
+              existing.push({
+                id: msg.id,
+                fromId: msg.from_id,
+                toId: msg.to_id,
+                text: msg.text || '',
+                imageUrl: msg.image_url || undefined,
+                timestamp: msg.timestamp,
+                read: msg.read || false,
+              });
+              existing.sort((a: any, b: any) => a.timestamp - b.timestamp);
+              localStorage.setItem(key, JSON.stringify(existing));
+            }
+          } catch {}
+        });
+      }
+    } catch (err) {
+      console.error('DM sync error:', err);
+    }
     setConversations(storage.getDMConversations(currentUser.id));
+    // Refresh active conversation if open
+    if (activePartnerId) {
+      setMessages(storage.getDMConversation(currentUser.id, activePartnerId));
+    }
   };
 
   const handleSearch = (query: string) => {
@@ -62,7 +109,27 @@ export function DirectMessages() {
     if (!currentUser || !activePartnerId) return;
     let uploadedUrl: string | undefined;
     if (imagePreview) uploadedUrl = await storage.uploadImage(imagePreview, currentUser.id, undefined, 'dm_img');
+    const msgId = Date.now().toString();
+    const msg = {
+      id: msgId,
+      fromId: currentUser.id,
+      toId: activePartnerId,
+      text: newMessage.trim(),
+      imageUrl: uploadedUrl,
+      timestamp: Date.now(),
+      read: false,
+    };
     storage.sendDirectMessage(currentUser.id, activePartnerId, newMessage.trim(), uploadedUrl);
+    // Sync to Supabase
+    supabase.from('direct_messages').insert({
+      id: msgId,
+      from_id: currentUser.id,
+      to_id: activePartnerId,
+      text: newMessage.trim() || null,
+      image_url: uploadedUrl || null,
+      timestamp: msg.timestamp,
+      read: false,
+    }).then(({ error }) => { if (error) console.error('DM sync error:', error); });
     setNewMessage(''); setImagePreview(null);
     setMessages(storage.getDMConversation(currentUser.id, activePartnerId));
     loadConversations();

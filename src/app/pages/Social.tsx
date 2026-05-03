@@ -156,67 +156,61 @@ export function Social() {
     return `${Math.floor(seconds / 86400)}d ago`;
   };
 
-  const handleCreatePost = () => {
-    console.log('handleCreatePost called');
-    console.log('currentUser:', currentUser);
-    console.log('newPostText:', newPostText);
-    console.log('selectedImages:', selectedImages);
-    
-    if (!currentUser) {
-      console.log('No current user, returning');
-      return;
+  const [isPosting, setIsPosting] = useState(false);
+
+  const handleCreatePost = async () => {
+    if (!currentUser) return;
+    if (!newPostText.trim() && selectedImages.length === 0) return;
+
+    setIsPosting(true);
+    try {
+      // Upload images to Supabase Storage first, then create post with URLs
+      const uploadedImages: string[] = [];
+      for (let i = 0; i < selectedImages.length; i++) {
+        const img = selectedImages[i];
+        if (img.startsWith('data:image')) {
+          try {
+            const url = await storage.uploadImage(img, currentUser.id, `post_${Date.now()}_${i}`, 'post_img');
+            uploadedImages.push(url || img);
+          } catch { uploadedImages.push(''); }
+        } else {
+          uploadedImages.push(img);
+        }
+      }
+
+      const post = storage.addPost({
+        userId: currentUser.id,
+        username: currentUser.username,
+        avatarUrl: currentUser.profilePicture,
+        league: currentUser.totalPoints?.toString() || '0',
+        isVerified: currentUser.isVerified || false,
+        photoUrl: uploadedImages[0] || '',
+        images: uploadedImages,
+        caption: newPostText,
+        type: newPostType,
+      });
+
+      storage.addActivity({
+        userId: currentUser.id,
+        type: 'post',
+        description: newPostType === 'clean' ? '✓ Posted a clean day' : newPostType === 'forfeit' ? '⚡ Posted a forfeit day' : '📝 Shared a post',
+        relatedId: post.id,
+      });
+
+      // Add to local state immediately
+      setPosts(prev => [{ ...post, photoUrl: uploadedImages[0] || '', images: uploadedImages }, ...prev]);
+      setIsCreatePostOpen(false);
+      setNewPostText('');
+      setNewPostType('general');
+      setSelectedImages([]);
+
+      // Refresh from Supabase after a delay
+      setTimeout(() => loadPostsFromSupabase(), 3000);
+    } catch (err) {
+      console.error('Post creation error:', err);
+    } finally {
+      setIsPosting(false);
     }
-    
-    // Must have either text or images
-    if (!newPostText.trim() && selectedImages.length === 0) {
-      console.log('No text or images, returning');
-      return;
-    }
-
-    console.log('Creating post...');
-    const league = getLeague(currentUser.totalPoints || 0);
-
-    // FIX: Store real images from selectedImages
-    const post = storage.addPost({
-      userId: currentUser.id,
-      username: currentUser.username,
-      avatarUrl: currentUser.profilePicture,
-      league: currentUser.totalPoints?.toString() || '0',
-      isVerified: currentUser.isVerified || false,
-      photoUrl: selectedImages[0] || '', // FIX: use first selected image
-      images: selectedImages, // FIX: store all selected images
-      caption: newPostText,
-      type: newPostType,
-    });
-
-    console.log('Post created:', post);
-
-    // Add activity
-    let activityDescription = '';
-    if (newPostType === 'clean') {
-      activityDescription = '✓ Posted a clean day';
-    } else if (newPostType === 'forfeit') {
-      activityDescription = '⚡ Posted a forfeit day';
-    } else {
-      activityDescription = '📝 Shared a post';
-    }
-    
-    storage.addActivity({
-      userId: currentUser.id,
-      type: 'post',
-      description: activityDescription,
-      relatedId: post.id,
-    });
-
-    console.log('Updating state and closing dialog');
-    // Add post to local state immediately, then refresh from Supabase
-    setPosts(prev => [post, ...prev]);
-    setTimeout(() => loadPostsFromSupabase(), 2000);
-    setIsCreatePostOpen(false);
-    setNewPostText('');
-    setNewPostType('general');
-    setSelectedImages([]);
-    // FIX: Removed demo alert - images now persist for real
   };
 
   const handleImageSelect = () => {
@@ -1169,10 +1163,10 @@ export function Social() {
           <Button
             size="lg"
             onClick={handleCreatePost}
-            disabled={!newPostText.trim() && selectedImages.length === 0}
+            disabled={(!newPostText.trim() && selectedImages.length === 0) || isPosting}
             className="mt-4 w-full"
           >
-            Post
+            {isPosting ? 'Posting...' : 'Post'}
           </Button>
         </DialogContent>
       </Dialog>
