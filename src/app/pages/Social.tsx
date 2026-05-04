@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { storage, getLeague, getDisciplineRate } from '../utils/storage';
 import { supabase } from '../utils/supabase';
@@ -253,31 +253,31 @@ export function Social() {
     }
   };
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   const handleImageSelect = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*,video/*';
-    input.multiple = true;
-    input.onchange = (e: any) => {
-      const files = Array.from(e.target.files || []) as File[];
-      if (files.length > 0) {
-        const currentCount = selectedImages.length + selectedVideos.length;
-        const remainingSlots = 10 - currentCount;
-        const filesToAdd = files.slice(0, remainingSlots);
-        filesToAdd.forEach(file => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            if (file.type.startsWith('video/')) {
-              setSelectedVideos(prev => [...prev, reader.result as string]);
-            } else {
-              setSelectedImages(prev => [...prev, reader.result as string]);
-            }
-          };
-          reader.readAsDataURL(file);
-        });
-      }
-    };
-    input.click();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []) as File[];
+    if (files.length === 0) return;
+    const currentCount = selectedImages.length + selectedVideos.length;
+    const remainingSlots = 10 - currentCount;
+    files.slice(0, remainingSlots).forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (file.type.startsWith('video/')) {
+          setSelectedVideos(prev => [...prev, reader.result as string]);
+        } else {
+          setSelectedImages(prev => [...prev, reader.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   const removeVideo = (index: number) => {
@@ -393,11 +393,29 @@ export function Social() {
         .sort((a, b) => b.timestamp - a.timestamp)
     : posts.sort((a, b) => b.timestamp - a.timestamp);
 
-  // Carousel helper — smooth CSS transform, no re-render lag
+  // Carousel helper — smooth CSS transform, swipe support, double-tap to like
   const getPostMedia = (post: any) => {
     const images = Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.photoUrl ? [post.photoUrl] : []);
     const videos = Array.isArray(post.videos) ? post.videos : [];
     return [...images.map((url: string) => ({ type: 'image', url })), ...videos.map((url: string) => ({ type: 'video', url }))];
+  };
+
+  const [doubleTapHeart, setDoubleTapHeart] = useState<Record<string, boolean>>({});
+  const lastTapRef = React.useRef<Record<string, number>>({});
+  const touchStartX = React.useRef<Record<string, number>>({});
+
+  const handleDoubleTap = (postId: string) => {
+    const now = Date.now();
+    const last = lastTapRef.current[postId] || 0;
+    if (now - last < 300) {
+      // Double tap — like the post
+      if (!likedPosts.has(postId)) {
+        handleLike(postId);
+        setDoubleTapHeart(prev => ({ ...prev, [postId]: true }));
+        setTimeout(() => setDoubleTapHeart(prev => ({ ...prev, [postId]: false })), 800);
+      }
+    }
+    lastTapRef.current[postId] = now;
   };
 
   const MediaCarousel = ({ post }: { post: any }) => {
@@ -405,9 +423,31 @@ export function Social() {
     const idx = carouselIndex[post.id] || 0;
     if (media.length === 0) return null;
 
+    const handleTouchStart = (e: React.TouchEvent) => {
+      touchStartX.current[post.id] = e.touches[0].clientX;
+    };
+    const handleTouchEnd = (e: React.TouchEvent) => {
+      const startX = touchStartX.current[post.id];
+      if (startX === undefined) return;
+      const diff = startX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 40) {
+        // Swipe
+        if (diff > 0 && idx < media.length - 1) {
+          setCarouselIndex(prev => ({ ...prev, [post.id]: idx + 1 }));
+        } else if (diff < 0 && idx > 0) {
+          setCarouselIndex(prev => ({ ...prev, [post.id]: idx - 1 }));
+        }
+      } else {
+        // Tap — check double tap
+        handleDoubleTap(post.id);
+      }
+    };
+
     return (
-      <div className="relative rounded-lg overflow-hidden bg-black">
-        {/* All slides rendered, CSS translate for instant smooth switching */}
+      <div className="relative rounded-lg overflow-hidden bg-black"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <div
           className="flex"
           style={{ transform: `translateX(-${idx * 100}%)`, transition: 'transform 0.25s ease', willChange: 'transform' }}
@@ -420,53 +460,42 @@ export function Social() {
                   alt={`Slide ${i + 1}`}
                   className="w-full h-auto"
                   style={{ maxHeight: '500px', objectFit: 'contain' }}
-                  onClick={() => setExpandedImage(item.url)}
                   loading={Math.abs(i - idx) <= 1 ? 'eager' : 'lazy'}
                 />
               ) : (
-                <video
-                  src={item.url}
-                  controls
-                  playsInline
-                  className="w-full h-auto"
-                  style={{ maxHeight: '500px' }}
-                />
+                <video src={item.url} controls playsInline className="w-full h-auto" style={{ maxHeight: '500px' }} />
               )}
             </div>
           ))}
         </div>
 
-        {/* Nav arrows */}
+        {/* Double-tap heart animation */}
+        {doubleTapHeart[post.id] && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <Heart className="w-20 h-20 text-white fill-white drop-shadow-lg animate-ping" style={{ animationDuration: '0.6s', animationIterationCount: 1 }} />
+          </div>
+        )}
+
+        {/* Nav arrows — desktop only */}
         {media.length > 1 && (
           <>
             {idx > 0 && (
-              <button
-                onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: idx - 1 })); }}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white text-lg font-bold hover:bg-black/80 transition-colors z-10"
-              >‹</button>
+              <button onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: idx - 1 })); }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 rounded-full items-center justify-center text-white text-lg font-bold hover:bg-black/80 transition-colors z-10 hidden md:flex">‹</button>
             )}
             {idx < media.length - 1 && (
-              <button
-                onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: idx + 1 })); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white text-lg font-bold hover:bg-black/80 transition-colors z-10"
-              >›</button>
+              <button onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: idx + 1 })); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 rounded-full items-center justify-center text-white text-lg font-bold hover:bg-black/80 transition-colors z-10 hidden md:flex">›</button>
             )}
-            {/* Dots */}
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
               {media.map((_: any, i: number) => (
-                <button key={i}
-                  onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: i })); }}
-                  className={`rounded-full transition-all ${i === idx ? 'w-4 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/50'}`}
-                />
+                <button key={i} onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: i })); }}
+                  className={`rounded-full transition-all ${i === idx ? 'w-4 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/50'}`} />
               ))}
             </div>
-            {/* Counter */}
-            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full z-10">
-              {idx + 1}/{media.length}
-            </div>
+            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full z-10">{idx + 1}/{media.length}</div>
           </>
         )}
-
         {post.type !== 'general' && (
           <Badge className="absolute top-2 left-2 text-xs z-10" variant={post.type === 'clean' ? 'default' : 'secondary'}>
             {post.type === 'clean' ? '✓ Clean' : '⚡ Forfeit'}
@@ -1199,6 +1228,16 @@ export function Social() {
         </TabsContent>
       </Tabs>
 
+      {/* Hidden file input for post creation */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       {/* Floating Add Post Button */}
       <Button
         onClick={() => setIsCreatePostOpen(true)}
@@ -1210,19 +1249,17 @@ export function Social() {
 
       {/* Create Post Dialog */}
       <Dialog open={isCreatePostOpen} onOpenChange={setIsCreatePostOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-w-lg w-full max-h-[85vh] overflow-y-auto p-4">
           <DialogHeader>
             <DialogTitle>Create a New Post</DialogTitle>
-            <DialogDescription>
-              Share your journey with the community!
-            </DialogDescription>
+            <DialogDescription>Share your journey with the community!</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-3">
             <Textarea
-              placeholder="What's happening?"
+              placeholder="What's happening? (optional)"
               value={newPostText}
               onChange={(e) => setNewPostText(e.target.value)}
-              className="h-20"
+              className="h-16 text-sm"
             />
             
             {/* Image & Video Previews */}
@@ -1279,7 +1316,7 @@ export function Social() {
           <Button
             size="lg"
             onClick={handleCreatePost}
-            disabled={(!newPostText.trim() && selectedImages.length === 0) || isPosting}
+            disabled={(selectedImages.length === 0 && selectedVideos.length === 0 && !newPostText.trim()) || isPosting}
             className="mt-4 w-full"
           >
             {isPosting ? 'Posting...' : 'Post'}
