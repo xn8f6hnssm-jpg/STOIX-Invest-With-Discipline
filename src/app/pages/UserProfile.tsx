@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { storage, getLeague } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { ArrowLeft, MessageCircle, Trophy, Target, XCircle, UserPlus, UserCheck, Edit, Check, X } from 'lucide-react';
 
 export function UserProfile() {
@@ -19,75 +21,167 @@ export function UserProfile() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [editedUsername, setEditedUsername] = useState('');
+  const [followersList, setFollowersList] = useState<any[]>([]);
+  const [followingList, setFollowingList] = useState<any[]>([]);
+  const [showFollowers, setShowFollowers] = useState(false);
+  const [showFollowing, setShowFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   useEffect(() => {
-    // Find user from all users
-    const allUsers = storage.getAllUsers();
-    const foundUser = allUsers.find(u => u.id === userId);
-    if (foundUser) {
-      setUser(foundUser);
-      const userPosts = storage.getPosts().filter(p => p.userId === userId);
-      setPosts(userPosts);
-      setIsFollowing(storage.isFollowing(userId || ''));
-    }
+    loadProfile();
   }, [userId]);
 
-  const handleDM = () => {
-    if (user) {
-      navigate(`/app/messages/${user.id}`);
+  const loadProfile = async () => {
+    if (!userId) return;
+
+    // Load user from Supabase first, fall back to localStorage
+    const { data: supabaseUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (supabaseUser) {
+      const mapped = {
+        id: supabaseUser.id,
+        email: supabaseUser.email,
+        username: supabaseUser.username,
+        name: supabaseUser.name,
+        tradingStyle: supabaseUser.trading_style,
+        totalPoints: supabaseUser.total_points || 0,
+        cleanDays: supabaseUser.clean_days || 0,
+        forfeitDays: supabaseUser.forfeit_days || 0,
+        currentStreak: supabaseUser.current_streak || 0,
+        isVerified: supabaseUser.is_verified || false,
+        isPremium: supabaseUser.is_premium || false,
+        profilePicture: supabaseUser.profile_picture || '',
+      };
+      setUser(mapped);
+    } else {
+      const allUsers = storage.getAllUsers();
+      const found = allUsers.find(u => u.id === userId);
+      if (found) setUser(found);
     }
+
+    // Load posts from Supabase
+    const { data: postsData } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false })
+      .limit(20);
+
+    if (postsData) {
+      setPosts(postsData.map((p: any) => ({
+        id: p.id, userId: p.user_id, username: p.username,
+        photoUrl: p.photo_url || '', images: p.images || [],
+        caption: p.caption || '', likes: p.likes || 0,
+        comments: [], type: p.type || 'general', timestamp: p.timestamp,
+      })));
+    }
+
+    // Load follower/following counts from Supabase following table
+    const { data: followers } = await supabase
+      .from('following')
+      .select('follower_id')
+      .eq('following_id', userId);
+
+    const { data: following } = await supabase
+      .from('following')
+      .select('following_id')
+      .eq('follower_id', userId);
+
+    setFollowerCount(followers?.length || 0);
+    setFollowingCount(following?.length || 0);
+    setIsFollowing(storage.isFollowing(userId));
   };
 
-  const handleFollowToggle = () => {
+  const loadFollowersList = async () => {
     if (!userId) return;
-    
+    const { data } = await supabase
+      .from('following')
+      .select('follower_id')
+      .eq('following_id', userId);
+
+    if (data) {
+      const ids = data.map((r: any) => r.follower_id);
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, username, name, profile_picture, total_points')
+        .in('id', ids);
+      setFollowersList(users || []);
+    }
+    setShowFollowers(true);
+  };
+
+  const loadFollowingList = async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from('following')
+      .select('following_id')
+      .eq('follower_id', userId);
+
+    if (data) {
+      const ids = data.map((r: any) => r.following_id);
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, username, name, profile_picture, total_points')
+        .in('id', ids);
+      setFollowingList(users || []);
+    }
+    setShowFollowing(true);
+  };
+
+  const handleFollowToggle = async () => {
+    if (!userId || !currentUser) return;
+
     if (isFollowing) {
       storage.unfollowUser(userId);
       setIsFollowing(false);
+      setFollowerCount(prev => Math.max(0, prev - 1));
+      // Remove from Supabase following table
+      await supabase.from('following')
+        .delete()
+        .eq('follower_id', currentUser.id)
+        .eq('following_id', userId);
     } else {
       storage.followUser(userId);
       setIsFollowing(true);
+      setFollowerCount(prev => prev + 1);
+      // Add to Supabase following table
+      await supabase.from('following').insert({
+        follower_id: currentUser.id,
+        following_id: userId,
+      }).onConflict('follower_id,following_id').ignore();
+      // Notify
+      storage.addNotification({ userId, type: 'follow', fromId: currentUser.id });
     }
   };
 
   const handleEditToggle = () => {
     if (isEditing) {
-      // Save changes
       if (user) {
         storage.updateUser(userId || '', {
           name: editedName || user.name,
           username: editedUsername || user.username,
         });
-        // Update local user state
-        setUser({
-          ...user,
-          name: editedName || user.name,
-          username: editedUsername || user.username,
-        });
+        setUser({ ...user, name: editedName || user.name, username: editedUsername || user.username });
       }
       setIsEditing(false);
     } else {
-      // Set initial values for editing
       setEditedName(user.name || '');
       setEditedUsername(user.username || '');
       setIsEditing(true);
     }
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditedName(user.name || '');
-    setEditedUsername(user.username || '');
-  };
-
   if (!user) {
     return (
       <div className="container mx-auto px-4 py-6 max-w-2xl">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">User not found</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-12 text-center">
+          <p className="text-muted-foreground">Loading profile...</p>
+        </CardContent></Card>
       </div>
     );
   }
@@ -95,7 +189,7 @@ export function UserProfile() {
   const league = getLeague(user.totalPoints || 0);
   const isOwnProfile = currentUser?.id === user.id;
 
-  const leagueGradients = {
+  const leagueGradients: Record<string, string> = {
     Bronze: 'from-amber-700 to-amber-900',
     Silver: 'from-slate-400 to-slate-600',
     Gold: 'from-yellow-400 to-yellow-600',
@@ -103,16 +197,24 @@ export function UserProfile() {
     Platinum: 'from-slate-200 to-slate-400',
   };
 
+  const UserListItem = ({ u }: { u: any }) => (
+    <div className="flex items-center gap-3 p-2 hover:bg-muted rounded-lg cursor-pointer"
+      onClick={() => { setShowFollowers(false); setShowFollowing(false); navigate(`/app/profile/${u.id}`); }}>
+      <Avatar className="w-10 h-10">
+        <AvatarImage src={u.profile_picture} />
+        <AvatarFallback>{u.name?.[0] || u.username?.[0] || '?'}</AvatarFallback>
+      </Avatar>
+      <div>
+        <p className="font-semibold text-sm">{u.name || u.username}</p>
+        <p className="text-xs text-muted-foreground">@{u.username}</p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl pb-24">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate('/app/social')}
-        className="mb-4"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Social
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mb-4">
+        <ArrowLeft className="w-4 h-4 mr-2" />Back
       </Button>
 
       <Card className="mb-6">
@@ -120,181 +222,111 @@ export function UserProfile() {
           <div className="flex items-start gap-4 mb-6">
             <Avatar className="w-20 h-20">
               <AvatarImage src={user.profilePicture} />
-              <AvatarFallback className="text-2xl">
-                {user.name?.[0] || user.username?.[0] || '?'}
-              </AvatarFallback>
+              <AvatarFallback className="text-2xl">{user.name?.[0] || user.username?.[0] || '?'}</AvatarFallback>
             </Avatar>
-
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-2xl font-bold">{user.name || user.username}</h1>
-                {user.isVerified && (
-                  <Badge className="bg-blue-500">✓ Verified</Badge>
-                )}
+                <h1 className="text-xl font-bold">{user.name || user.username}</h1>
+                {user.isVerified && <Badge className="bg-blue-500">✓</Badge>}
               </div>
-              <p className="text-muted-foreground mb-2">@{user.username}</p>
-              
-              {user.tradingStyle && (
-                <p className="text-sm text-muted-foreground mb-3">
-                  {user.tradingStyle}
-                </p>
-              )}
-
+              <p className="text-muted-foreground text-sm mb-2">@{user.username}</p>
+              {user.tradingStyle && <p className="text-sm text-muted-foreground mb-3">{user.tradingStyle}</p>}
               {!isOwnProfile && (
-                <Button onClick={handleDM} size="sm">
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  DM
+                <Button onClick={() => navigate(`/app/messages/${user.id}`)} size="sm" variant="outline">
+                  <MessageCircle className="w-4 h-4 mr-2" />DM
                 </Button>
               )}
             </div>
           </div>
 
-          {/* League Badge */}
-          <div className="mb-4">
-            <div className={`w-full h-24 rounded-lg bg-gradient-to-r ${leagueGradients[league.name as keyof typeof leagueGradients]} flex items-center justify-center`}>
-              <div className="text-center text-white">
-                <Trophy className="w-8 h-8 mx-auto mb-2" />
-                <h3 className="text-xl font-bold">{league.name} League</h3>
-                <p className="text-sm opacity-90">{user.totalPoints || 0} Points</p>
-              </div>
+          {/* League */}
+          <div className={`w-full h-20 rounded-lg bg-gradient-to-r ${leagueGradients[league.name] || 'from-slate-400 to-slate-600'} flex items-center justify-center mb-4`}>
+            <div className="text-center text-white">
+              <Trophy className="w-6 h-6 mx-auto mb-1" />
+              <h3 className="text-lg font-bold">{league.name} League</h3>
+              <p className="text-xs opacity-90">{user.totalPoints || 0} Points</p>
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-3 gap-4 text-center">
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4 text-center mb-4">
             <div>
-              <div className="flex items-center justify-center gap-1 text-green-500 mb-1">
-                <Target className="w-4 h-4" />
-                <span className="text-2xl font-bold">{user.cleanDays || 0}</span>
-              </div>
+              <div className="text-2xl font-bold text-green-500">{user.cleanDays || 0}</div>
               <p className="text-xs text-muted-foreground">Clean Days</p>
             </div>
             <div>
-              <div className="flex items-center justify-center gap-1 text-red-500 mb-1">
-                <XCircle className="w-4 h-4" />
-                <span className="text-2xl font-bold">{user.forfeitDays || 0}</span>
-              </div>
+              <div className="text-2xl font-bold text-red-500">{user.forfeitDays || 0}</div>
               <p className="text-xs text-muted-foreground">Forfeit Days</p>
             </div>
             <div>
-              <div className="text-2xl font-bold text-blue-500 mb-1">
-                {user.currentStreak || 0}
-              </div>
-              <p className="text-xs text-muted-foreground">Current Streak</p>
+              <div className="text-2xl font-bold text-blue-500">{user.currentStreak || 0}</div>
+              <p className="text-xs text-muted-foreground">Streak</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mt-4 text-center">
-            <div>
-              <div className="text-2xl font-bold">{user.followers || 0}</div>
+          {/* Followers / Following — clickable */}
+          <div className="grid grid-cols-2 gap-4 text-center mb-4">
+            <button onClick={loadFollowersList} className="p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
+              <div className="text-2xl font-bold">{followerCount}</div>
               <p className="text-xs text-muted-foreground">Followers</p>
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{user.following || 0}</div>
+            </button>
+            <button onClick={loadFollowingList} className="p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
+              <div className="text-2xl font-bold">{followingCount}</div>
               <p className="text-xs text-muted-foreground">Following</p>
-            </div>
+            </button>
           </div>
 
+          {/* Actions */}
           {!isOwnProfile && (
-            <Button
-              onClick={handleFollowToggle}
-              size="sm"
-              className="mt-4"
-              variant={isFollowing ? 'secondary' : 'default'}
-            >
-              {isFollowing ? (
-                <UserCheck className="w-4 h-4 mr-2" />
-              ) : (
-                <UserPlus className="w-4 h-4 mr-2" />
-              )}
-              {isFollowing ? 'Unfollow' : 'Follow'}
+            <Button onClick={handleFollowToggle} size="sm" variant={isFollowing ? 'secondary' : 'default'} className="w-full">
+              {isFollowing ? <><UserCheck className="w-4 h-4 mr-2" />Following</> : <><UserPlus className="w-4 h-4 mr-2" />Follow</>}
             </Button>
           )}
 
           {isOwnProfile && (
-            <div className="mt-4">
-              <Button
-                onClick={handleEditToggle}
-                size="sm"
-                className="mr-2"
-                variant={isEditing ? 'secondary' : 'default'}
-              >
-                {isEditing ? (
-                  <Check className="w-4 h-4 mr-2" />
-                ) : (
-                  <Edit className="w-4 h-4 mr-2" />
-                )}
-                {isEditing ? 'Save' : 'Edit'}
-              </Button>
-              {isEditing && (
-                <Button
-                  onClick={handleCancelEdit}
-                  size="sm"
-                  className="mr-2"
-                  variant="destructive"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Button onClick={handleEditToggle} size="sm" variant={isEditing ? 'secondary' : 'default'}>
+                  {isEditing ? <><Check className="w-4 h-4 mr-2" />Save</> : <><Edit className="w-4 h-4 mr-2" />Edit Profile</>}
                 </Button>
+                {isEditing && (
+                  <Button onClick={() => setIsEditing(false)} size="sm" variant="outline">
+                    <X className="w-4 h-4 mr-2" />Cancel
+                  </Button>
+                )}
+              </div>
+              {isEditing && (
+                <div className="space-y-3">
+                  <div><Label>Name</Label><Input value={editedName} onChange={e => setEditedName(e.target.value)} className="mt-1" /></div>
+                  <div><Label>Username</Label><Input value={editedUsername} onChange={e => setEditedUsername(e.target.value)} className="mt-1" /></div>
+                </div>
               )}
-            </div>
-          )}
-
-          {isEditing && (
-            <div className="mt-4">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                className="mt-1"
-              />
-              <Label htmlFor="username" className="mt-2">Username</Label>
-              <Input
-                id="username"
-                value={editedUsername}
-                onChange={(e) => setEditedUsername(e.target.value)}
-                className="mt-1"
-              />
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* User's Posts */}
-      <h2 className="text-xl font-bold mb-4">Recent Posts</h2>
+      {/* Posts grid */}
+      <h2 className="text-lg font-bold mb-3">Posts</h2>
       {posts.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-muted-foreground">No posts yet</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-8 text-center"><p className="text-muted-foreground text-sm">No posts yet</p></CardContent></Card>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {posts.map((post) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {posts.map(post => (
             <Card key={post.id} className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
               <div className="aspect-square bg-muted relative">
                 {post.photoUrl ? (
-                  <img
-                    src={post.photoUrl}
-                    alt="Post"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={post.photoUrl} alt="Post" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                    No image
-                  </div>
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs p-2 text-center">{post.caption?.substring(0, 40) || 'No image'}</div>
                 )}
-                <Badge
-                  className="absolute top-1 right-1 text-xs py-0"
-                  variant={(post.type === 'clean' || post.type === 'general') ? 'default' : 'secondary'}
-                >
+                <Badge className="absolute top-1 right-1 text-xs py-0" variant={post.type === 'clean' || post.type === 'general' ? 'default' : 'secondary'}>
                   {post.type === 'clean' ? '✓' : post.type === 'forfeit' ? '⚡' : '📝'}
                 </Badge>
               </div>
               <CardContent className="p-2">
-                <p className="text-xs truncate mb-1">{post.caption}</p>
-                <div className="flex gap-3 text-xs text-muted-foreground">
+                <p className="text-xs truncate">{post.caption}</p>
+                <div className="flex gap-2 text-xs text-muted-foreground mt-1">
                   <span>{post.likes} ♥</span>
                   <span>{post.comments?.length || 0} 💬</span>
                 </div>
@@ -303,6 +335,30 @@ export function UserProfile() {
           ))}
         </div>
       )}
+
+      {/* Followers Dialog */}
+      <Dialog open={showFollowers} onOpenChange={setShowFollowers}>
+        <DialogContent className="max-w-sm max-h-[70vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Followers ({followerCount})</DialogTitle></DialogHeader>
+          <div className="space-y-1 pt-2">
+            {followersList.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No followers yet</p>
+            ) : followersList.map(u => <UserListItem key={u.id} u={u} />)}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Following Dialog */}
+      <Dialog open={showFollowing} onOpenChange={setShowFollowing}>
+        <DialogContent className="max-w-sm max-h-[70vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Following ({followingCount})</DialogTitle></DialogHeader>
+          <div className="space-y-1 pt-2">
+            {followingList.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Not following anyone yet</p>
+            ) : followingList.map(u => <UserListItem key={u.id} u={u} />)}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

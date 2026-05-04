@@ -251,69 +251,7 @@ export function Settings() {
           </CardContent>
         </Card>
 
-        {/* Account Rules */}
-        <Card className={!isPremium ? 'opacity-60' : ''}>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Shield className="w-5 h-5 text-blue-500" />
-              Account Rules
-              {isPremium && <PremiumBadge size="sm" />}
-            </CardTitle>
-            <CardDescription>Set limits for prop firm compliance or personal discipline</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="max-daily-loss" className="mb-2 block">Max Daily Loss ($)</Label>
-              <Input id="max-daily-loss" type="number" value={maxDailyLoss} onChange={e => setMaxDailyLoss(e.target.value)} placeholder="e.g., 2500" disabled={!isPremium} />
-            </div>
-            <div>
-              <Label htmlFor="max-drawdown" className="mb-2 block">Max Overall Drawdown ($)</Label>
-              <Input id="max-drawdown" type="number" value={maxDrawdown} onChange={e => setMaxDrawdown(e.target.value)} placeholder="e.g., 5000" disabled={!isPremium} />
-            </div>
-            <div>
-              <Label htmlFor="max-contracts" className="mb-2 block">Max Contracts Allowed</Label>
-              <Input id="max-contracts" type="number" value={maxContracts} onChange={e => setMaxContracts(e.target.value)} placeholder="e.g., 10" disabled={!isPremium} />
-            </div>
-            <div>
-              <Label htmlFor="consistency-rules" className="mb-2 block">Consistency Rules (Optional)</Label>
-              <Textarea id="consistency-rules" value={consistencyRules} onChange={e => setConsistencyRules(e.target.value)} placeholder="e.g., Must have 5 winning days to withdraw" rows={3} disabled={!isPremium} />
-            </div>
-            <Button onClick={saveAccountRules} className="w-full" disabled={!isPremium}>
-              <Shield className="w-4 h-4 mr-2" />
-              Save Account Rules
-            </Button>
-            {!isPremium && <p className="text-sm text-muted-foreground text-center">Upgrade to Premium to enable Account Rules</p>}
-          </CardContent>
-        </Card>
 
-        {/* Discipline Protection */}
-        <Card className={!isPremium ? 'opacity-60' : ''}>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-orange-500" />
-              Discipline Protection
-              {isPremium && <PremiumBadge size="sm" />}
-            </CardTitle>
-            <CardDescription>Advanced discipline and account safety features</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <Label htmlFor="account-protection-mode" className="font-medium">Account Protection Mode</Label>
-                <p className="text-sm text-muted-foreground mt-1">Stricter enforcement and warnings when rules are violated</p>
-              </div>
-              <Switch id="account-protection-mode" checked={accountProtectionMode} onCheckedChange={toggleProtectionMode} disabled={!isPremium} />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <Label htmlFor="pre-trade-checklist" className="font-medium">Pre-Trade Checklist</Label>
-                <p className="text-sm text-muted-foreground mt-1">Require checklist confirmation before logging trades</p>
-              </div>
-              <Switch id="pre-trade-checklist" checked={preTradeChecklistEnabled} onCheckedChange={togglePreTradeChecklist} disabled={!isPremium} />
-            </div>
-            {!isPremium && <p className="text-sm text-muted-foreground text-center pt-2">Upgrade to Premium to enable Discipline Protection features</p>}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

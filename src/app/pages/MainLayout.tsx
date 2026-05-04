@@ -325,9 +325,7 @@ export function MainLayout() {
                     <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/upgrade'); setMenuOpen(false); }}>
                       Upgrade
                     </Button>
-                    <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/legal'); setMenuOpen(false); }}>
-                      Legal
-                    </Button>
+
                   </nav>
                   <Separator />
                   <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
