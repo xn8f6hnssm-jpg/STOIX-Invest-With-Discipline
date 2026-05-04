@@ -878,6 +878,7 @@ export const storage = {
           avatar_url: newPost.avatarUrl || null,
           league: newPost.league, is_verified: newPost.isVerified, type: newPost.type,
           photo_url: photoUrl || null, images: images,
+          videos: (newPost as any).videos || [],
           caption: newPost.caption, likes: 0, journal_data: newPost.journalData || null,
           timestamp: newPost.timestamp,
         });

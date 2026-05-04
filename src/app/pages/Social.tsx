@@ -75,6 +75,7 @@ export function Social() {
           type: p.type || 'general',
           photoUrl: p.photo_url || '',
           images: Array.isArray(p.images) ? p.images : [],
+          videos: Array.isArray(p.videos) ? p.videos : [],
           caption: p.caption || '',
           likes: p.likes || 0,
           comments: commentsByPost[p.id] || [],
@@ -383,10 +384,10 @@ export function Social() {
         .sort((a, b) => b.timestamp - a.timestamp)
     : posts.sort((a, b) => b.timestamp - a.timestamp);
 
-  // Carousel helper
+  // Carousel helper — smooth CSS transform, no re-render lag
   const getPostMedia = (post: any) => {
-    const images = post.images?.length > 0 ? post.images : (post.photoUrl ? [post.photoUrl] : []);
-    const videos = post.videos || [];
+    const images = Array.isArray(post.images) && post.images.length > 0 ? post.images : (post.photoUrl ? [post.photoUrl] : []);
+    const videos = Array.isArray(post.videos) ? post.videos : [];
     return [...images.map((url: string) => ({ type: 'image', url })), ...videos.map((url: string) => ({ type: 'video', url }))];
   };
 
@@ -394,43 +395,71 @@ export function Social() {
     const media = getPostMedia(post);
     const idx = carouselIndex[post.id] || 0;
     if (media.length === 0) return null;
-    const item = media[idx];
+
     return (
-      <div className="relative rounded-lg overflow-hidden bg-muted">
-        {item.type === 'image' ? (
-          <img src={item.url} alt="Post" className="w-full h-auto" style={{ maxHeight: '500px', objectFit: 'contain' }} onClick={() => setExpandedImage(item.url)} />
-        ) : (
-          <video src={item.url} controls className="w-full h-auto" style={{ maxHeight: '500px' }} />
-        )}
+      <div className="relative rounded-lg overflow-hidden bg-black">
+        {/* All slides rendered, CSS translate for instant smooth switching */}
+        <div
+          className="flex"
+          style={{ transform: `translateX(-${idx * 100}%)`, transition: 'transform 0.25s ease', willChange: 'transform' }}
+        >
+          {media.map((item: any, i: number) => (
+            <div key={i} className="w-full flex-shrink-0 flex items-center justify-center bg-black" style={{ minWidth: '100%' }}>
+              {item.type === 'image' ? (
+                <img
+                  src={item.url}
+                  alt={`Slide ${i + 1}`}
+                  className="w-full h-auto"
+                  style={{ maxHeight: '500px', objectFit: 'contain' }}
+                  onClick={() => setExpandedImage(item.url)}
+                  loading={Math.abs(i - idx) <= 1 ? 'eager' : 'lazy'}
+                />
+              ) : (
+                <video
+                  src={item.url}
+                  controls
+                  playsInline
+                  className="w-full h-auto"
+                  style={{ maxHeight: '500px' }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Nav arrows */}
         {media.length > 1 && (
           <>
             {idx > 0 && (
-              <button onClick={() => setCarouselIndex(prev => ({ ...prev, [post.id]: idx - 1 }))}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors">
-                ‹
-              </button>
+              <button
+                onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: idx - 1 })); }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white text-lg font-bold hover:bg-black/80 transition-colors z-10"
+              >‹</button>
             )}
             {idx < media.length - 1 && (
-              <button onClick={() => setCarouselIndex(prev => ({ ...prev, [post.id]: idx + 1 }))}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors">
-                ›
-              </button>
+              <button
+                onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: idx + 1 })); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white text-lg font-bold hover:bg-black/80 transition-colors z-10"
+              >›</button>
             )}
-            {/* Dot indicators */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+            {/* Dots */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
               {media.map((_: any, i: number) => (
-                <button key={i} onClick={() => setCarouselIndex(prev => ({ ...prev, [post.id]: i }))}
-                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === idx ? 'bg-white' : 'bg-white/50'}`} />
+                <button key={i}
+                  onClick={e => { e.stopPropagation(); setCarouselIndex(prev => ({ ...prev, [post.id]: i })); }}
+                  className={`rounded-full transition-all ${i === idx ? 'w-4 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/50'}`}
+                />
               ))}
             </div>
             {/* Counter */}
-            <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
+            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full z-10">
               {idx + 1}/{media.length}
             </div>
           </>
         )}
+
         {post.type !== 'general' && (
-          <Badge className="absolute top-2 left-2 text-xs" variant={post.type === 'clean' ? 'default' : 'secondary'}>
+          <Badge className="absolute top-2 left-2 text-xs z-10" variant={post.type === 'clean' ? 'default' : 'secondary'}>
             {post.type === 'clean' ? '✓ Clean' : '⚡ Forfeit'}
           </Badge>
         )}
