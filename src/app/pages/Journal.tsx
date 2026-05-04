@@ -1281,10 +1281,10 @@ export function Journal() {
                         )}
                         {field.type === 'time' && (
                           <Input
-                            type="text"
+                            type="time"
                             value={newEntry.customFields[field.name] || ''}
                             onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } })}
-                            placeholder="e.g. 09:30 or 14:45"
+                            step="60"
                           />
                         )}
                         {field.type === 'image' && (
