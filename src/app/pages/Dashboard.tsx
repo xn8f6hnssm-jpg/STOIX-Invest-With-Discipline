@@ -137,10 +137,19 @@ export function Dashboard() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  const handleDeletePost = (postId: string) => {
+  const handleDeletePost = async (postId: string) => {
     if (confirm('Are you sure you want to delete this post?')) {
+      // Remove from local state immediately
+      setPosts(prev => prev.filter((p: any) => p.id !== postId));
+      // Delete from localStorage
       storage.deletePost(postId);
-      setPosts(storage.getPosts());
+      // Delete from Supabase
+      try {
+        await supabase.from('posts').delete().eq('id', postId);
+        await supabase.from('comments').delete().eq('post_id', postId);
+      } catch (err) {
+        console.error('Delete post error:', err);
+      }
     }
   };
 

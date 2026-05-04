@@ -288,10 +288,19 @@ export function Social() {
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleDeletePost = (postId: string) => {
+  const handleDeletePost = async (postId: string) => {
     if (confirm('Are you sure you want to delete this post?')) {
+      // Remove from local state immediately
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      // Delete from localStorage
       storage.deletePost(postId);
-      setPosts(storage.getPosts());
+      // Delete from Supabase
+      try {
+        await supabase.from('posts').delete().eq('id', postId);
+        await supabase.from('comments').delete().eq('post_id', postId);
+      } catch (err) {
+        console.error('Delete post from Supabase error:', err);
+      }
     }
   };
 
