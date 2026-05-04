@@ -84,7 +84,7 @@ export function Journal() {
   const [aplusFields, setAplusFields] = useState<any[]>([]);
   const [aplusEntry, setAplusEntry] = useState({ date: getTodayLocal(), description: '', screenshots: [] as string[], customFields: {} as Record<string, any> });
   const [isAplusDialogOpen, setIsAplusDialogOpen] = useState(false);
-  const [newAplusField, setNewAplusField] = useState({ name: '', type: 'checkbox' as 'text' | 'checkbox' | 'dropdown', options: [] as string[] });
+  const [newAplusField, setNewAplusField] = useState({ name: '', type: 'checkbox' as 'text' | 'checkbox' | 'dropdown', options: [] as string[], category: 'confluence' as string });
   const [newAplusFieldOption, setNewAplusFieldOption] = useState('');
   const [isAplusFieldsDialogOpen, setIsAplusFieldsDialogOpen] = useState(false);
   const currentUserId = storage.getCurrentUser()?.id || '';
@@ -1773,80 +1773,159 @@ export function Journal() {
               </div>
             </div>
 
-            {/* A+ Fields Dialog */}
+            {/* A+ Fields Dialog — same format as Live Trading fields */}
             <Dialog open={isAplusFieldsDialogOpen} onOpenChange={setIsAplusFieldsDialogOpen}>
-              <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>A+ Trade Fields</DialogTitle>
-                  <DialogDescription>Customize what you track for your best setups. These are separate from your regular journal fields.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div className="space-y-2">
-                    <Label>Field Name</Label>
-                    <Input placeholder="e.g. Market Structure, Entry Model, POI Type" value={newAplusField.name} onChange={e => setNewAplusField({ ...newAplusField, name: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Field Type</Label>
-                    <Select value={newAplusField.type} onValueChange={(v: any) => setNewAplusField({ ...newAplusField, type: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="checkbox">Checkbox (yes/no)</SelectItem>
-                        <SelectItem value="text">Text</SelectItem>
-                        <SelectItem value="dropdown">Dropdown</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {newAplusField.type === 'dropdown' && (
-                    <div className="space-y-2">
-                      <Label>Options</Label>
-                      <div className="flex gap-2">
-                        <Input placeholder="Add option" value={newAplusFieldOption} onChange={e => setNewAplusFieldOption(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newAplusFieldOption) { setNewAplusField({ ...newAplusField, options: [...newAplusField.options, newAplusFieldOption] }); setNewAplusFieldOption(''); }}} />
-                        <Button type="button" size="sm" onClick={() => { if (newAplusFieldOption) { setNewAplusField({ ...newAplusField, options: [...newAplusField.options, newAplusFieldOption] }); setNewAplusFieldOption(''); }}}>Add</Button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {newAplusField.options.map((opt, i) => (
-                          <Badge key={i} variant="secondary">{opt}<button onClick={() => setNewAplusField({ ...newAplusField, options: newAplusField.options.filter((_, idx) => idx !== i) })} className="ml-1"><X className="w-3 h-3"/></button></Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {!isPremium && aplusFields.length >= 2 && (
-                    <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
-                      <p className="text-sm font-semibold text-yellow-600">Free users: 2 fields max</p>
-                      <Button size="sm" className="mt-2" onClick={() => { setIsAplusFieldsDialogOpen(false); navigate('/app/upgrade'); }}>Upgrade for Unlimited</Button>
-                    </div>
-                  )}
-                  <Button className="w-full" disabled={!isPremium && aplusFields.length >= 2} onClick={() => {
-                    if (!newAplusField.name) return;
-                    if (!isPremium && aplusFields.length >= 2) return;
-                    const field = { id: Date.now().toString(), name: newAplusField.name, type: newAplusField.type, options: newAplusField.options };
-                    const stratId = selectedStrategy === 'all' ? 'default' : selectedStrategy;
-                    const updated = [...aplusFields, field];
-                    saveAplusFields(currentUserId, stratId, updated);
-                    setAplusFields(updated);
-                    setNewAplusField({ name: '', type: 'checkbox', options: [] });
-                    setNewAplusFieldOption('');
-                  }}>Add Field</Button>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
+                <div className="p-6 pb-0">
+                  <DialogHeader>
+                    <DialogTitle>A+ Trade Fields</DialogTitle>
+                    <DialogDescription>
+                      Customize what you track for your best setups. {isPremium ? 'Unlimited fields.' : `Free: 2 fields. Premium: unlimited.`}
+                    </DialogDescription>
+                  </DialogHeader>
+                </div>
+                <div className="px-6 pb-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+                  <div className="space-y-5 pt-4">
 
-                  {aplusFields.length > 0 && (
-                    <div className="space-y-2 border-t pt-4">
-                      <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Current Fields</Label>
-                      {aplusFields.map((f: any) => (
-                        <div key={f.id} className="flex items-center justify-between p-2 bg-muted rounded-lg">
-                          <span className="text-sm font-medium">{f.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">{f.type}</span>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => {
+                    {/* Free limit warning */}
+                    {!isPremium && aplusFields.length >= 2 && (
+                      <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                        <p className="text-sm font-semibold text-yellow-600 mb-2">Free users: 2 A+ fields max</p>
+                        <Button size="sm" onClick={() => { setIsAplusFieldsDialogOpen(false); navigate('/app/upgrade'); }}>Upgrade for Unlimited</Button>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground">
+                        {!isPremium && aplusFields.length >= 2 ? 'Upgrade to add more' : 'Add New Field'}
+                      </Label>
+
+                      {/* Category */}
+                      <div className="space-y-2">
+                        <Label>Category <span className="text-xs text-muted-foreground font-normal">(tells AI what to analyse)</span></Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {([
+                            { value: 'confluence',   label: 'Confluence / Setup', desc: 'e.g. OTE, CISD, Delta Flip', icon: '🎯' },
+                            { value: 'time',         label: 'Entry Time',          desc: '09:45 — unlocks session analysis', icon: '⏱' },
+                            { value: 'trade_number', label: 'Trade #',             desc: '1st, 2nd, 3rd trade of the day', icon: '🔢' },
+                            { value: 'emotion',      label: 'Emotion / Mental',   desc: 'Confident, Calm, Revenge…', icon: '🧠' },
+                            { value: 'other',        label: 'Other',              desc: 'Custom — you name it', icon: '📋' },
+                          ] as const).map(cat => (
+                            <button
+                              key={cat.value}
+                              type="button"
+                              onClick={() => setNewAplusField({ ...newAplusField, category: cat.value as any, type: cat.value === 'time' ? 'text' : 'checkbox' })}
+                              className={`p-3 rounded-lg border text-left transition-all ${(newAplusField as any).category === cat.value ? 'border-primary bg-primary/10' : 'border-border bg-muted hover:border-primary/40'}`}
+                            >
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span>{cat.icon}</span>
+                                <span className="font-semibold text-xs">{cat.label}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-tight">{cat.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Field name */}
+                      <div className="space-y-2">
+                        <Label>Field Name</Label>
+                        <Input
+                          placeholder="e.g. Market Structure, Entry Model, POI Type"
+                          value={newAplusField.name}
+                          onChange={e => setNewAplusField({ ...newAplusField, name: e.target.value })}
+                        />
+                      </div>
+
+                      {/* Field type */}
+                      <div className="space-y-2">
+                        <Label>Field Type</Label>
+                        <Select value={newAplusField.type} onValueChange={(v: any) => setNewAplusField({ ...newAplusField, type: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="checkbox">Checkbox (yes / no)</SelectItem>
+                            <SelectItem value="text">Text Box</SelectItem>
+                            <SelectItem value="dropdown">Dropdown (pick from list)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Dropdown options */}
+                      {newAplusField.type === 'dropdown' && (
+                        <div className="space-y-2">
+                          <Label>Dropdown Options</Label>
+                          <div className="flex gap-2">
+                            <Input placeholder="Add option" value={newAplusFieldOption} onChange={e => setNewAplusFieldOption(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter' && newAplusFieldOption) { setNewAplusField({ ...newAplusField, options: [...newAplusField.options, newAplusFieldOption] }); setNewAplusFieldOption(''); }}} />
+                            <Button type="button" size="sm" onClick={() => { if (newAplusFieldOption) { setNewAplusField({ ...newAplusField, options: [...newAplusField.options, newAplusFieldOption] }); setNewAplusFieldOption(''); }}}>Add</Button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {newAplusField.options.map((opt, i) => (
+                              <Badge key={i} variant="secondary">{opt}
+                                <button onClick={() => setNewAplusField({ ...newAplusField, options: newAplusField.options.filter((_, idx) => idx !== i) })} className="ml-1"><X className="w-3 h-3"/></button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <Button
+                        onClick={() => {
+                          if (!newAplusField.name) return;
+                          if (!isPremium && aplusFields.length >= 2) return;
+                          const field = { id: Date.now().toString(), name: newAplusField.name, type: newAplusField.type, options: newAplusField.options, category: (newAplusField as any).category || 'confluence' };
+                          const stratId = selectedStrategy === 'all' ? 'default' : selectedStrategy;
+                          const updated = [...aplusFields, field];
+                          saveAplusFields(currentUserId, stratId, updated);
+                          setAplusFields(updated);
+                          setNewAplusField({ name: '', type: 'checkbox', options: [], category: 'confluence' });
+                          setNewAplusFieldOption('');
+                        }}
+                        disabled={!newAplusField.name || (!isPremium && aplusFields.length >= 2)}
+                        className="w-full"
+                      >
+                        Add Field
+                      </Button>
+                    </div>
+
+                    {/* Current fields list */}
+                    {aplusFields.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground">
+                          Your A+ Fields ({aplusFields.length}{!isPremium ? '/2' : ''})
+                        </Label>
+                        {aplusFields.map((f: any) => (
+                          <div key={f.id} className="flex items-center justify-between p-3 bg-muted rounded-lg group">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-sm">{f.name}</p>
+                                {f.category && (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                                    f.category === 'confluence'   ? 'bg-primary/20 text-primary' :
+                                    f.category === 'time'         ? 'bg-blue-500/20 text-blue-600' :
+                                    f.category === 'trade_number' ? 'bg-purple-500/20 text-purple-600' :
+                                    f.category === 'emotion'      ? 'bg-pink-500/20 text-pink-600' :
+                                    'bg-muted-foreground/20 text-muted-foreground'
+                                  }`}>
+                                    {({confluence:'🎯 Confluence', time:'⏱ Time', trade_number:'🔢 Trade #', emotion:'🧠 Emotion', other:'📋 Other'} as any)[f.category] || f.category}
+                                  </span>
+                                )}
+                                <span className="text-xs text-muted-foreground">{f.type}</span>
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
                               const stratId = selectedStrategy === 'all' ? 'default' : selectedStrategy;
                               const updated = aplusFields.filter((af: any) => af.id !== f.id);
                               saveAplusFields(currentUserId, stratId, updated);
                               setAplusFields(updated);
-                            }}><X className="w-3 h-3 text-destructive"/></Button>
+                            }}>
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </Button>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
