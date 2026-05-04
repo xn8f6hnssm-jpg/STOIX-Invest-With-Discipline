@@ -1279,23 +1279,56 @@ export function Journal() {
                             </SelectContent>
                           </Select>
                         )}
-                        {field.type === 'time' && (
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            value={newEntry.customFields[field.name] || ''}
-                            onChange={(e) => {
-                              // Auto-format as user types: 0945 → 09:45
-                              let v = e.target.value.replace(/[^0-9:]/g, '');
-                              if (v.length === 4 && !v.includes(':')) {
-                                v = v.slice(0, 2) + ':' + v.slice(2);
-                              }
-                              setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: v } });
-                            }}
-                            placeholder="09:45 or 1430"
-                            maxLength={5}
-                          />
-                        )}
+                        {field.type === 'time' && (() => {
+                          const rawVal = newEntry.customFields[field.name] || '';
+
+                          const formatTime = (input: string): string => {
+                            const clean = input.trim().toUpperCase();
+                            // Already has AM/PM
+                            const ampm = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+                            if (ampm) {
+                              let h = parseInt(ampm[1]), m = parseInt(ampm[2]), period = ampm[3];
+                              if (h < 1 || h > 12 || m > 59) return input;
+                              return `${h}:${String(m).padStart(2,'0')} ${period}`;
+                            }
+                            // 24hr format HH:MM
+                            const mil = clean.match(/^(\d{1,2}):(\d{2})$/);
+                            if (mil) {
+                              let h = parseInt(mil[1]), m = parseInt(mil[2]);
+                              if (h > 23 || m > 59) return input;
+                              if (h === 0) return `12:${String(m).padStart(2,'0')} AM`;
+                              if (h === 12) return `12:${String(m).padStart(2,'0')} PM`;
+                              if (h > 12) return `${h-12}:${String(m).padStart(2,'0')} PM`;
+                              return `${h}:${String(m).padStart(2,'0')} AM`;
+                            }
+                            // 4-digit no colon e.g. 2014
+                            const bare = clean.match(/^(\d{4})$/);
+                            if (bare) {
+                              let h = parseInt(clean.slice(0,2)), m = parseInt(clean.slice(2));
+                              if (h > 23 || m > 59) return input;
+                              if (h === 0) return `12:${String(m).padStart(2,'0')} AM`;
+                              if (h === 12) return `12:${String(m).padStart(2,'0')} PM`;
+                              if (h > 12) return `${h-12}:${String(m).padStart(2,'0')} PM`;
+                              return `${h}:${String(m).padStart(2,'0')} AM`;
+                            }
+                            return input;
+                          };
+
+                          return (
+                            <Input
+                              type="text"
+                              value={rawVal}
+                              onChange={(e) => {
+                                setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } });
+                              }}
+                              onBlur={(e) => {
+                                const formatted = formatTime(e.target.value);
+                                setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: formatted } });
+                              }}
+                              placeholder="e.g. 20:14 or 8:30 AM"
+                            />
+                          );
+                        })()}
                         {field.type === 'image' && (
                           <div className="border-2 border-dashed rounded-lg p-4 text-center relative">
                             <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
