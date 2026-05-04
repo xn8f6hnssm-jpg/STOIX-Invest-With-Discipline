@@ -584,9 +584,13 @@ function SH({ icon:Icon, title, sub, color='' }: { icon:any; title:string; sub?:
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
 export function AIAnalytics() {
   const [results, setResults]       = useState<Results|null>(null);
+  const [btResults, setBtResults]   = useState<Results|null>(null);
   const [isAnalyzing, setAnalyzing] = useState(false);
+  const [isBtAnalyzing, setBtAnalyzing] = useState(false);
   const [err, setErr]               = useState<string|null>(null);
+  const [btErr, setBtErr]           = useState<string|null>(null);
   const [strictMode, setStrictMode] = useState(false);
+  const [analysisTab, setAnalysisTab] = useState<'live' | 'backtesting' | 'aplus'>('live');
   const currentUser = storage.getCurrentUser();
   const isPremium   = currentUser?.isPremium;
 
@@ -630,6 +634,23 @@ export function AIAnalytics() {
     } finally { setAnalyzing(false); }
   };
 
+  const runBacktesting = async () => {
+    if (!currentUser) return;
+    setBtAnalyzing(true); setBtErr(null); setBtResults(null);
+    try {
+      const raw = (() => { try { return JSON.parse(localStorage.getItem('tradeforge_backtesting_entries') || '[]'); } catch { return []; } })();
+      const entries = raw.filter((e: any) => e.userId === currentUser.id);
+      await new Promise(r => setTimeout(r, 700));
+      if (entries.length < 5) {
+        setBtErr(`Only ${entries.length} backtesting entries found. Need at least 5 to analyse.`);
+      } else {
+        setBtResults(analyze(entries, currentUser.id));
+      }
+    } catch(e) {
+      setBtErr('Backtesting analysis failed: ' + (e instanceof Error ? e.message : String(e)));
+    } finally { setBtAnalyzing(false); }
+  };
+
   if (!isPremium) return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <Card className="border-2 border-primary/20"><CardContent className="py-16 text-center space-y-4">
@@ -648,13 +669,25 @@ export function AIAnalytics() {
         <p className="text-muted-foreground text-sm mt-0.5">Your journal → your edge → your personal trading system</p>
       </div>
 
+      {/* Section tabs */}
+      <div className="flex gap-2 border-b pb-0">
+        {(['live', 'backtesting', 'aplus'] as const).map(tab => (
+          <button key={tab} onClick={() => setAnalysisTab(tab)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${analysisTab === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            {tab === 'live' ? '📈 Live Trading' : tab === 'backtesting' ? '🔬 Backtesting' : '⭐ A+ Trades'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── LIVE TRADING TAB ── */}
+      {analysisTab === 'live' && <>
       {/* Run */}
       <Card className={`border-2 ${results?'border-primary/20 bg-primary/5':'border-border'}`}>
         <CardContent className="pt-5 pb-5">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <p className="font-semibold">{results?'Analysis Complete':'Build Your Strategy'}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{results?`${results.totalTrades} trades analysed · ${results.conf} confidence`:'Analyse your journal to extract your real edge'}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{results?`${results.totalTrades} trades analysed · ${results.conf} confidence`:'Analyse your live trading journal'}</p>
             </div>
             <Button onClick={run} disabled={isAnalyzing} size="lg" className="min-w-36">
               {isAnalyzing ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"/>Analysing...</>
@@ -1490,6 +1523,315 @@ export function AIAnalytics() {
         })()}
 
       </>)}
+
+      {/* A+ vs Live comparison — inside live tab, needs both data */}
+      {results && results.hasMinData && (() => {
+        const userId = currentUser?.id || '';
+        const aplusRaw = (() => { try { return JSON.parse(localStorage.getItem(`tradeforge_aplus_entries_${userId}`) || '[]'); } catch { return []; } })();
+        if (aplusRaw.length < 3) return null;
+
+        // Get confluence signals from A+ trades
+        const aplusSigCount: Record<string, number> = {};
+        aplusRaw.forEach((e: any) => {
+          if (!e.customFields) return;
+          Object.entries(e.customFields).forEach(([key, val]) => {
+            if (val === true || val === 'true') aplusSigCount[key] = (aplusSigCount[key] || 0) + 1;
+          });
+        });
+        const aplusCore = Object.entries(aplusSigCount)
+          .filter(([, n]) => n / aplusRaw.length >= 0.6)
+          .map(([sig]) => sig);
+
+        if (aplusCore.length === 0) return null;
+
+        // Find live trades that had A+ confluences vs those that didn't
+        const liveEntries = storage.getJournalEntries().filter((e: any) => e.userId === userId && !e.isNoTradeDay);
+        const allFields = (() => { try { return JSON.parse(localStorage.getItem(`tradeforge_journal_fields_${userId}`) || '[]'); } catch { return []; } })();
+
+        const hasAplusSignals = (e: any) => aplusCore.some(sig => {
+          const val = e.customFields?.[sig];
+          return val === true || val === 'true';
+        });
+
+        const aplusLikeTrades = liveEntries.filter(hasAplusSignals);
+        const nonAplusTrades = liveEntries.filter(e => !hasAplusSignals(e));
+        const iw = (e: any) => e.result === 'win' || e.result === 'breakeven';
+
+        const aplusWR = aplusLikeTrades.length > 0 ? Math.round(aplusLikeTrades.filter(iw).length / aplusLikeTrades.length * 100) : 0;
+        const nonAplusWR = nonAplusTrades.length > 0 ? Math.round(nonAplusTrades.filter(iw).length / nonAplusTrades.length * 100) : 0;
+        const aplusPnL = Math.round(aplusLikeTrades.reduce((s: number, e: any) => s + (e.pnl || 0), 0));
+        const nonAplusPnL = Math.round(nonAplusTrades.reduce((s: number, e: any) => s + (e.pnl || 0), 0));
+        const diff = aplusWR - nonAplusWR;
+
+        return (
+          <Card className="border-2 border-yellow-500/30 bg-yellow-500/5">
+            <CardContent className="pt-5">
+              <SH icon={Zap} title="⭐ A+ Trade vs Regular Trade Comparison" sub={`How your live trades with A+ confluences (${aplusCore.join(', ')}) compare to the rest`} color="text-yellow-500"/>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-center">
+                  <p className="text-xs font-semibold text-yellow-600 mb-1">⭐ Trades with A+ Setup</p>
+                  <p className="text-3xl font-bold">{aplusWR}%</p>
+                  <p className="text-xs text-muted-foreground mt-1">{aplusLikeTrades.length} trades{aplusPnL !== 0 ? ` · ${aplusPnL >= 0 ? '+' : ''}$${aplusPnL}` : ''}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-muted border text-center">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Regular Trades</p>
+                  <p className="text-3xl font-bold">{nonAplusWR}%</p>
+                  <p className="text-xs text-muted-foreground mt-1">{nonAplusTrades.length} trades{nonAplusPnL !== 0 ? ` · ${nonAplusPnL >= 0 ? '+' : ''}$${nonAplusPnL}` : ''}</p>
+                </div>
+              </div>
+              <div className={`p-4 rounded-xl border ${diff >= 10 ? 'bg-green-500/10 border-green-500/30' : diff >= 0 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                <p className="text-sm font-bold">
+                  {diff >= 15 ? `🔥 Your A+ setups are ${diff}% better — only take these trades` :
+                   diff >= 5  ? `✅ A+ setups outperform by ${diff}% — prioritise them` :
+                   diff >= 0  ? `🟡 Minimal difference (+${diff}%) — your A+ criteria may need refinement` :
+                   `⚠️ A+ setups underperform by ${Math.abs(diff)}% — review your A+ criteria`}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      </> /* end live tab */ }
+
+      {/* ── BACKTESTING TAB ── */}
+      {analysisTab === 'backtesting' && (
+        <div className="space-y-5">
+          <Card className={`border-2 ${btResults ? 'border-primary/20 bg-primary/5' : 'border-border'}`}>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <p className="font-semibold">{btResults ? 'Backtesting Analysis Complete' : 'Analyse Backtesting Data'}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{btResults ? `${btResults.totalTrades} backtesting trades analysed · ${btResults.conf} confidence` : 'Compare your backtesting results to find your real edge before going live'}</p>
+                </div>
+                <Button onClick={runBacktesting} disabled={isBtAnalyzing} size="lg" className="min-w-36">
+                  {isBtAnalyzing ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"/>Analysing...</>
+                    : btResults ? <><Zap className="w-4 h-4 mr-2"/>Re-analyse</> : <><Brain className="w-4 h-4 mr-2"/>Run Analysis</>}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {btErr && <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">{btErr}</div>}
+
+          {btResults && !btResults.hasMinData && (
+            <Card className="border-dashed"><CardContent className="py-12 text-center space-y-3">
+              <BookOpen className="w-10 h-10 mx-auto text-muted-foreground opacity-40"/>
+              <p className="font-semibold">Not Enough Backtesting Data</p>
+              <p className="text-sm text-muted-foreground">{btResults.totalTrades === 0 ? 'No backtesting entries found. Add entries in Journal → Backtesting tab.' : `${btResults.totalTrades} entries — need 10+ for full analysis.`}</p>
+            </CardContent></Card>
+          )}
+
+          {/* Compare live vs backtesting if both exist */}
+          {btResults && btResults.hasMinData && results && results.hasMinData && (
+            <Card className="border-2 border-blue-500/30 bg-blue-500/5">
+              <CardContent className="pt-5">
+                <SH icon={Activity} title="Live vs Backtesting Comparison" sub="How your live performance compares to your backtesting results" color="text-blue-500"/>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="p-4 rounded-xl bg-muted border text-center">
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">📈 Live Trading</p>
+                    <p className="text-3xl font-bold">{results.wr}%</p>
+                    <p className="text-xs text-muted-foreground mt-1">{results.totalTrades} trades · {results.avgRR > 0 ? `${results.avgRR}R avg` : 'no RR data'}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 text-center">
+                    <p className="text-xs font-semibold text-blue-600 mb-1">🔬 Backtesting</p>
+                    <p className="text-3xl font-bold text-blue-600">{btResults.wr}%</p>
+                    <p className="text-xs text-muted-foreground mt-1">{btResults.totalTrades} trades · {btResults.avgRR > 0 ? `${btResults.avgRR}R avg` : 'no RR data'}</p>
+                  </div>
+                </div>
+                {(() => {
+                  const diff = results.wr - btResults.wr;
+                  return (
+                    <div className={`p-3 rounded-lg border text-sm font-medium ${Math.abs(diff) <= 5 ? 'bg-green-500/10 border-green-500/30' : diff < -10 ? 'bg-red-500/10 border-red-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
+                      {Math.abs(diff) <= 5 ? '✅ Live performance closely matches backtesting — your edge is real and translating well' :
+                       diff < -10 ? `⚠️ Live WR is ${Math.abs(diff)}% lower than backtesting — execution or psychology issues are costing you` :
+                       diff > 10 ? `📈 Live WR is ${diff}% higher than backtesting — great execution, but verify you're not curve-fitting` :
+                       `🟡 ${Math.abs(diff)}% gap between live and backtesting — monitor closely`}
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          )}
+
+          {btResults && btResults.hasMinData && (
+            /* Reuse same analysis cards for backtesting */
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  {l:'Trades', v:btResults.totalTrades, c:'text-blue-500'},
+                  {l:'Win Rate', v:`${btResults.wr}%`, c:btResults.wr>=55?'text-green-500':'text-red-500'},
+                  {l:'Avg R:R', v:btResults.avgRR>0?btResults.avgRR:'—', c:'text-amber-500'},
+                  {l:'W / L', v:`${btResults.wins} / ${btResults.losses}`, c:'text-purple-500'},
+                ].map(s=>(
+                  <Card key={s.l}><CardContent className="pt-4 pb-4 text-center">
+                    <p className={`text-2xl font-bold ${s.c}`}>{s.v}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{s.l}</p>
+                  </CardContent></Card>
+                ))}
+              </div>
+              {btResults.topCombos.length > 0 && (
+                <Card className="border-2 border-primary/25 bg-primary/5"><CardContent className="pt-5">
+                  <SH icon={Crosshair} title="🔥 Backtesting Strategy Core" sub="Best-performing setups from your backtesting data" color="text-primary"/>
+                  <div className="space-y-3">
+                    {btResults.topCombos.slice(0, 4).map((combo, i) => (
+                      <div key={i} className={`p-4 rounded-xl border ${i===0?'border-primary/40 bg-primary/10':'border-transparent bg-muted'}`}>
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex flex-wrap gap-1.5">
+                            {combo.signals.map((s, j) => <span key={j} className={`px-2.5 py-1 rounded-full text-xs font-bold ${i===0?'bg-primary text-primary-foreground':'bg-background border text-foreground'}`}>{s}</span>)}
+                          </div>
+                          <p className={`text-xl font-bold flex-shrink-0 ${combo.winRate>=60?'text-green-500':combo.winRate>=50?'text-yellow-500':'text-red-500'}`}>{combo.winRate}%</p>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>{combo.count} trades</span>
+                          <CP c={combo.conf}/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent></Card>
+              )}
+              {btResults.nextSteps.length > 0 && (
+                <Card><CardContent className="pt-5">
+                  <SH icon={TrendingUp} title="🚀 Backtesting Next Steps" sub="How to improve your backtesting strategy" color="text-blue-500"/>
+                  <div className="space-y-2">
+                    {btResults.nextSteps.map((step, i) => (
+                      <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted">
+                        <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-600 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i+1}</span>
+                        <p className="text-sm">{step}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent></Card>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── A+ TRADES TAB ── */}
+      {analysisTab === 'aplus' && (
+        <div className="space-y-5">
+          {(() => {
+            const userId = currentUser?.id || '';
+            const aplusRaw = (() => { try { return JSON.parse(localStorage.getItem(`tradeforge_aplus_entries_${userId}`) || '[]'); } catch { return []; } })();
+
+            if (aplusRaw.length === 0) return (
+              <Card><CardContent className="py-12 text-center space-y-3">
+                <div className="text-4xl">⭐</div>
+                <p className="font-semibold">No A+ Trades Logged Yet</p>
+                <p className="text-sm text-muted-foreground">Go to Journal → A+ Trade of Day tab to log your best setups.</p>
+              </CardContent></Card>
+            );
+
+            const sigCount: Record<string, number> = {};
+            aplusRaw.forEach((e: any) => {
+              if (!e.customFields) return;
+              Object.entries(e.customFields).forEach(([key, val]) => {
+                if (val === true || val === 'true' || (typeof val === 'string' && val && val !== 'false')) {
+                  sigCount[key] = (sigCount[key] || 0) + 1;
+                }
+              });
+            });
+
+            const total = aplusRaw.length;
+            const commonSigs = Object.entries(sigCount)
+              .map(([sig, count]) => ({ sig, count, pct: Math.round((count as number) / total * 100) }))
+              .sort((a, b) => b.pct - a.pct);
+
+            const core = commonSigs.filter(s => s.pct >= 70);
+            const supporting = commonSigs.filter(s => s.pct >= 40 && s.pct < 70);
+            const avoid = commonSigs.filter(s => s.pct < 30 && s.pct > 0);
+
+            return (<>
+              {/* Overview */}
+              <Card className="border-yellow-500/30 bg-yellow-500/5">
+                <CardContent className="pt-5">
+                  <SH icon={Zap} title={`⭐ A+ Pattern Analysis — ${total} trades`} sub="What makes your best setups work" color="text-yellow-500"/>
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold text-yellow-600">{total}</p>
+                      <p className="text-xs text-muted-foreground">A+ Trades</p>
+                    </div>
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold">{core.length}</p>
+                      <p className="text-xs text-muted-foreground">Core Signals</p>
+                    </div>
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold">{supporting.length}</p>
+                      <p className="text-xs text-muted-foreground">Supporting</p>
+                    </div>
+                  </div>
+
+                  {/* Core pattern */}
+                  {core.length > 0 && (
+                    <div className="p-4 rounded-xl bg-yellow-500/20 border border-yellow-500/40 mb-4">
+                      <p className="text-sm font-bold text-yellow-700 dark:text-yellow-300 mb-2">⭐ Your A+ Setup DNA</p>
+                      <p className="text-sm"><span className="font-semibold">Must have:</span> {core.map(s => s.sig).join(' + ')}</p>
+                      {supporting.length > 0 && <p className="text-sm mt-1"><span className="font-semibold">Supporting:</span> {supporting.map(s => s.sig).join(', ')}</p>}
+                    </div>
+                  )}
+
+                  {/* All signals */}
+                  {commonSigs.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Confluence Frequency</p>
+                      {commonSigs.map(({ sig, count, pct }) => (
+                        <div key={sig} className={`p-3 rounded-lg border ${pct >= 70 ? 'border-yellow-500/40 bg-yellow-500/10' : pct >= 40 ? 'border-transparent bg-muted' : 'border-transparent bg-muted opacity-60'}`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              {pct >= 70 && <span className="text-xs font-black text-yellow-600">CORE</span>}
+                              {pct >= 40 && pct < 70 && <span className="text-xs font-black text-blue-500">SUPPORT</span>}
+                              <span className="font-medium text-sm">{sig}</span>
+                            </div>
+                            <span className="font-bold text-sm text-yellow-600">{pct}%</span>
+                          </div>
+                          <div className="w-full bg-background rounded-full h-1.5">
+                            <div className="h-1.5 rounded-full bg-yellow-500" style={{ width: `${pct}%` }}/>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">{count} of {total} A+ trades</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {commonSigs.length === 0 && (
+                    <div className="p-4 rounded-lg bg-muted text-center">
+                      <p className="text-sm text-muted-foreground">No confluence fields found in A+ trades. Add fields in Journal → A+ Trade of Day → Fields.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent A+ trades */}
+              <Card>
+                <CardContent className="pt-5">
+                  <SH icon={BookOpen} title="Recent A+ Trades" sub="Your last 5 logged best setups" color="text-primary"/>
+                  <div className="space-y-2">
+                    {aplusRaw.slice(0, 5).map((e: any) => (
+                      <div key={e.id} className="p-3 rounded-lg bg-muted border flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-sm">{new Date(e.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                          {e.description && <p className="text-xs text-muted-foreground mt-0.5">{e.description.substring(0, 80)}{e.description.length > 80 ? '…' : ''}</p>}
+                          {e.customFields && Object.keys(e.customFields).length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {Object.entries(e.customFields).filter(([, v]) => v === true || v === 'true').map(([key]) => (
+                                <span key={key} className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 rounded text-xs">{key}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-lg flex-shrink-0">⭐</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>);
+          })()}
+        </div>
+      )}
+
     </div>
   );
 }
