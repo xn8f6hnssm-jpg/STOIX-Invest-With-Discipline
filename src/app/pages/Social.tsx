@@ -27,6 +27,8 @@ export function Social() {
   const [newPostType, setNewPostType] = useState<'clean' | 'forfeit' | 'general'>('general');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [carouselIndex, setCarouselIndex] = useState<Record<string, number>>({});
+  const [selectedVideos, setSelectedVideos] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'recommended' | 'following' | 'leaderboard'>('recommended');
   const [followingUsers, setFollowingUsers] = useState<Set<string>>(new Set(storage.getFollowing()));
   const [searchQuery, setSearchQuery] = useState('');
@@ -221,6 +223,7 @@ export function Social() {
         isVerified: currentUser.isVerified || false,
         photoUrl: uploadedImages[0] || '',
         images: uploadedImages,
+        videos: selectedVideos,
         caption: newPostText,
         type: newPostType,
       });
@@ -238,6 +241,7 @@ export function Social() {
       setNewPostText('');
       setNewPostType('general');
       setSelectedImages([]);
+      setSelectedVideos([]);
 
       // Refresh from Supabase after a delay
       setTimeout(() => loadPostsFromSupabase(), 3000);
@@ -251,25 +255,32 @@ export function Social() {
   const handleImageSelect = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*';
+    input.accept = 'image/*,video/*';
     input.multiple = true;
     input.onchange = (e: any) => {
       const files = Array.from(e.target.files || []) as File[];
       if (files.length > 0) {
-        const currentCount = selectedImages.length;
-        const remainingSlots = 5 - currentCount;
+        const currentCount = selectedImages.length + selectedVideos.length;
+        const remainingSlots = 10 - currentCount;
         const filesToAdd = files.slice(0, remainingSlots);
-        
         filesToAdd.forEach(file => {
           const reader = new FileReader();
           reader.onloadend = () => {
-            setSelectedImages(prev => [...prev, reader.result as string]);
+            if (file.type.startsWith('video/')) {
+              setSelectedVideos(prev => [...prev, reader.result as string]);
+            } else {
+              setSelectedImages(prev => [...prev, reader.result as string]);
+            }
           };
           reader.readAsDataURL(file);
         });
       }
     };
     input.click();
+  };
+
+  const removeVideo = (index: number) => {
+    setSelectedVideos(prev => prev.filter((_, i) => i !== index));
   };
 
   const removeImage = (index: number) => {
@@ -371,6 +382,61 @@ export function Social() {
         .filter(post => followingUsers.has(post.userId) || post.userId === currentUser?.id)
         .sort((a, b) => b.timestamp - a.timestamp)
     : posts.sort((a, b) => b.timestamp - a.timestamp);
+
+  // Carousel helper
+  const getPostMedia = (post: any) => {
+    const images = post.images?.length > 0 ? post.images : (post.photoUrl ? [post.photoUrl] : []);
+    const videos = post.videos || [];
+    return [...images.map((url: string) => ({ type: 'image', url })), ...videos.map((url: string) => ({ type: 'video', url }))];
+  };
+
+  const MediaCarousel = ({ post }: { post: any }) => {
+    const media = getPostMedia(post);
+    const idx = carouselIndex[post.id] || 0;
+    if (media.length === 0) return null;
+    const item = media[idx];
+    return (
+      <div className="relative rounded-lg overflow-hidden bg-muted">
+        {item.type === 'image' ? (
+          <img src={item.url} alt="Post" className="w-full h-auto" style={{ maxHeight: '500px', objectFit: 'contain' }} onClick={() => setExpandedImage(item.url)} />
+        ) : (
+          <video src={item.url} controls className="w-full h-auto" style={{ maxHeight: '500px' }} />
+        )}
+        {media.length > 1 && (
+          <>
+            {idx > 0 && (
+              <button onClick={() => setCarouselIndex(prev => ({ ...prev, [post.id]: idx - 1 }))}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors">
+                ‹
+              </button>
+            )}
+            {idx < media.length - 1 && (
+              <button onClick={() => setCarouselIndex(prev => ({ ...prev, [post.id]: idx + 1 }))}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors">
+                ›
+              </button>
+            )}
+            {/* Dot indicators */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              {media.map((_: any, i: number) => (
+                <button key={i} onClick={() => setCarouselIndex(prev => ({ ...prev, [post.id]: i }))}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === idx ? 'bg-white' : 'bg-white/50'}`} />
+              ))}
+            </div>
+            {/* Counter */}
+            <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
+              {idx + 1}/{media.length}
+            </div>
+          </>
+        )}
+        {post.type !== 'general' && (
+          <Badge className="absolute top-2 left-2 text-xs" variant={post.type === 'clean' ? 'default' : 'secondary'}>
+            {post.type === 'clean' ? '✓ Clean' : '⚡ Forfeit'}
+          </Badge>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl pb-24">
@@ -643,26 +709,10 @@ export function Social() {
                         </div>
                       ) : (
                         <>
-                          {/* Regular Post Image */}
-                          {post.photoUrl && (
-                            <div className="relative rounded-lg overflow-hidden bg-muted">
-                              <img
-                                src={post.photoUrl}
-                                alt="Post"
-                                className="w-full h-auto"
-                                style={{ maxHeight: '500px', objectFit: 'contain' }}
-                              />
-                              <Badge
-                                className="absolute top-2 right-2 text-xs"
-                                variant={post.type === 'clean' ? 'default' : 'secondary'}
-                              >
-                                {post.type === 'clean' ? '✓ Clean' : '⚡ Forfeit'}
-                              </Badge>
-                            </div>
-                          )}
-
-                          {/* Regular Post Caption */}
-                          <p className="text-sm">{post.caption}</p>
+                          {/* Media Carousel */}
+                          <MediaCarousel post={post} />
+                          {/* Caption */}
+                          {post.caption && <p className="text-sm">{post.caption}</p>}
                         </>
                       )}
 
@@ -914,26 +964,10 @@ export function Social() {
                         </div>
                       ) : (
                         <>
-                          {/* Regular Post Image */}
-                          {post.photoUrl && (
-                            <div className="relative rounded-lg overflow-hidden bg-muted">
-                              <img
-                                src={post.photoUrl}
-                                alt="Post"
-                                className="w-full h-auto"
-                                style={{ maxHeight: '500px', objectFit: 'contain' }}
-                              />
-                              <Badge
-                                className="absolute top-2 right-2 text-xs"
-                                variant={post.type === 'clean' ? 'default' : 'secondary'}
-                              >
-                                {post.type === 'clean' ? '✓ Clean' : '⚡ Forfeit'}
-                              </Badge>
-                            </div>
-                          )}
-
-                          {/* Regular Post Caption */}
-                          <p className="text-sm">{post.caption}</p>
+                          {/* Media Carousel */}
+                          <MediaCarousel post={post} />
+                          {/* Caption */}
+                          {post.caption && <p className="text-sm">{post.caption}</p>}
                         </>
                       )}
 
@@ -1153,22 +1187,26 @@ export function Social() {
               className="h-20"
             />
             
-            {/* Image Previews */}
-            {selectedImages.length > 0 && (
+            {/* Image & Video Previews */}
+            {(selectedImages.length > 0 || selectedVideos.length > 0) && (
               <div className="grid grid-cols-3 gap-2">
                 {selectedImages.map((url, index) => (
-                  <div key={index} className="relative aspect-square">
-                    <img
-                      src={url}
-                      alt={`Selected ${index + 1}`}
-                      className="w-full h-full object-cover rounded"
-                    />
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => removeImage(index)}
-                      className="absolute top-1 right-1 h-6 w-6 p-0 rounded-full"
-                    >
+                  <div key={`img-${index}`} className="relative aspect-square">
+                    <img src={url} alt={`Selected ${index + 1}`} className="w-full h-full object-cover rounded" />
+                    <Button size="sm" variant="destructive" onClick={() => removeImage(index)} className="absolute top-1 right-1 h-6 w-6 p-0 rounded-full">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                {selectedVideos.map((url, index) => (
+                  <div key={`vid-${index}`} className="relative aspect-square">
+                    <video src={url} className="w-full h-full object-cover rounded" muted />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">▶</span>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="destructive" onClick={() => removeVideo(index)} className="absolute top-1 right-1 h-6 w-6 p-0 rounded-full">
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
@@ -1181,11 +1219,11 @@ export function Social() {
                 size="sm"
                 variant="outline"
                 onClick={handleImageSelect}
-                disabled={selectedImages.length >= 5}
+                disabled={selectedImages.length + selectedVideos.length >= 10}
                 className="h-9"
               >
                 <ImageIcon className="w-4 h-4 mr-2" />
-                Add Photos ({selectedImages.length}/5)
+                Add Photos/Videos ({selectedImages.length + selectedVideos.length}/10)
               </Button>
 
               <Select value={newPostType} onValueChange={(v: any) => setNewPostType(v)}>
