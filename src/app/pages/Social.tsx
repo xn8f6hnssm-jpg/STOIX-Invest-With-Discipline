@@ -1287,16 +1287,26 @@ export function Social() {
         </DialogContent>
       </Dialog>
 
-      {/* Image Expansion Dialog */}
-      <Dialog open={!!expandedImage} onOpenChange={() => setExpandedImage(null)}>
-        <DialogContent className="sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Image Preview</DialogTitle>
-            <DialogDescription>Expanded view of the selected image</DialogDescription>
-          </DialogHeader>
-          <img src={expandedImage || ''} alt="Expanded view" className="w-full h-auto" />
-        </DialogContent>
-      </Dialog>
+      {/* Image Expansion — tap anywhere or X to close */}
+      {expandedImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setExpandedImage(null)}
+        >
+          <button
+            onClick={() => setExpandedImage(null)}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white z-10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={expandedImage}
+            alt="Expanded"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
