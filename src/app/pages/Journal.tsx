@@ -1281,10 +1281,19 @@ export function Journal() {
                         )}
                         {field.type === 'time' && (
                           <Input
-                            type="time"
+                            type="text"
+                            inputMode="numeric"
                             value={newEntry.customFields[field.name] || ''}
-                            onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } })}
-                            step="60"
+                            onChange={(e) => {
+                              // Auto-format as user types: 0945 → 09:45
+                              let v = e.target.value.replace(/[^0-9:]/g, '');
+                              if (v.length === 4 && !v.includes(':')) {
+                                v = v.slice(0, 2) + ':' + v.slice(2);
+                              }
+                              setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: v } });
+                            }}
+                            placeholder="09:45 or 1430"
+                            maxLength={5}
                           />
                         )}
                         {field.type === 'image' && (
