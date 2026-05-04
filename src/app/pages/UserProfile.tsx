@@ -82,19 +82,15 @@ export function UserProfile() {
     }
 
     // Load follower/following counts from Supabase following table
-    const { data: followers } = await supabase
-      .from('following')
-      .select('follower_id')
-      .eq('following_id', userId);
-
-    const { data: following } = await supabase
-      .from('following')
-      .select('following_id')
-      .eq('follower_id', userId);
+    const [{ data: followers }, { data: following }, { data: isFollowingData }] = await Promise.all([
+      supabase.from('following').select('follower_id').eq('following_id', userId),
+      supabase.from('following').select('following_id').eq('follower_id', userId),
+      currentUser ? supabase.from('following').select('id').eq('follower_id', currentUser.id).eq('following_id', userId).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
 
     setFollowerCount(followers?.length || 0);
     setFollowingCount(following?.length || 0);
-    setIsFollowing(storage.isFollowing(userId));
+    setIsFollowing(!!isFollowingData);
   };
 
   const loadFollowersList = async () => {
@@ -104,13 +100,15 @@ export function UserProfile() {
       .select('follower_id')
       .eq('following_id', userId);
 
-    if (data) {
-      const ids = data.map((r: any) => r.follower_id);
+    const ids = (data || []).map((r: any) => r.follower_id);
+    if (ids.length > 0) {
       const { data: users } = await supabase
         .from('users')
         .select('id, username, name, profile_picture, total_points')
         .in('id', ids);
       setFollowersList(users || []);
+    } else {
+      setFollowersList([]);
     }
     setShowFollowers(true);
   };
@@ -122,13 +120,15 @@ export function UserProfile() {
       .select('following_id')
       .eq('follower_id', userId);
 
-    if (data) {
-      const ids = data.map((r: any) => r.following_id);
+    const ids = (data || []).map((r: any) => r.following_id);
+    if (ids.length > 0) {
       const { data: users } = await supabase
         .from('users')
         .select('id, username, name, profile_picture, total_points')
         .in('id', ids);
       setFollowingList(users || []);
+    } else {
+      setFollowingList([]);
     }
     setShowFollowing(true);
   };
