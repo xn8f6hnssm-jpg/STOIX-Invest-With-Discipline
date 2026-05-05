@@ -84,23 +84,6 @@ export function Dashboard() {
     }
   };
 
-  const [followerCount, setFollowerCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
-
-  useEffect(() => {
-    const loadFollowCounts = async () => {
-      const u = storage.getCurrentUser();
-      if (!u) return;
-      const [{ data: followers }, { data: following }] = await Promise.all([
-        supabase.from('following').select('follower_id').eq('following_id', u.id),
-        supabase.from('following').select('following_id').eq('follower_id', u.id),
-      ]);
-      setFollowerCount(followers?.length || 0);
-      setFollowingCount(following?.length || 0);
-    };
-    loadFollowCounts();
-  }, []);
-
   const refreshData = async () => {
     const currentUser = storage.getCurrentUser();
     if (currentUser) {
