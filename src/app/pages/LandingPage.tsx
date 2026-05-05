@@ -78,13 +78,13 @@ export function LandingPage() {
           ))}
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn-outline" style={{ padding: '10px 24px', fontSize: 13 }} onClick={() => navigate('/login')}>Log In</button>
-          <button className="btn-primary" style={{ padding: '10px 24px', fontSize: 13 }} onClick={() => navigate('/login?signup=true')}>Get Started</button>
+          <button className="btn-outline" style={{ padding: '8px 14px', fontSize: 12 }} onClick={() => navigate('/login')}>Log In</button>
+          <button className="btn-primary" style={{ padding: '8px 14px', fontSize: 12 }} onClick={() => navigate('/login?signup=true')}>Get Started</button>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="hero-section" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', padding: '120px 40px 80px', position: 'relative', overflow: 'hidden' }}>
+      <section className="hero-section" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', padding: 'clamp(80px, 15vw, 120px) clamp(20px, 5vw, 40px) clamp(40px, 8vw, 80px)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: 0.05 }}>
           {[...Array(7)].map((_, i) => (
             <div key={i} style={{ position: 'absolute', top: '-50%', left: `${i * 16 - 5}%`, width: '2px', height: '200%', background: 'linear-gradient(to bottom, transparent, #C9A84C, transparent)', transform: 'rotate(-35deg)' }} />
@@ -94,15 +94,15 @@ export function LandingPage() {
           <div className="fade-up">
             <div className="pill"><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', display: 'inline-block' }} />The Ultimate Traders Dashboard</div>
           </div>
-          <h1 className="big-heading fade-up" style={{ fontSize: '88px', maxWidth: 900, animationDelay: '0.1s' }}>
+          <h1 className="big-heading fade-up" style={{ fontSize: 'clamp(36px, 10vw, 88px)', maxWidth: 900, animationDelay: '0.1s' }}>
             EVERYTHING A<br />TRADER NEEDS<br /><span className="gold">IN ONE PLACE.</span>
           </h1>
-          <p className="fade-up" style={{ fontSize: 17, color: '#777', maxWidth: 560, lineHeight: 1.8, margin: '32px 0 48px', animationDelay: '0.2s', fontWeight: 300 }}>
+          <p className="fade-up" style={{ fontSize: 'clamp(14px, 4vw, 17px)', color: '#777', maxWidth: 560, lineHeight: 1.8, margin: '24px 0 32px', animationDelay: '0.2s', fontWeight: 300 }}>
             Journal your trades, track your discipline, stop revenge trading, connect with other traders, and let AI turn your history into a refined edge — all in one dashboard built for serious traders.
           </p>
-          <div className="fade-up hero-btns" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', animationDelay: '0.3s' }}>
-            <button className="btn-primary" style={{ fontSize: 15, flex: 1, minWidth: 200 }} onClick={() => navigate('/login?signup=true')}>Start For Free</button>
-            <button className="btn-outline" style={{ flex: 1, minWidth: 200 }} onClick={() => navigate('/login')}>Log In</button>
+          <div className="fade-up hero-btns" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', animationDelay: '0.3s', width: '100%' }}>
+            <button className="btn-primary" style={{ fontSize: 15, flex: 1, minWidth: 160 }} onClick={() => navigate('/login?signup=true')}>Start For Free</button>
+            <button className="btn-outline" style={{ flex: 1, minWidth: 160 }} onClick={() => navigate('/login')}>Log In</button>
           </div>
           <div className="hero-checks fade-up" style={{ marginTop: 40, display: 'flex', gap: 24, flexWrap: 'wrap', animationDelay: '0.4s' }}>
             {['Free to start', 'Premium from $12.99/mo', 'Cancel anytime'].map(text => (
@@ -118,7 +118,7 @@ export function LandingPage() {
       <section className="section-pad" style={{ padding: '120px 40px', borderTop: '1px solid #141414' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div className="section-label">Everything You Need</div>
-          <h2 className="big-heading" style={{ fontSize: 60, marginBottom: 16 }}>BUILT FOR TRADERS,<br /><span className="gold">BY TRADERS</span></h2>
+          <h2 className="big-heading" style={{ fontSize: 'clamp(32px, 8vw, 60px)', marginBottom: 16 }}>BUILT FOR TRADERS,<br /><span className="gold">BY TRADERS</span></h2>
           <p style={{ color: '#555', fontSize: 15, marginBottom: 64, maxWidth: 500 }}>Every feature was designed to make you a more disciplined, more consistent, and more profitable trader.</p>
 
           <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
@@ -148,7 +148,7 @@ export function LandingPage() {
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }} className="two-col">
           <div>
             <div className="section-label">League System</div>
-            <h2 className="big-heading" style={{ fontSize: 54, marginBottom: 24 }}>DISCIPLINE<br />IS THE <span className="gold">REAL EDGE.</span></h2>
+            <h2 className="big-heading" style={{ fontSize: 'clamp(30px, 7vw, 54px)', marginBottom: 24 }}>DISCIPLINE<br />IS THE <span className="gold">REAL EDGE.</span></h2>
             <div className="divider" />
             <p style={{ fontSize: 15, color: '#666', lineHeight: 1.8, marginBottom: 32 }}>
               Most trading apps reward P&L. STOIX rewards discipline. Earn points for every clean day, every journal entry, every time you follow your rules. Lose points when you don't. Your league rank reflects who you actually are as a trader.
@@ -187,7 +187,7 @@ export function LandingPage() {
       <section className="section-pad" style={{ padding: '120px 40px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div className="section-label">Pricing</div>
-          <h2 className="big-heading" style={{ fontSize: 60, marginBottom: 16 }}>SIMPLE, <span className="gold">FAIR PRICING</span></h2>
+          <h2 className="big-heading" style={{ fontSize: 'clamp(32px, 8vw, 60px)', marginBottom: 16 }}>SIMPLE, <span className="gold">FAIR PRICING</span></h2>
           <p style={{ color: '#555', fontSize: 15, marginBottom: 64 }}>Start free. Upgrade when you're ready to unlock everything.</p>
 
           <div className="pricing-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, maxWidth: 760 }}>
@@ -228,7 +228,7 @@ export function LandingPage() {
         </div>
         <div style={{ maxWidth: 680, margin: '0 auto', position: 'relative' }}>
           <div className="section-label" style={{ textAlign: 'center' }}>Join Today</div>
-          <h2 className="big-heading" style={{ fontSize: 72, marginBottom: 24 }}>
+          <h2 className="big-heading" style={{ fontSize: 'clamp(36px, 9vw, 72px)', marginBottom: 24 }}>
             STOP GUESSING.<br /><span className="gold">START WINNING.</span>
           </h2>
           <p style={{ color: '#555', fontSize: 16, marginBottom: 48, lineHeight: 1.8 }}>
