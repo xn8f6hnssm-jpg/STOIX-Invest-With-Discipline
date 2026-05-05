@@ -66,6 +66,10 @@ export function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
   const [showShareCard, setShowShareCard] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followerList, setFollowerList] = useState<any[]>([]);
+  const [followingList, setFollowingList] = useState<any[]>([]);
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -79,6 +83,23 @@ export function Dashboard() {
       reader.readAsDataURL(file);
     }
   };
+
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
+  useEffect(() => {
+    const loadFollowCounts = async () => {
+      const u = storage.getCurrentUser();
+      if (!u) return;
+      const [{ data: followers }, { data: following }] = await Promise.all([
+        supabase.from('following').select('follower_id').eq('following_id', u.id),
+        supabase.from('following').select('following_id').eq('follower_id', u.id),
+      ]);
+      setFollowerCount(followers?.length || 0);
+      setFollowingCount(following?.length || 0);
+    };
+    loadFollowCounts();
+  }, []);
 
   const refreshData = async () => {
     const currentUser = storage.getCurrentUser();
@@ -127,6 +148,35 @@ export function Dashboard() {
       setIsLoading(false);
     }, 100);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const loadFollowData = async () => {
+      const u = storage.getCurrentUser();
+      if (!u) return;
+
+      // Get counts
+      const [{ data: followers }, { data: following }] = await Promise.all([
+        supabase.from('following').select('follower_id').eq('following_id', u.id),
+        supabase.from('following').select('following_id').eq('follower_id', u.id),
+      ]);
+      setFollowerCount(followers?.length || 0);
+      setFollowingCount(following?.length || 0);
+
+      // Get follower user details
+      const followerIds = (followers || []).map((r: any) => r.follower_id);
+      const followingIds = (following || []).map((r: any) => r.following_id);
+
+      if (followerIds.length > 0) {
+        const { data: fUsers } = await supabase.from('users').select('id, username, name, profile_picture, total_points').in('id', followerIds);
+        setFollowerList(fUsers || []);
+      }
+      if (followingIds.length > 0) {
+        const { data: fgUsers } = await supabase.from('users').select('id, username, name, profile_picture, total_points').in('id', followingIds);
+        setFollowingList(fgUsers || []);
+      }
+    };
+    loadFollowData();
   }, []);
 
   useEffect(() => {
@@ -198,16 +248,7 @@ export function Dashboard() {
   const weeklyPnL = entriesForStats.filter(e => e.date >= weekStartStr).reduce((sum, e) => sum + (e.pnl || 0), 0);
   const fmtPnL = (val: number) => `${val >= 0 ? '+' : ''}$${Math.abs(val).toFixed(0)}`;
 
-  const allUsers = storage.getAllUsers();
-  const myFollowingIds = storage.getFollowing() || [];
-  const followingList = allUsers.filter(u => myFollowingIds.includes(u.id) && u.id !== user.id);
-  const followerList = allUsers.filter(u => {
-    if (u.id === user.id) return false;
-    try {
-      const theirFollowing = (storage as any).getFollowingForUser?.(u.id) || [];
-      return theirFollowing.includes(user.id);
-    } catch { return false; }
-  });
+  // followerList and followingList loaded from Supabase in useEffect above
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
@@ -229,11 +270,11 @@ export function Dashboard() {
               </p>
             ) : (
               (followModal === 'followers' ? followerList : followingList).map(u => {
-                const uLeague = getLeague(u.totalPoints || 0);
+                const uLeague = getLeague(u.total_points || u.totalPoints || 0);
                 return (
                   <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer transition-colors" onClick={() => { setFollowModal(null); navigate(`/app/profile/${u.id}`); }}>
                     <Avatar className="w-9 h-9 flex-shrink-0">
-                      <AvatarImage src={u.profilePicture} />
+                      <AvatarImage src={u.profile_picture || u.profilePicture} />
                       <AvatarFallback className="text-sm">{u.name?.[0] || u.username?.[0] || '?'}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
@@ -334,11 +375,11 @@ export function Dashboard() {
 
               <div className="flex gap-6 text-sm">
                 <button className="text-left hover:opacity-70 transition-opacity" onClick={() => setFollowModal('followers')}>
-                  <span className="font-bold">{user.followers ?? 0}</span>
+                  <span className="font-bold">{followerCount}</span>
                   <span className="text-muted-foreground ml-1">Followers</span>
                 </button>
                 <button className="text-left hover:opacity-70 transition-opacity" onClick={() => setFollowModal('following')}>
-                  <span className="font-bold">{user.following ?? 0}</span>
+                  <span className="font-bold">{followingCount}</span>
                   <span className="text-muted-foreground ml-1">Following</span>
                 </button>
               </div>
