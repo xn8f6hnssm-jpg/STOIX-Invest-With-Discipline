@@ -27,11 +27,20 @@ export function DirectMessages() {
   useEffect(() => {
     if (currentUser) {
       loadConversations();
-      // Poll for new messages every 10 seconds
-      const interval = setInterval(loadConversations, 10000);
+      // Poll every 5 seconds for new messages
+      const interval = setInterval(loadConversations, 5000);
       return () => clearInterval(interval);
     }
   }, []);
+
+  // Reload messages when active conversation changes
+  useEffect(() => {
+    if (activePartnerId && currentUser) {
+      const msgs = storage.getDMConversation(currentUser.id, activePartnerId);
+      setMessages(msgs);
+      loadConversations();
+    }
+  }, [activePartnerId]);
   useEffect(() => { if (paramUserId && paramUserId !== activePartnerId) setActivePartnerId(paramUserId); }, [paramUserId]);
   useEffect(() => {
     if (!activePartnerId || !currentUser) return;

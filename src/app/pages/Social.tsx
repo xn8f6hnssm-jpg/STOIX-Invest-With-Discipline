@@ -20,7 +20,7 @@ export function Social() {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set(storage.getLikedPosts()));
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [leaderboardFilter, setLeaderboardFilter] = useState<'global' | 'friends' | 'weekly' | 'monthly'>('global');
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [newPostText, setNewPostText] = useState('');
@@ -122,61 +122,104 @@ export function Social() {
     }
   };
 
+  // Load which posts the current user has liked from Supabase
+  const loadLikedPosts = async () => {
+    if (!currentUser) return;
+    try {
+      const { data } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', currentUser.id);
+      if (data) {
+        setLikedPosts(new Set(data.map((r: any) => r.post_id)));
+      } else {
+        // Fall back to localStorage
+        setLikedPosts(new Set(storage.getLikedPosts()));
+      }
+    } catch {
+      setLikedPosts(new Set(storage.getLikedPosts()));
+    }
+  };
+
   useEffect(() => {
     // Always load fresh from Supabase on mount
     loadPostsFromSupabase();
     loadUsersFromSupabase();
+    loadLikedPosts();
 
-    // Reload when tab becomes visible
+    // Reload when tab becomes visible (switching from another app/tab)
     const handleVisibility = () => {
       if (!document.hidden) loadPostsFromSupabase();
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // Also poll every 30 seconds for new posts
-    const interval = setInterval(loadPostsFromSupabase, 30000);
-
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      clearInterval(interval);
     };
   }, []);
 
-  const handleLike = (postId: string) => {
+  const handleLike = async (postId: string) => {
+    if (!currentUser) return;
     if (likedPosts.has(postId)) {
-      // Unlike — purely local
-      setPosts(prev => prev.map(p =>
-        p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p
-      ));
+      // Unlike
       setLikedPosts(prev => { const s = new Set(prev); s.delete(postId); return s; });
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p));
+      try {
+        await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
+        await supabase.from('posts').update({ likes: Math.max(0, (posts.find(p => p.id === postId)?.likes || 1) - 1) }).eq('id', postId);
+      } catch (err) { console.error('Unlike error:', err); }
     } else {
-      // Like — update storage then sync local state
-      storage.likePost(postId);
-      setPosts(prev => prev.map(p =>
-        p.id === postId ? { ...p, likes: (p.likes || 0) + 1 } : p
-      ));
+      // Like
       setLikedPosts(prev => new Set([...prev, postId]));
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: (p.likes || 0) + 1 } : p));
+      try {
+        await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUser.id }).onConflict('post_id,user_id').ignore();
+        await supabase.from('posts').update({ likes: (posts.find(p => p.id === postId)?.likes || 0) + 1 }).eq('id', postId);
+      } catch (err) { console.error('Like error:', err); }
       const post = posts.find(p => p.id === postId);
-      if (post && post.userId !== currentUser?.id) {
-        storage.addNotification({ userId: post.userId, type: 'like', fromId: currentUser?.id });
+      if (post && post.userId !== currentUser.id) {
+        storage.addNotification({ userId: post.userId, type: 'like', fromId: currentUser.id });
       }
+      storage.likePost(postId);
     }
   };
 
-  const handleComment = (postId: string) => {
+  const handleComment = async (postId: string) => {
     if (!currentUser || !commentInputs[postId]?.trim()) return;
-    storage.addComment(postId, {
+    const commentText = commentInputs[postId];
+    const newComment = {
+      id: Date.now().toString(),
       userId: currentUser.id,
       username: currentUser.username,
-      text: commentInputs[postId],
-    });
-    // Notify post owner
-    const post = storage.getPosts().find(p => p.id === postId);
-    if (post && post.userId !== currentUser.id) {
-      storage.addNotification({ userId: post.userId, type: 'comment', fromId: currentUser.id, text: commentInputs[postId] });
+      text: commentText,
+      timestamp: Date.now(),
+    };
+
+    // Update local state immediately — don't reload from localStorage
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, comments: [...(p.comments || []), newComment] } : p
+    ));
+    setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+
+    // Sync to Supabase
+    try {
+      await supabase.from('comments').insert({
+        id: newComment.id,
+        post_id: postId,
+        user_id: currentUser.id,
+        username: currentUser.username,
+        text: commentText,
+        timestamp: newComment.timestamp,
+      });
+    } catch (err) {
+      console.error('Comment sync error:', err);
     }
-    setPosts(storage.getPosts());
-    setCommentInputs({ ...commentInputs, [postId]: '' });
+
+    // Notify post owner
+    const post = posts.find(p => p.id === postId);
+    if (post && post.userId !== currentUser.id) {
+      storage.addNotification({ userId: post.userId, type: 'comment', fromId: currentUser.id, text: commentText });
+    }
   };
 
   const toggleComments = (postId: string) => {
