@@ -472,11 +472,8 @@ export function DailyCheck() {
     setStep('summary');
   };
 
-  // FIX: For No Trade Day — photo is optional (only note required)
-  // For regular clean day — photo is required
-  const canSubmitCleanDay = isNoTradeDay
-    ? note.length >= 20
-    : (!!photoPreview && note.length >= 20);
+  // Photo is recommended but not required for any day type
+  const canSubmitCleanDay = note.length >= 20;
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -593,7 +590,7 @@ export function DailyCheck() {
                   ? 'Upload proof photo (Optional for No Trade Day)'
                   : isLongTermHold
                     ? 'Upload screenshot or add note (Optional)'
-                    : 'Upload proof photo or screenshot of trade (Required)'
+                    : 'Upload proof photo or screenshot of trade (Recommended)'
                 }
               </Label>
               {/* Helper text showing what to upload */}
@@ -749,7 +746,7 @@ export function DailyCheck() {
             <Badge className="text-sm">{selectedForfeit}</Badge>
 
             <div className="space-y-2">
-              <Label>Upload proof photo or screenshot of trade (Required)</Label>
+              <Label>Upload proof photo or screenshot of trade <span className="text-muted-foreground font-normal">(Recommended)</span></Label>
               <div
                 className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
                 onClick={() => forfeitFileInputRef.current?.click()}

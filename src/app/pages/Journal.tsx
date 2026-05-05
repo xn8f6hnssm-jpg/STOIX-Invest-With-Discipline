@@ -1279,56 +1279,31 @@ export function Journal() {
                             </SelectContent>
                           </Select>
                         )}
-                        {field.type === 'time' && (() => {
-                          const rawVal = newEntry.customFields[field.name] || '';
-
-                          const formatTime = (input: string): string => {
-                            const clean = input.trim().toUpperCase();
-                            // Already has AM/PM
-                            const ampm = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
-                            if (ampm) {
-                              let h = parseInt(ampm[1]), m = parseInt(ampm[2]), period = ampm[3];
-                              if (h < 1 || h > 12 || m > 59) return input;
-                              return `${h}:${String(m).padStart(2,'0')} ${period}`;
-                            }
-                            // 24hr format HH:MM
-                            const mil = clean.match(/^(\d{1,2}):(\d{2})$/);
-                            if (mil) {
-                              let h = parseInt(mil[1]), m = parseInt(mil[2]);
-                              if (h > 23 || m > 59) return input;
-                              if (h === 0) return `12:${String(m).padStart(2,'0')} AM`;
-                              if (h === 12) return `12:${String(m).padStart(2,'0')} PM`;
-                              if (h > 12) return `${h-12}:${String(m).padStart(2,'0')} PM`;
-                              return `${h}:${String(m).padStart(2,'0')} AM`;
-                            }
-                            // 4-digit no colon e.g. 2014
-                            const bare = clean.match(/^(\d{4})$/);
-                            if (bare) {
-                              let h = parseInt(clean.slice(0,2)), m = parseInt(clean.slice(2));
-                              if (h > 23 || m > 59) return input;
-                              if (h === 0) return `12:${String(m).padStart(2,'0')} AM`;
-                              if (h === 12) return `12:${String(m).padStart(2,'0')} PM`;
-                              if (h > 12) return `${h-12}:${String(m).padStart(2,'0')} PM`;
-                              return `${h}:${String(m).padStart(2,'0')} AM`;
-                            }
-                            return input;
-                          };
-
-                          return (
-                            <Input
-                              type="text"
-                              value={rawVal}
+                        {field.type === 'time' && (
+                          <div className="space-y-1">
+                            <input
+                              type="time"
+                              value={(() => {
+                                const v = newEntry.customFields[field.name] || '';
+                                // Convert 12hr to 24hr for the input value
+                                const ampm = v.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+                                if (ampm) {
+                                  let h = parseInt(ampm[1]), m = parseInt(ampm[2]);
+                                  if (ampm[3].toUpperCase() === 'PM' && h !== 12) h += 12;
+                                  if (ampm[3].toUpperCase() === 'AM' && h === 12) h = 0;
+                                  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                                }
+                                return v;
+                              })()}
                               onChange={(e) => {
+                                // Store as HH:MM (24hr) — works with AI analysis
                                 setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } });
                               }}
-                              onBlur={(e) => {
-                                const formatted = formatTime(e.target.value);
-                                setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: formatted } });
-                              }}
-                              placeholder="e.g. 20:14 or 8:30 AM"
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             />
-                          );
-                        })()}
+                            <p className="text-xs text-muted-foreground">Click to open clock or type military time (e.g. 14:30)</p>
+                          </div>
+                        )}
                         {field.type === 'image' && (
                           <div className="border-2 border-dashed rounded-lg p-4 text-center relative">
                             <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
