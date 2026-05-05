@@ -1,123 +1,125 @@
 import { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from './ui/dialog';
+import { Dialog, DialogContent } from './ui/dialog';
 import { Button } from './ui/button';
-import { CheckCircle, Shield, Target, Trophy, Users } from 'lucide-react';
+import { CheckCircle, Shield, Target, Trophy, Users, BookOpen, Brain, ArrowRight } from 'lucide-react';
 import { storage } from '../utils/storage';
+import { useNavigate } from 'react-router';
+
+const STEPS = [
+  {
+    icon: '👋',
+    title: "Welcome to STOIX",
+    subtitle: "The Ultimate Traders Dashboard",
+    description: "Everything you need to become a more disciplined, consistent, and profitable trader — all in one place.",
+    color: '#C9A84C',
+  },
+  {
+    icon: '✅',
+    title: "Daily Check-In",
+    subtitle: "Build the discipline habit",
+    description: "Every day log whether you followed your trading rules. Earn points for clean days, complete forfeits when you don't. Your streak and league rank reflect your real discipline.",
+    color: '#22c55e',
+  },
+  {
+    icon: '📓',
+    title: "Trading Journal",
+    subtitle: "Track every trade",
+    description: "Log your trades with custom fields, screenshots, and strategy tags. The AI analyses your patterns and shows you exactly what makes your best setups work.",
+    color: '#3b82f6',
+  },
+  {
+    icon: '🛡️',
+    title: "RevengeX",
+    subtitle: "Stop revenge trading",
+    description: "When you're about to make an emotional trade, hit the RevengeX button. It analyses your journal history and shows you why you should stop.",
+    color: '#ef4444',
+  },
+  {
+    icon: '🤖',
+    title: "AI Analytics",
+    subtitle: "Find your edge",
+    description: "After logging a few trades, the AI builds your personal strategy — your highest-probability setups, best sessions, and what to avoid.",
+    color: '#8b5cf6',
+  },
+  {
+    icon: '🏆',
+    title: "You're Ready!",
+    subtitle: "Let's start your journey",
+    description: "Start with your first Daily Check-In to earn points and begin building your streak. Your first step to trading discipline starts now.",
+    color: '#C9A84C',
+    isFinal: true,
+  },
+];
 
 export function WelcomeDialog() {
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState(0);
+  const navigate = useNavigate();
+  const user = storage.getCurrentUser();
 
   useEffect(() => {
-    // Per-user key so it only shows once per account, not every device load
-    const user = storage.getCurrentUser();
     const key = user ? `hasSeenWelcome_${user.id}` : 'hasSeenWelcome';
-    const hasSeenWelcome = localStorage.getItem(key);
-    if (!hasSeenWelcome) {
-      setOpen(true);
-    }
+    if (!localStorage.getItem(key)) setOpen(true);
   }, []);
 
-  const handleClose = () => {
-    const user = storage.getCurrentUser();
+  const handleClose = (goToCheck = false) => {
     const key = user ? `hasSeenWelcome_${user.id}` : 'hasSeenWelcome';
     localStorage.setItem(key, 'true');
     setOpen(false);
+    if (goToCheck) navigate('/app/daily-check');
   };
 
+  const current = STEPS[step];
+  const isLast = step === STEPS.length - 1;
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Welcome to STOIX! 🎯</DialogTitle>
-          <DialogDescription className="text-base">
-            Your journey to trading discipline starts here
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-6 py-4">
-          <p className="text-muted-foreground">
-            STOIX helps you build trading discipline through accountability, gamification, and social support. Here's how it works:
-          </p>
-
-          <div className="space-y-4">
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Daily Check-In</h3>
-                <p className="text-sm text-muted-foreground">
-                  Log your trading day. Did you follow your rules? Earn points for clean days!
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center">
-                <Target className="w-5 h-5 text-orange-500" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Forfeits for Accountability</h3>
-                <p className="text-sm text-muted-foreground">
-                  Broke a rule? Spin the forfeit wheel and complete your challenge. Turn mistakes into growth!
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <Trophy className="w-5 h-5 text-blue-500" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">League System</h3>
-                <p className="text-sm text-muted-foreground">
-                  Progress from Bronze to Platinum as you accumulate points and maintain discipline.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-red-500" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">RevengeX</h3>
-                <p className="text-sm text-muted-foreground">
-                  About to revenge trade? Hit the panic button for a 60-second breathing exercise and reality check.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
-                <Users className="w-5 h-5 text-purple-500" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Social Community</h3>
-                <p className="text-sm text-muted-foreground">
-                  Share your progress, support others, and build accountability with fellow traders.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-muted rounded-lg p-4">
-            <p className="text-sm font-medium mb-2">💡 Pro Tip:</p>
-            <p className="text-sm text-muted-foreground">
-              Consistency is key! Log your day every trading session, journal your learnings, and watch your discipline rate climb.
-            </p>
-          </div>
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent className="max-w-sm p-0 overflow-hidden gap-0" style={{ borderRadius: 16 }}>
+        {/* Progress bar */}
+        <div className="flex gap-1 p-4 pb-0">
+          {STEPS.map((_, i) => (
+            <div key={i} className="flex-1 h-1 rounded-full transition-all duration-300"
+              style={{ background: i <= step ? '#C9A84C' : '#1f1f1f' }} />
+          ))}
         </div>
 
-        <Button onClick={handleClose} className="w-full" size="lg">
-          Let's Get Started!
-        </Button>
+        {/* Content */}
+        <div className="p-6 text-center space-y-4">
+          <div className="text-6xl mb-2">{current.icon}</div>
+          <div>
+            <h2 className="text-xl font-bold mb-1">{current.title}</h2>
+            <p className="text-sm font-medium" style={{ color: current.color }}>{current.subtitle}</p>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">{current.description}</p>
+        </div>
+
+        {/* Actions */}
+        <div className="p-4 pt-0 space-y-2">
+          {isLast ? (
+            <>
+              <Button className="w-full" size="lg" onClick={() => handleClose(true)}
+                style={{ background: '#C9A84C', color: '#000', fontWeight: 700 }}>
+                Do My First Check-In →
+              </Button>
+              <Button variant="ghost" className="w-full text-sm text-muted-foreground" onClick={() => handleClose(false)}>
+                Explore on my own
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button className="w-full" size="lg" onClick={() => setStep(s => s + 1)}
+                style={{ background: '#C9A84C', color: '#000', fontWeight: 700 }}>
+                Next <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+              <Button variant="ghost" className="w-full text-sm text-muted-foreground" onClick={() => setStep(STEPS.length - 1)}>
+                Skip intro
+              </Button>
+            </>
+          )}
+        </div>
+
+        {/* Step counter */}
+        <p className="text-center text-xs text-muted-foreground pb-4">{step + 1} of {STEPS.length}</p>
       </DialogContent>
     </Dialog>
   );

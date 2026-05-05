@@ -237,6 +237,53 @@ export function Dashboard() {
     <div className="container mx-auto px-4 py-6 space-y-6">
       <WelcomeDialog />
 
+      {/* Getting Started Checklist — only shows until all steps done */}
+      {(() => {
+        if (!user) return null;
+        const hasJournal = storage.getJournalEntries().filter(e => e.userId === user.id).length > 0;
+        const hasDailyCheck = (user.cleanDays || 0) + (user.forfeitDays || 0) > 0;
+        const hasPost = userPosts.length > 0;
+        const hasRules = storage.getAccountRules()?.maxDailyLoss || storage.getAccountRules()?.consistencyRules;
+        const allDone = hasJournal && hasDailyCheck && hasPost;
+        if (allDone) return null;
+
+        const steps = [
+          { label: 'Complete your first Daily Check-In', done: hasDailyCheck, path: '/app/daily-check', icon: '✅' },
+          { label: 'Add your first journal entry', done: hasJournal, path: '/app/journal', icon: '📓' },
+          { label: 'Share your first post on Social', done: hasPost, path: '/app/social', icon: '📸' },
+        ];
+        const doneCount = steps.filter(s => s.done).length;
+
+        return (
+          <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="font-semibold text-sm">Getting Started</p>
+                  <p className="text-xs text-muted-foreground">{doneCount} of {steps.length} complete</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-yellow-600">{Math.round(doneCount / steps.length * 100)}%</p>
+                </div>
+              </div>
+              <div className="w-full bg-muted rounded-full h-1.5 mb-3">
+                <div className="h-1.5 rounded-full bg-yellow-500 transition-all" style={{ width: `${doneCount / steps.length * 100}%` }} />
+              </div>
+              <div className="space-y-2">
+                {steps.map((s, i) => (
+                  <div key={i} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${s.done ? 'opacity-50' : 'hover:bg-yellow-500/10'}`}
+                    onClick={() => !s.done && navigate(s.path)}>
+                    <span className="text-base">{s.done ? '✅' : s.icon}</span>
+                    <span className={`text-sm flex-1 ${s.done ? 'line-through text-muted-foreground' : ''}`}>{s.label}</span>
+                    {!s.done && <span className="text-xs text-yellow-600 font-medium">Go →</span>}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Followers / Following Modal */}
       <Dialog open={!!followModal} onOpenChange={() => setFollowModal(null)}>
         <DialogContent className="sm:max-w-sm">
