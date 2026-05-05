@@ -12,6 +12,7 @@ export function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [allUsers, setAllUsers] = useState(storage.getAllUsers());
+  const [skipLanding, setSkipLanding] = useState(localStorage.getItem('stoix_skip_landing') === 'true');
 
   // If ?signup=true, show the signup/onboarding form directly
   if (searchParams.get('signup') === 'true') {
@@ -117,6 +118,24 @@ export function Login() {
             {!canCreateMore && <p className="text-center text-sm text-muted-foreground">Maximum of 3 accounts reached</p>}
           </>
         )}
+
+        {/* Skip landing page toggle */}
+        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+          <div>
+            <p className="text-sm font-medium">Skip intro page next time</p>
+            <p className="text-xs text-muted-foreground">Go straight to your account when you visit</p>
+          </div>
+          <input
+            type="checkbox"
+            checked={skipLanding}
+            onChange={e => {
+              setSkipLanding(e.target.checked);
+              if (e.target.checked) localStorage.setItem('stoix_skip_landing', 'true');
+              else localStorage.removeItem('stoix_skip_landing');
+            }}
+            className="w-4 h-4 cursor-pointer"
+          />
+        </div>
       </div>
     </div>
   );

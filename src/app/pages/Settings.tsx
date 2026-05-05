@@ -15,6 +15,7 @@ import { Badge } from '../components/ui/badge';
 
 export function Settings() {
   const [isPremium, setIsPremium] = useState(false);
+  const [skipLanding, setSkipLanding] = useState(localStorage.getItem('stoix_skip_landing') === 'true');
   const [profile, setProfile] = useState<any>(null);
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -130,6 +131,22 @@ export function Settings() {
                 <p className="text-sm text-muted-foreground">Toggle dark mode theme</p>
               </div>
               <Switch id="dark-mode" checked={theme === 'dark'} onCheckedChange={toggleTheme} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="skip-landing">Skip Intro Page</Label>
+                <p className="text-sm text-muted-foreground">Go straight to your account when you visit</p>
+              </div>
+              <Switch
+                id="skip-landing"
+                checked={skipLanding}
+                onCheckedChange={(checked) => {
+                  setSkipLanding(checked);
+                  if (checked) localStorage.setItem('stoix_skip_landing', 'true');
+                  else localStorage.removeItem('stoix_skip_landing');
+                  toast.success(checked ? 'Will skip intro page next visit' : 'Will show intro page next visit');
+                }}
+              />
             </div>
           </CardContent>
         </Card>
