@@ -46,19 +46,24 @@ export function LandingPage() {
         .pill { display: inline-flex; align-items: center; gap: 8px; background: #C9A84C15; border: 1px solid #C9A84C30; color: #C9A84C; padding: 6px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
         .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: #C9A84C; margin-bottom: 16px; }
         @media (max-width: 768px) {
-          .big-heading { font-size: 52px !important; }
+          .big-heading { font-size: 48px !important; }
           .two-col { grid-template-columns: 1fr !important; gap: 40px !important; }
           .features-grid { grid-template-columns: 1fr !important; }
-          .pricing-grid { grid-template-columns: 1fr !important; max-width: 400px !important; }
+          .pricing-grid { grid-template-columns: 1fr !important; max-width: 100% !important; }
           .nav-links { display: none !important; }
-          .hero-section { padding: 100px 24px 60px !important; }
-          .section-pad { padding: 80px 24px !important; }
+          .hero-section { padding: 90px 20px 50px !important; }
+          .section-pad { padding: 60px 20px !important; }
           .stats-row { grid-template-columns: 1fr 1fr !important; }
+          .hero-btns { flex-direction: column !important; }
+          .hero-btns button { width: 100% !important; }
+          .hero-checks { flex-direction: column !important; gap: 12px !important; }
+          .nav-mobile-btns { gap: 8px !important; }
+          .nav-mobile-btns button { padding: 8px 14px !important; font-size: 12px !important; }
         }
       `}</style>
 
       {/* Nav */}
-      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, borderBottom: scrollY > 50 ? '1px solid #1a1a1a' : 'none', background: scrollY > 50 ? 'rgba(8,8,8,0.95)' : 'transparent', backdropFilter: scrollY > 50 ? 'blur(12px)' : 'none', padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s' }}>
+      <nav className="nav-mobile" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, borderBottom: scrollY > 50 ? '1px solid #1a1a1a' : 'none', background: scrollY > 50 ? 'rgba(8,8,8,0.95)' : 'transparent', backdropFilter: scrollY > 50 ? 'blur(12px)' : 'none', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 32, height: 32, background: '#0a0a0a', position: 'relative', overflow: 'hidden', border: '1px solid #222' }}>
             <div style={{ position: 'absolute', inset: 0, background: '#C9A84C', clipPath: 'polygon(30% 0%, 70% 0%, 55% 100%, 15% 100%)' }} />
@@ -95,13 +100,13 @@ export function LandingPage() {
           <p className="fade-up" style={{ fontSize: 17, color: '#777', maxWidth: 560, lineHeight: 1.8, margin: '32px 0 48px', animationDelay: '0.2s', fontWeight: 300 }}>
             Journal your trades, track your discipline, stop revenge trading, connect with other traders, and let AI turn your history into a refined edge — all in one dashboard built for serious traders.
           </p>
-          <div className="fade-up" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', animationDelay: '0.3s' }}>
-            <button className="btn-primary" style={{ fontSize: 15 }} onClick={() => navigate('/login?signup=true')}>Start For Free</button>
-            <button className="btn-outline" onClick={() => navigate('/login')}>Log In</button>
+          <div className="fade-up hero-btns" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', animationDelay: '0.3s' }}>
+            <button className="btn-primary" style={{ fontSize: 15, flex: 1, minWidth: 200 }} onClick={() => navigate('/login?signup=true')}>Start For Free</button>
+            <button className="btn-outline" style={{ flex: 1, minWidth: 200 }} onClick={() => navigate('/login')}>Log In</button>
           </div>
-          <div className="fade-up" style={{ marginTop: 56, display: 'flex', gap: 40, flexWrap: 'wrap', animationDelay: '0.4s' }}>
+          <div className="hero-checks fade-up" style={{ marginTop: 40, display: 'flex', gap: 24, flexWrap: 'wrap', animationDelay: '0.4s' }}>
             {['Free to start', 'Premium from $12.99/mo', 'Cancel anytime'].map(text => (
-              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#555' }}>
+              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#555' }}>
                 <span style={{ color: '#C9A84C' }}>✓</span> {text}
               </div>
             ))}
