@@ -3,9 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
-import { Crown, Bug, Shield, AlertTriangle, CheckSquare, User, Mail, Users2, FileText } from 'lucide-react';
+import { Crown, Bug, Shield, User, Mail, Users2, FileText, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAccessToken } from '../utils/supabase';
 import { projectId, publicAnonKey } from '../../../utils/supabase/info';
@@ -24,17 +22,8 @@ export function Settings() {
   const currentUser = storage.getCurrentUser();
   const allUsers = storage.getAllUsers();
 
-  const [maxDailyLoss, setMaxDailyLoss] = useState<string>('');
-  const [maxDrawdown, setMaxDrawdown] = useState<string>('');
-  const [maxContracts, setMaxContracts] = useState<string>('');
-  const [consistencyRules, setConsistencyRules] = useState<string>('');
-  
-  const [accountProtectionMode, setAccountProtectionMode] = useState(false);
-  const [preTradeChecklistEnabled, setPreTradeChecklistEnabled] = useState(false);
-
   useEffect(() => {
     loadProfile();
-    loadSettings();
   }, []);
 
   const loadProfile = async () => {
@@ -55,42 +44,7 @@ export function Settings() {
     }
   };
 
-  const loadSettings = () => {
-    const rules = storage.getAccountRules();
-    if (rules) {
-      setMaxDailyLoss(rules.maxDailyLoss?.toString() ?? '');
-      setMaxDrawdown(rules.maxOverallDrawdown?.toString() ?? '');
-      setMaxContracts(rules.maxContracts?.toString() ?? '');
-      setConsistencyRules(rules.consistencyRules ?? '');
-    }
-    setAccountProtectionMode(storage.isAccountProtectionMode() ?? false);
-    setPreTradeChecklistEnabled(storage.isPreTradeChecklistEnabled() ?? false);
-  };
-
-  const saveAccountRules = () => {
-    if (!isPremium) { toast.error('Account Rules are a Premium feature'); return; }
-    storage.updateAccountRules({
-      maxDailyLoss: maxDailyLoss ? parseFloat(maxDailyLoss) : undefined,
-      maxOverallDrawdown: maxDrawdown ? parseFloat(maxDrawdown) : undefined,
-      maxContracts: maxContracts ? parseFloat(maxContracts) : undefined,
-      consistencyRules: consistencyRules || undefined,
-    });
-    toast.success('Account rules saved');
-  };
-
-  const toggleProtectionMode = (enabled: boolean) => {
-    if (!isPremium) { toast.error('Account Protection Mode is a Premium feature'); return; }
-    storage.toggleAccountProtectionMode(enabled);
-    setAccountProtectionMode(enabled);
-    toast.success(enabled ? 'Protection Mode enabled' : 'Protection Mode disabled');
-  };
-
-  const togglePreTradeChecklist = (enabled: boolean) => {
-    if (!isPremium) { toast.error('Pre-Trade Checklist is a Premium feature'); return; }
-    storage.togglePreTradeChecklist(enabled);
-    setPreTradeChecklistEnabled(enabled);
-    toast.success(enabled ? 'Pre-Trade Checklist enabled' : 'Pre-Trade Checklist disabled');
-  };
+  const canAddAccount = allUsers.length < 3;
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -128,14 +82,22 @@ export function Settings() {
                 <Badge variant="outline">{currentUser.tradingStyle}</Badge>
                 <span className="text-sm text-muted-foreground">Trading Style</span>
               </div>
-              {allUsers.length > 1 && (
-                <div className="pt-2 border-t">
+              <div className="pt-2 border-t space-y-2">
+                {allUsers.length > 1 && (
                   <Button variant="outline" className="w-full" onClick={() => navigate('/login')}>
                     <Users2 className="w-4 h-4 mr-2" />
                     Switch Account ({allUsers.length} total)
                   </Button>
-                </div>
-              )}
+                )}
+                {canAddAccount ? (
+                  <Button variant="outline" className="w-full" onClick={() => navigate('/login?signup=true')}>
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Add Another Account ({3 - allUsers.length} slot{3 - allUsers.length !== 1 ? 's' : ''} left)
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center">Maximum of 3 accounts reached</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
@@ -250,8 +212,6 @@ export function Settings() {
             </Button>
           </CardContent>
         </Card>
-
-
       </div>
     </div>
   );
