@@ -26,10 +26,15 @@ import { PropFirmSuccess } from "./pages/PropFirmSuccess";
 import { MentalPreparation } from "./pages/MentalPreparation";
 import { DebugStorage } from "./pages/DebugStorage";
 import { TermsAndPrivacy } from "./pages/TermsAndPrivacy";
+import { LandingPage } from "./pages/LandingPage";
 
 export const router = createBrowserRouter([
   {
     path: "/",
+    element: <LandingPage />,
+  },
+  {
+    path: "/signup",
     element: <OnboardingAccount />,
   },
   {
