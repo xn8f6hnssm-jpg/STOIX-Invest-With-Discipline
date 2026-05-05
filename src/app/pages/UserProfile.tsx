@@ -133,30 +133,57 @@ export function UserProfile() {
     setShowFollowing(true);
   };
 
+  const [followLoading, setFollowLoading] = useState(false);
+
   const handleFollowToggle = async () => {
-    if (!userId || !currentUser) return;
+    if (!userId || !currentUser || followLoading) return;
+    setFollowLoading(true);
 
     if (isFollowing) {
-      storage.unfollowUser(userId);
+      // Optimistic update first
       setIsFollowing(false);
       setFollowerCount(prev => Math.max(0, prev - 1));
-      // Remove from Supabase following table
-      await supabase.from('following')
-        .delete()
-        .eq('follower_id', currentUser.id)
-        .eq('following_id', userId);
+      storage.unfollowUser(userId);
+      try {
+        await supabase.from('following')
+          .delete()
+          .eq('follower_id', currentUser.id)
+          .eq('following_id', userId);
+      } catch (err) {
+        // Revert on error
+        setIsFollowing(true);
+        setFollowerCount(prev => prev + 1);
+        console.error('Unfollow error:', err);
+      }
     } else {
-      storage.followUser(userId);
+      // Optimistic update first
       setIsFollowing(true);
       setFollowerCount(prev => prev + 1);
-      // Add to Supabase following table
-      await supabase.from('following').insert({
-        follower_id: currentUser.id,
-        following_id: userId,
-      }).onConflict('follower_id,following_id').ignore();
-      // Notify
-      storage.addNotification({ userId, type: 'follow', fromId: currentUser.id });
+      storage.followUser(userId);
+      try {
+        // Check if already exists first to avoid duplicate error
+        const { data: existing } = await supabase
+          .from('following')
+          .select('id')
+          .eq('follower_id', currentUser.id)
+          .eq('following_id', userId)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase.from('following').insert({
+            follower_id: currentUser.id,
+            following_id: userId,
+          });
+        }
+        storage.addNotification({ userId, type: 'follow', fromId: currentUser.id });
+      } catch (err) {
+        // Revert on error
+        setIsFollowing(false);
+        setFollowerCount(prev => Math.max(0, prev - 1));
+        console.error('Follow error:', err);
+      }
     }
+    setFollowLoading(false);
   };
 
   const handleEditToggle = () => {
@@ -278,8 +305,8 @@ export function UserProfile() {
 
           {/* Actions */}
           {!isOwnProfile && (
-            <Button onClick={handleFollowToggle} size="sm" variant={isFollowing ? 'secondary' : 'default'} className="w-full">
-              {isFollowing ? <><UserCheck className="w-4 h-4 mr-2" />Following</> : <><UserPlus className="w-4 h-4 mr-2" />Follow</>}
+            <Button onClick={handleFollowToggle} size="sm" variant={isFollowing ? 'secondary' : 'default'} className="w-full" disabled={followLoading}>
+              {followLoading ? 'Please wait...' : isFollowing ? <><UserCheck className="w-4 h-4 mr-2" />Following</> : <><UserPlus className="w-4 h-4 mr-2" />Follow</>}
             </Button>
           )}
 

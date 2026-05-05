@@ -241,56 +241,84 @@ export function Social() {
 
   const handleCreatePost = async () => {
     if (!currentUser) return;
-    if (!newPostText.trim() && selectedImages.length === 0) return;
+    if (!newPostText.trim() && selectedImages.length === 0 && selectedVideos.length === 0) return;
 
     setIsPosting(true);
     try {
-      // Upload images to Supabase Storage first, then create post with URLs
+      const postId = Date.now().toString();
+
+      // Upload images to Supabase Storage
       const uploadedImages: string[] = [];
       for (let i = 0; i < selectedImages.length; i++) {
         const img = selectedImages[i];
         if (img.startsWith('data:image')) {
           try {
-            const url = await storage.uploadImage(img, currentUser.id, `post_${Date.now()}_${i}`, 'post_img');
-            uploadedImages.push(url || img);
+            const url = await storage.uploadImage(img, currentUser.id, `${postId}_${i}`, 'post_img');
+            uploadedImages.push(url || '');
           } catch { uploadedImages.push(''); }
         } else {
           uploadedImages.push(img);
         }
       }
 
-      const post = storage.addPost({
+      const filteredImages = uploadedImages.filter(Boolean);
+      const newPost = {
         userId: currentUser.id,
         username: currentUser.username,
-        avatarUrl: currentUser.profilePicture,
+        avatarUrl: currentUser.profilePicture?.startsWith('data:image') ? '' : (currentUser.profilePicture || ''),
         league: currentUser.totalPoints?.toString() || '0',
         isVerified: currentUser.isVerified || false,
-        photoUrl: uploadedImages[0] || '',
-        images: uploadedImages,
+        photoUrl: filteredImages[0] || '',
+        images: filteredImages,
         videos: selectedVideos,
         caption: newPostText,
         type: newPostType,
-      });
+      };
+
+      // Save to Supabase directly — don't go through storage.addPost to avoid double upload
+      const postRecord = {
+        id: postId,
+        user_id: currentUser.id,
+        username: currentUser.username,
+        avatar_url: newPost.avatarUrl || null,
+        league: newPost.league,
+        is_verified: newPost.isVerified,
+        type: newPostType,
+        photo_url: filteredImages[0] || null,
+        images: filteredImages,
+        videos: selectedVideos,
+        caption: newPostText,
+        likes: 0,
+        journal_data: null,
+        timestamp: Date.now(),
+      };
+
+      const { error } = await supabase.from('posts').insert(postRecord);
+      if (error) {
+        console.error('Post insert error:', error);
+        throw error;
+      }
+
+      // Add to local state immediately
+      const localPost = { ...postRecord, id: postId, comments: [], likes: 0 };
+      setPosts(prev => [localPost as any, ...prev]);
 
       storage.addActivity({
         userId: currentUser.id,
         type: 'post',
         description: newPostType === 'clean' ? '✓ Posted a clean day' : newPostType === 'forfeit' ? '⚡ Posted a forfeit day' : '📝 Shared a post',
-        relatedId: post.id,
+        relatedId: postId,
       });
 
-      // Add to local state immediately
-      setPosts(prev => [{ ...post, photoUrl: uploadedImages[0] || '', images: uploadedImages }, ...prev]);
       setIsCreatePostOpen(false);
       setNewPostText('');
       setNewPostType('general');
       setSelectedImages([]);
       setSelectedVideos([]);
 
-      // Refresh from Supabase after a delay
-      setTimeout(() => loadPostsFromSupabase(), 3000);
     } catch (err) {
       console.error('Post creation error:', err);
+      alert('Failed to post. Please try again.');
     } finally {
       setIsPosting(false);
     }
