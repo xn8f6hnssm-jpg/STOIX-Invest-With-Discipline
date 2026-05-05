@@ -17,6 +17,7 @@ export function OnboardingAccount() {
   const [searchParams] = useSearchParams();
   const forceSignup = searchParams.get('signup') === 'true';
   const [isLogin, setIsLogin] = useState(false);
+  const [rememberLanding, setRememberLanding] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -83,8 +84,12 @@ export function OnboardingAccount() {
       const result = await signIn({ email: formData.email, password: formData.password });
       setIsLoading(false);
       if (result.success) {
-        if (rememberMe) localStorage.setItem('stoix_remembered_email', formData.email);
-        else localStorage.removeItem('stoix_remembered_email');
+        if (rememberMe) {
+          localStorage.setItem('stoix_remembered_email', formData.email);
+          localStorage.setItem('stoix_skip_landing', 'true');
+        } else {
+          localStorage.removeItem('stoix_remembered_email');
+        }
         navigate('/app');
       } else {
         setError(result.error || 'Login failed');
@@ -102,6 +107,7 @@ export function OnboardingAccount() {
       if (result.success) {
         const onboardingData = { email: formData.email, password: formData.password, username: formData.username, name: formData.name };
         sessionStorage.setItem('onboarding_user', JSON.stringify(onboardingData));
+        if (rememberLanding) localStorage.setItem('stoix_skip_landing', 'true');
         navigate('/onboarding/profile');
       } else {
         if (result.error?.includes('already exists') || result.error?.includes('already been registered')) {
@@ -176,7 +182,14 @@ export function OnboardingAccount() {
                 <Input id="age" type="number" required min="18" value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} />
               </div>
             )}
-            
+
+            {!isLogin && (
+              <div className="flex items-center space-x-2">
+                <Checkbox id="remember-landing" checked={rememberLanding} onCheckedChange={(checked) => setRememberLanding(!!checked)} />
+                <Label htmlFor="remember-landing" className="cursor-pointer">Go straight to my account next time (skip intro page)</Label>
+              </div>
+            )}
+
             {isLogin && (
               <div className="flex items-center space-x-2">
                 <Checkbox id="remember" checked={rememberMe} onCheckedChange={(checked) => setRememberMe(checked)} />

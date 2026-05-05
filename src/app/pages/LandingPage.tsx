@@ -6,6 +6,12 @@ export function LandingPage() {
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
+    // Skip landing page if user chose "remember me"
+    const skipLanding = localStorage.getItem('stoix_skip_landing');
+    if (skipLanding === 'true') {
+      navigate('/app');
+      return;
+    }
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
