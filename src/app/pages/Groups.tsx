@@ -148,12 +148,22 @@ export function Groups() {
     navigate(`/app/groups/${group.id}`);
   };
 
-  const handleRequestToJoin = (groupId: string) => {
+  const handleRequestToJoin = async (groupId: string) => {
     if (!currentUser) return;
     const existing = storage.getJoinRequests().find(r => r.groupId === groupId && r.userId === currentUser.id && r.status === 'pending');
     if (existing) { alert('You have already requested to join this group'); return; }
     storage.addJoinRequest({ groupId, userId: currentUser.id, username: currentUser.username, status: 'pending' });
-    alert('Join request sent! Wait for admin approval.');
+    // Notify the group admin
+    const group = allGroups.find(g => g.id === groupId);
+    if (group) {
+      storage.addNotification({
+        userId: group.creatorId,
+        type: 'follow',
+        fromId: currentUser.id,
+        text: `${currentUser.username} requested to join ${group.name}`,
+      });
+    }
+    alert('Join request sent! The admin will review your request.');
   };
 
   const copyInviteCode = (code: string) => {
