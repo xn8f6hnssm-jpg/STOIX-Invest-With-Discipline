@@ -133,6 +133,53 @@ export function GroupDetail() {
     refreshGroup();
   };
 
+  const getChallengeProgress = (challenge: any, userId: string): { met: number; required: number; qualified: boolean } => {
+    const required = challenge.duration;
+    const startDate = new Date(challenge.startDate).toISOString().split('T')[0];
+    const endDate = new Date(challenge.endDate).toISOString().split('T')[0];
+    const allLogs = storage.getDayLogs().filter((l: any) => l.userId === userId && l.date >= startDate && l.date <= endDate);
+    const sortedLogs = [...allLogs].sort((a: any, b: any) => a.date.localeCompare(b.date));
+    let streak = 0, maxStreak = 0, prev = '';
+    for (const log of sortedLogs) {
+      if (log.isClean) {
+        if (prev) {
+          const prevDate = new Date(prev);
+          prevDate.setDate(prevDate.getDate() + 1);
+          streak = log.date === prevDate.toISOString().split('T')[0] ? streak + 1 : 1;
+        } else { streak = 1; }
+        maxStreak = Math.max(maxStreak, streak);
+      } else { streak = 0; }
+      prev = log.date;
+    }
+    const met = Math.min(maxStreak, allLogs.filter((l: any) => l.isClean).length);
+    return { met, required, qualified: met >= required };
+  };
+
+  const handleCompleteChallenge = (challengeId: string) => {
+    if (!currentUser || !isAdmin) return;
+    const challenge = (group.challenges || []).find((c: any) => c.id === challengeId);
+    if (!challenge || challenge.status !== 'active') return;
+    const qualified = challenge.participants.filter((uid: string) => getChallengeProgress(challenge, uid).qualified);
+    if (qualified.length === 0) { alert('No participants have met the challenge requirement yet.'); return; }
+    const updatedChallenges = (group.challenges || []).map((c: any) => {
+      if (c.id === challengeId && c.status === 'active') {
+        qualified.forEach((userId: string) => {
+          storage.addAchievement(userId, {
+            type: challenge.prize === 'trophy' ? 'trophy' : 'medal',
+            title: `Completed: ${c.name}`,
+            description: `Successfully completed the ${c.duration}-day challenge`,
+            source: 'group_challenge', groupId: group.id, challengeId,
+          });
+        });
+        return { ...c, status: 'completed', leaderboard: [...c.leaderboard].sort((a: any, b: any) => b.points - a.points) };
+      }
+      return c;
+    });
+    storage.updateGroup(group.id, { challenges: updatedChallenges });
+    alert(`✅ Challenge completed! ${qualified.length} participant(s) earned their reward.`);
+    refreshGroup();
+  };
+
   const TABS = [
     { id: 'chat', icon: MessageSquare, label: 'Chat' },
     { id: 'challenges', icon: Trophy, label: 'Challenges' },
@@ -218,6 +265,27 @@ export function GroupDetail() {
                           storage.updateGroup(group.id, { challenges: updated }); refreshGroup();
                         }}>Join Challenge</Button>
                       )}
+                      {challenge.participants.includes(currentUser.id) && challenge.status === 'active' && (() => {
+                        const progress = getChallengeProgress(challenge, currentUser.id);
+                        return (
+                          <div className="mt-2 space-y-1">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Your progress</span>
+                              <span className={progress.qualified ? 'text-green-500 font-bold' : ''}>{progress.met}/{progress.required} days{progress.qualified ? ' ✓' : ''}</span>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-1.5">
+                              <div className={`h-1.5 rounded-full transition-all ${progress.qualified ? 'bg-green-500' : 'bg-primary'}`} style={{ width: `${Math.min((progress.met / progress.required) * 100, 100)}%` }} />
+                            </div>
+                            {isAdmin && (
+                              <Button size="sm" className="w-full mt-1" variant="outline"
+                                disabled={!challenge.participants.some((uid: string) => getChallengeProgress(challenge, uid).qualified)}
+                                onClick={() => handleCompleteChallenge(challenge.id)}>
+                                Complete Challenge
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 ))}
