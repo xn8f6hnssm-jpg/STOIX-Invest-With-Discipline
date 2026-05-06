@@ -50,8 +50,23 @@ export function DirectMessages() {
   useEffect(() => { if (paramUserId && paramUserId !== activePartnerId) setActivePartnerId(paramUserId); }, [paramUserId]);
   useEffect(() => {
     if (!activePartnerId || !currentUser) return;
-    const allUsers = storage.getAllUsers();
-    setActivePartner(allUsers.find(u => u.id === activePartnerId) || null);
+    // Load partner from Supabase
+    const { data: partnerData } = await supabase
+      .from('users')
+      .select('id, username, name, profile_picture')
+      .eq('id', activePartnerId)
+      .maybeSingle();
+    if (partnerData) {
+      setActivePartner({
+        id: partnerData.id,
+        username: partnerData.username,
+        name: partnerData.name,
+        profilePicture: partnerData.profile_picture || '',
+      });
+    } else {
+      const allUsers = storage.getAllUsers();
+      setActivePartner(allUsers.find(u => u.id === activePartnerId) || null);
+    }
     storage.markDMsAsRead(currentUser.id, activePartnerId);
     loadConversations();
   }, [activePartnerId]);
@@ -86,27 +101,30 @@ export function DirectMessages() {
           convMap[partnerId].push(msg);
         });
 
-        // Build conversation list
-        const allUsers = storage.getAllUsers();
-        const { data: supabaseUsers } = await supabase
-          .from('users')
-          .select('id, username, name, profile_picture')
-          .in('id', Object.keys(convMap));
+        // Load all partner users from Supabase
+        const partnerIds = Object.keys(convMap);
+        let supabaseUsers: any[] = [];
+        if (partnerIds.length > 0) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('id, username, name, profile_picture')
+            .in('id', partnerIds);
+          supabaseUsers = userData || [];
+        }
 
         const convList = Object.entries(convMap).map(([partnerId, msgs]) => {
-          const sortedMsgs = msgs.sort((a, b) => a.timestamp - b.timestamp);
-          const partner = supabaseUsers?.find((u: any) => u.id === partnerId) || 
-                         allUsers.find(u => u.id === partnerId);
+          const sortedMsgs = (msgs as any[]).sort((a, b) => a.timestamp - b.timestamp);
+          const partner = supabaseUsers.find((u: any) => u.id === partnerId);
           return {
             partnerId,
             partner: partner ? {
               id: partner.id,
-              username: partner.username,
-              name: partner.name,
-              profilePicture: (partner as any).profile_picture || (partner as any).profilePicture || '',
-            } : null,
+              username: partner.username || 'Unknown',
+              name: partner.name || partner.username || 'Unknown',
+              profilePicture: partner.profile_picture || '',
+            } : { id: partnerId, username: 'Unknown', name: 'Unknown', profilePicture: '' },
             lastMessage: sortedMsgs[sortedMsgs.length - 1],
-            unreadCount: sortedMsgs.filter(m => !m.read && m.toId === currentUser.id).length,
+            unreadCount: sortedMsgs.filter((m: any) => !m.read && m.toId === currentUser.id).length,
             messages: sortedMsgs,
           };
         }).sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
@@ -155,8 +173,7 @@ export function DirectMessages() {
       timestamp: Date.now(),
       read: false,
     };
-    storage.sendDirectMessage(currentUser.id, activePartnerId, newMessage.trim(), uploadedUrl);
-    // Sync to Supabase
+    // Save to Supabase only — no localStorage
     supabase.from('direct_messages').insert({
       id: msgId,
       from_id: currentUser.id,
@@ -223,7 +240,7 @@ export function DirectMessages() {
   if (!currentUser) return null;
 
   return (
-    <div className="container mx-auto px-0 py-0 max-w-4xl h-[calc(100vh-120px)]">
+    <div className="container mx-auto px-0 py-0 max-w-4xl" style={{ height: 'calc(100dvh - 64px)' }}>
       <div className="flex h-full border rounded-xl overflow-hidden">
 
         {/* Sidebar */}
