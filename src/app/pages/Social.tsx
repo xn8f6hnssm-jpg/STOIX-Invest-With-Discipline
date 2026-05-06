@@ -60,7 +60,7 @@ export function Social() {
               userId: c.user_id,
               username: c.username,
               text: c.text,
-              timestamp: c.timestamp,
+              timestamp: c.timestamp || Date.now(),
             });
           });
         }
@@ -126,14 +126,16 @@ export function Social() {
   const loadLikedPosts = async () => {
     if (!currentUser) return;
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('post_likes')
         .select('post_id')
         .eq('user_id', currentUser.id);
-      if (data) {
-        setLikedPosts(new Set(data.map((r: any) => r.post_id)));
+      if (data && !error) {
+        const liked = new Set(data.map((r: any) => r.post_id));
+        setLikedPosts(liked);
+        // Also save to localStorage as backup
+        localStorage.setItem('tradeforge_liked_posts', JSON.stringify([...liked]));
       } else {
-        // Fall back to localStorage
         setLikedPosts(new Set(storage.getLikedPosts()));
       }
     } catch {
@@ -162,23 +164,24 @@ export function Social() {
     if (!currentUser) return;
     if (likedPosts.has(postId)) {
       // Unlike
+      const currentLikes = posts.find(p => p.id === postId)?.likes || 0;
       setLikedPosts(prev => { const s = new Set(prev); s.delete(postId); return s; });
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p));
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: Math.max(0, currentLikes - 1) } : p));
       try {
         await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
-        await supabase.from('posts').update({ likes: Math.max(0, (posts.find(p => p.id === postId)?.likes || 1) - 1) }).eq('id', postId);
+        await supabase.from('posts').update({ likes: Math.max(0, currentLikes - 1) }).eq('id', postId);
       } catch (err) { console.error('Unlike error:', err); }
     } else {
       // Like
+      const currentLikes2 = posts.find(p => p.id === postId)?.likes || 0;
       setLikedPosts(prev => new Set([...prev, postId]));
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: (p.likes || 0) + 1 } : p));
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: currentLikes2 + 1 } : p));
       try {
-        // Check if like already exists before inserting
         const { data: existingLike } = await supabase.from('post_likes').select('id').eq('post_id', postId).eq('user_id', currentUser.id).maybeSingle();
         if (!existingLike) {
           await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUser.id });
         }
-        await supabase.from('posts').update({ likes: (posts.find(p => p.id === postId)?.likes || 0) + 1 }).eq('id', postId);
+        await supabase.from('posts').update({ likes: currentLikes2 + 1 }).eq('id', postId);
       } catch (err) { console.error('Like error:', err); }
       const post = posts.find(p => p.id === postId);
       if (post && post.userId !== currentUser.id) {
