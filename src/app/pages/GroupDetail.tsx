@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Users, Trophy, Copy, Check, Crown, Shield, UserPlus, Settings, DollarSign, Target, MessageSquare, ArrowLeft, Edit2, Save, Trash2 } from 'lucide-react';
 import { storage, GroupChallenge } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 import { GroupChat } from '../components/GroupChat';
 
 export function GroupDetail() {
@@ -21,8 +22,35 @@ export function GroupDetail() {
   // Force re-render when group data changes
   const [groupVersion, setGroupVersion] = useState(0);
   const refreshGroup = () => setGroupVersion(v => v + 1);
+  const [group, setGroup] = useState<any>(null);
+  const [groupLoading, setGroupLoading] = useState(true);
 
-  const group = storage.getGroups().find(g => g.id === groupId);
+  useEffect(() => {
+    const loadGroup = async () => {
+      if (!groupId) return;
+      // Try Supabase first
+      const { data } = await supabase.from('groups').select('*').eq('id', groupId).maybeSingle();
+      if (data) {
+        setGroup({
+          id: data.id, name: data.name, description: data.description || '',
+          creatorId: data.creator_id, creatorUsername: data.creator_username,
+          type: data.type || 'free', price: data.price,
+          memberCount: data.member_count || 1,
+          members: Array.isArray(data.members) ? data.members : [],
+          admins: Array.isArray(data.admins) ? data.admins : [],
+          inviteCode: data.invite_code || '',
+          isPublic: data.is_public !== false,
+          challenges: Array.isArray(data.challenges) ? data.challenges : [],
+        });
+      } else {
+        // Fall back to localStorage
+        const localGroup = storage.getGroups().find(g => g.id === groupId);
+        setGroup(localGroup || null);
+      }
+      setGroupLoading(false);
+    };
+    loadGroup();
+  }, [groupId, groupVersion]);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
   const [showJoinRequestsModal, setShowJoinRequestsModal] = useState(false);
@@ -52,6 +80,14 @@ export function GroupDetail() {
       });
     }
   }, [group?.id]);
+
+  if (groupLoading) {
+    return (
+      <div className="p-6 text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+      </div>
+    );
+  }
 
   if (!group || !currentUser) {
     return (
