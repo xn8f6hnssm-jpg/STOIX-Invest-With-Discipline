@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
 import { Hash, Plus, Send, Paperclip, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { storage } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 
 interface GroupChatProps {
   groupId: string;
@@ -30,21 +31,39 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const existing = storage.getGroupChannels(groupId);
-    if (existing.length === 0 && isAdmin) {
-      const defaultChannel = storage.addGroupChannel({ groupId, name: 'general', description: 'General discussion', createdBy: currentUserId, isDefault: true });
-      setChannels([defaultChannel]);
-      setSelectedChannelId(defaultChannel.id);
-    } else {
-      setChannels(existing);
-      if (!selectedChannelId && existing.length > 0) setSelectedChannelId(existing[0].id);
-    }
+    const loadChannels = async () => {
+      // Load from Supabase
+      const { data } = await supabase.from('group_channels').select('*').eq('group_id', groupId).order('created_at', { ascending: true });
+      if (data && data.length > 0) {
+        const mapped = data.map((c: any) => ({ id: c.id, groupId: c.group_id, name: c.name, description: c.description || '', createdBy: c.created_by, isDefault: c.is_default }));
+        setChannels(mapped);
+        setSelectedChannelId(mapped[0].id);
+      } else {
+        // Create default general channel
+        const channelId = `ch_${Date.now()}`;
+        const { data: newCh } = await supabase.from('group_channels').insert({ id: channelId, group_id: groupId, name: 'general', description: 'General discussion', created_by: currentUserId, is_default: true }).select().maybeSingle();
+        if (newCh) {
+          const ch = { id: newCh.id, groupId: newCh.group_id, name: newCh.name, description: newCh.description || '', createdBy: newCh.created_by, isDefault: newCh.is_default };
+          setChannels([ch]);
+          setSelectedChannelId(ch.id);
+        }
+      }
+    };
+    loadChannels();
   }, [groupId]);
 
   useEffect(() => {
-    if (selectedChannelId) {
-      setMessages(storage.getGroupMessages(selectedChannelId));
-    }
+    if (!selectedChannelId) return;
+    const loadMessages = async () => {
+      const { data } = await supabase.from('group_messages').select('*').eq('channel_id', selectedChannelId).order('timestamp', { ascending: true }).limit(100);
+      if (data) {
+        setMessages(data.map((m: any) => ({ id: m.id, channelId: m.channel_id, groupId: m.group_id, userId: m.user_id, username: m.username, content: m.content, mentions: m.mentions || [], attachments: m.attachments || [], timestamp: m.timestamp })));
+      }
+    };
+    loadMessages();
+    // Poll every 4 seconds for new messages
+    const interval = setInterval(loadMessages, 4000);
+    return () => clearInterval(interval);
   }, [selectedChannelId]);
 
   useEffect(() => {
@@ -71,12 +90,11 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
     mentions.forEach(uid => {
       storage.addNotification({ userId: uid, type: 'dm', fromId: currentUserId, text: `@${currentUsername}: ${text.slice(0, 50)}` });
     });
-    const newMsg = storage.addGroupMessage({
-      channelId: selectedChannelId, groupId,
-      userId: currentUserId, username: currentUsername,
-      content: text, mentions,
-    });
+    const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const newMsg = { id: msgId, channelId: selectedChannelId, groupId, userId: currentUserId, username: currentUsername, content: text, mentions, attachments: [], timestamp: Date.now() };
     setMessages(prev => [...prev, newMsg]);
+    // Save to Supabase
+    supabase.from('group_messages').insert({ id: msgId, channel_id: selectedChannelId, group_id: groupId, user_id: currentUserId, username: currentUsername, content: text, mentions, attachments: [], timestamp: newMsg.timestamp }).then(({ error }) => { if (error) console.error('Message save error:', error); });
     setMessageInput('');
     setShowMentions(false);
     inputRef.current?.focus();
@@ -98,11 +116,16 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
     reader.readAsDataURL(file);
   };
 
-  const handleCreateChannel = () => {
+  const handleCreateChannel = async () => {
     if (!newChannelName.trim()) return;
-    const ch = storage.addGroupChannel({ groupId, name: newChannelName.trim().toLowerCase().replace(/\s+/g, '-'), description: '', createdBy: currentUserId });
-    setChannels(prev => [...prev, ch]);
-    setSelectedChannelId(ch.id);
+    const channelId = `ch_${Date.now()}`;
+    const chName = newChannelName.trim().toLowerCase().replace(/\s+/g, '-');
+    const { data } = await supabase.from('group_channels').insert({ id: channelId, group_id: groupId, name: chName, description: '', created_by: currentUserId, is_default: false }).select().maybeSingle();
+    if (data) {
+      const ch = { id: data.id, groupId: data.group_id, name: data.name, description: '', createdBy: data.created_by, isDefault: false };
+      setChannels(prev => [...prev, ch]);
+      setSelectedChannelId(ch.id);
+    }
     setNewChannelName('');
     setShowCreateChannelModal(false);
     setShowSidebar(false);
