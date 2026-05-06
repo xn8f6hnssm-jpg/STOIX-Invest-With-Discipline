@@ -37,9 +37,9 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
       if (data && data.length > 0) {
         setChannels(data.map((c: any) => ({ id: c.id, name: c.name, description: c.description || '', isDefault: c.is_default })));
       } else {
-        // Create default general channel
-        const channelId = `ch_${Date.now()}`;
-        await supabase.from('group_channels').insert({ id: channelId, group_id: groupId, name: 'general', description: 'General discussion', created_by: currentUserId, is_default: true });
+        // Use deterministic ID so all devices create the same channel
+        const channelId = `general_${groupId}`;
+        await supabase.from('group_channels').upsert({ id: channelId, group_id: groupId, name: 'general', description: 'General discussion', created_by: currentUserId, is_default: true }, { onConflict: 'id' });
         setChannels([{ id: channelId, name: 'general', description: 'General discussion', isDefault: true }]);
       }
     };
@@ -100,7 +100,20 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
     setMessageInput('');
     setShowMentions(false);
 
-    supabase.from('group_messages').insert({ id: msgId, channel_id: selectedChannel.id, group_id: groupId, user_id: currentUserId, username: currentUsername, content: text, mentions, attachments: [], timestamp: newMsg.timestamp });
+    supabase.from('group_messages').insert({
+      id: msgId,
+      channel_id: selectedChannel.id,
+      group_id: groupId,
+      user_id: currentUserId,
+      username: currentUsername,
+      content: text,
+      mentions: mentions,
+      attachments: [],
+      timestamp: newMsg.timestamp,
+    }).then(({ error }) => {
+      if (error) console.error('Message insert error:', JSON.stringify(error));
+      else pendingMsgIds.current.delete(msgId);
+    });
     inputRef.current?.focus();
   };
 
@@ -308,7 +321,8 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
               if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); }
             }}
             placeholder={`Message #${selectedChannel.name}`}
-            className="flex-1 px-4 py-2 text-sm bg-muted rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-primary"
+            style={{ fontSize: '16px' }}
+            className="flex-1 px-4 py-2 bg-muted rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <Button size="icon" className="h-9 w-9 flex-shrink-0 rounded-full" onClick={handleSendMessage} disabled={!messageInput.trim()}>
             <Send className="w-4 h-4" />
