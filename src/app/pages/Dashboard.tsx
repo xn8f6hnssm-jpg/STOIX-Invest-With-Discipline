@@ -72,33 +72,30 @@ export function Dashboard() {
   const [followingList, setFollowingList] = useState<any[]>([]);
   const profilePicInputRef = useRef<HTMLInputElement>(null);
   const uploadingPic = useRef(false);
+  const [profilePic, setProfilePic] = useState<string>('');
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    // Create object URL for instant preview - no base64 needed
+    // Show instant preview using object URL
     const objectUrl = URL.createObjectURL(file);
-    uploadingPic.current = true;
-    setUser(prev => prev ? { ...prev, profilePicture: objectUrl } : prev);
+    setProfilePic(objectUrl);
 
-    // Read as base64 for upload
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
       try {
         const url = await storage.uploadImage(base64, user.id, user.id, 'profile', 'profile');
         if (url) {
+          setProfilePic(url);
           await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
           const u = storage.getCurrentUser();
           if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
-          setUser(prev => prev ? { ...prev, profilePicture: url } : prev);
         }
       } catch (err) {
         console.error('Profile picture upload error:', err);
-      } finally {
-        uploadingPic.current = false;
-        URL.revokeObjectURL(objectUrl);
+        setProfilePic(objectUrl); // keep preview on error
       }
     };
     reader.readAsDataURL(file);
@@ -160,6 +157,15 @@ export function Dashboard() {
       setIsLoading(false);
     };
     init();
+    // Load profile picture from Supabase independently
+    const loadPic = async () => {
+      const u = storage.getCurrentUser();
+      if (!u) return;
+      const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
+      if (data?.profile_picture) setProfilePic(data.profile_picture);
+      else if (u.profilePicture) setProfilePic(u.profilePicture);
+    };
+    loadPic();
   }, []);
 
   useEffect(() => {
@@ -386,8 +392,8 @@ export function Dashboard() {
             <div className="flex flex-col items-center gap-2">
               <div className="relative">
                 <Avatar className="w-24 h-24">
-                  {user.profilePicture ? (
-                    <AvatarImage src={user.profilePicture} alt="Profile Picture" />
+                  {profilePic ? (
+                    <AvatarImage src={profilePic} alt="Profile Picture" />
                   ) : (
                     <AvatarFallback className="text-2xl">{user.name.charAt(0).toUpperCase()}</AvatarFallback>
                   )}
