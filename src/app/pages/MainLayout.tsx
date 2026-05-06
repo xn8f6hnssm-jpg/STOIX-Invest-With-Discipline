@@ -175,7 +175,7 @@ export function MainLayout() {
     const loadNotifCount = async () => {
       const user = storage.getCurrentUser();
       if (!user) return;
-      const { supabase: sb } = await import('./utils/supabase');
+      const { supabase: sb } = await import('../utils/supabase');
       const { count } = await sb.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('read', false);
       setNotifCount(count || 0);
     };

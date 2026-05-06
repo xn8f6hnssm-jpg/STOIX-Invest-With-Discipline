@@ -1311,7 +1311,7 @@ export const storage = {
     all.push(notif);
     safeSetItem(KEYS.NOTIFICATIONS, JSON.stringify(all.slice(-100)));
     // Sync to Supabase
-    import('../utils/supabase').then(({ supabase }) => {
+    import('./supabase').then(({ supabase }) => {
       supabase.from('notifications').insert({
         id: notif.id,
         user_id: data.userId,
