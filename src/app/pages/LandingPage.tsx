@@ -120,7 +120,7 @@ export function LandingPage() {
             Earn points for every clean day and journal entry. Your total points determine your league — Bronze, Silver, Gold, Diamond, or Platinum. Each league has ranks I, II, and III.
           </p>
           <div style={{ border: '1px solid #1a1a1a', overflow: 'hidden' }}>
-            [
+            {[
               { league: 'Platinum', ranks: 'I · II · III', desc: '6,000 — 7,000+ pts', color: '#e2e8f0' },
               { league: 'Diamond', ranks: 'I · II · III', desc: '4,500 — 5,999 pts', color: '#67e8f9' },
               { league: 'Gold', ranks: 'I · II · III', desc: '3,000 — 4,499 pts', color: '#C9A84C' },
