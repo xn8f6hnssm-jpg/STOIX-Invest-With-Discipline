@@ -170,6 +170,7 @@ export function MainLayout() {
 
   const [syncing, setSyncing] = useState(true);
   const [notifCount, setNotifCount] = useState(0);
+  const [dmCount, setDmCount] = useState(0);
 
   useEffect(() => {
     const loadNotifCount = async () => {
@@ -186,12 +187,29 @@ export function MainLayout() {
         setNotifCount(Array.isArray(data) ? data.length : 0);
       } catch {}
     };
+    const loadDmCount = async () => {
+      const user = storage.getCurrentUser();
+      if (!user) return;
+      try {
+        const res = await fetch(`https://pwgsrikdthttjbnboiua.supabase.co/rest/v1/direct_messages?to_id=eq.${user.id}&read=eq.false&select=id`, {
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3NyaWtkdGh0dGpibmJvaXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDAzNjksImV4cCI6MjA4OTg3NjM2OX0.Ch2tHyquSUsWaS7-J8CxgmmiBaAmVXCncLfbpy1HyyY',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3NyaWtkdGh0dGpibmJvaXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDAzNjksImV4cCI6MjA4OTg3NjM2OX0.Ch2tHyquSUsWaS7-J8CxgmmiBaAmVXCncLfbpy1HyyY',
+          },
+        });
+        const data = await res.json();
+        setDmCount(Array.isArray(data) ? data.length : 0);
+      } catch {}
+    };
+
     loadNotifCount();
-    const interval = setInterval(loadNotifCount, 10000);
+    loadDmCount();
+    const interval = setInterval(() => { loadNotifCount(); loadDmCount(); }, 10000);
     return () => clearInterval(interval);
   }, []);
 
   const notifBadge = notifCount > 9 ? '9+' : notifCount > 0 ? String(notifCount) : null;
+  const dmBadge = dmCount > 9 ? '9+' : dmCount > 0 ? String(dmCount) : null;
 
   useEffect(() => {
     const syncUser = async () => {
@@ -335,6 +353,7 @@ export function MainLayout() {
                     </Button>
                     <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/messages'); setMenuOpen(false); }}>
                       Direct Messages
+                      {dmBadge && <span className="ml-auto bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded-full">{dmBadge}</span>}
                     </Button>
                     <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/notifications'); setMenuOpen(false); }}>
                       Notifications
