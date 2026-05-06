@@ -50,6 +50,7 @@ export function DirectMessages() {
   useEffect(() => { if (paramUserId && paramUserId !== activePartnerId) setActivePartnerId(paramUserId); }, [paramUserId]);
   useEffect(() => {
     if (!activePartnerId || !currentUser) return;
+    const loadPartner = async () => {
     // Load partner from Supabase
     const { data: partnerData } = await supabase
       .from('users')
@@ -69,6 +70,8 @@ export function DirectMessages() {
     }
     storage.markDMsAsRead(currentUser.id, activePartnerId);
     loadConversations();
+    };
+    loadPartner();
   }, [activePartnerId]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
