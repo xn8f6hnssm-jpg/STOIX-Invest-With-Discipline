@@ -365,21 +365,11 @@ export const storage = {
   },
 
   setCurrentUser: (user: User) => {
-    // Never store base64 profile pictures in localStorage — only URLs
-    const cleanUser = {
-      ...user,
-      profilePicture: user.profilePicture?.startsWith('data:image') ? '' : (user.profilePicture || ''),
-    };
-    safeSetItem(KEYS.CURRENT_USER, JSON.stringify(cleanUser));
+    safeSetItem(KEYS.CURRENT_USER, JSON.stringify(user));
     const allUsers = storage.getAllUsers();
-    const idx = allUsers.findIndex(u => u.id === cleanUser.id);
-    if (idx !== -1) allUsers[idx] = cleanUser; else allUsers.push(cleanUser);
-    // Strip base64 from all users before saving
-    const cleanAllUsers = allUsers.map((u: User) => ({
-      ...u,
-      profilePicture: u.profilePicture?.startsWith('data:image') ? '' : (u.profilePicture || ''),
-    }));
-    safeSetItem(KEYS.ALL_USERS, JSON.stringify(cleanAllUsers));
+    const idx = allUsers.findIndex(u => u.id === user.id);
+    if (idx !== -1) allUsers[idx] = user; else allUsers.push(user);
+    safeSetItem(KEYS.ALL_USERS, JSON.stringify(allUsers));
   },
 
   getAllUsers: (): User[] => {
