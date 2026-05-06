@@ -173,7 +173,11 @@ export function Social() {
       setLikedPosts(prev => new Set([...prev, postId]));
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: (p.likes || 0) + 1 } : p));
       try {
-        await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUser.id }).onConflict('post_id,user_id').ignore();
+        // Check if like already exists before inserting
+        const { data: existingLike } = await supabase.from('post_likes').select('id').eq('post_id', postId).eq('user_id', currentUser.id).maybeSingle();
+        if (!existingLike) {
+          await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUser.id });
+        }
         await supabase.from('posts').update({ likes: (posts.find(p => p.id === postId)?.likes || 0) + 1 }).eq('id', postId);
       } catch (err) { console.error('Like error:', err); }
       const post = posts.find(p => p.id === postId);
@@ -186,34 +190,31 @@ export function Social() {
 
   const handleComment = async (postId: string) => {
     if (!currentUser || !commentInputs[postId]?.trim()) return;
-    const commentText = commentInputs[postId];
+    const commentText = commentInputs[postId].trim();
     const newComment = {
-      id: Date.now().toString(),
+      id: `${Date.now()}_${currentUser.id}`,
       userId: currentUser.id,
       username: currentUser.username,
       text: commentText,
       timestamp: Date.now(),
     };
 
-    // Update local state immediately — don't reload from localStorage
+    // Update local state immediately
     setPosts(prev => prev.map(p =>
       p.id === postId ? { ...p, comments: [...(p.comments || []), newComment] } : p
     ));
     setCommentInputs(prev => ({ ...prev, [postId]: '' }));
 
-    // Sync to Supabase
-    try {
-      await supabase.from('comments').insert({
-        id: newComment.id,
-        post_id: postId,
-        user_id: currentUser.id,
-        username: currentUser.username,
-        text: commentText,
-        timestamp: newComment.timestamp,
-      });
-    } catch (err) {
-      console.error('Comment sync error:', err);
-    }
+    // Save to Supabase
+    const { error } = await supabase.from('comments').insert({
+      id: newComment.id,
+      post_id: postId,
+      user_id: currentUser.id,
+      username: currentUser.username,
+      text: commentText,
+      timestamp: newComment.timestamp,
+    });
+    if (error) console.error('Comment save error:', error);
 
     // Notify post owner
     const post = posts.find(p => p.id === postId);
