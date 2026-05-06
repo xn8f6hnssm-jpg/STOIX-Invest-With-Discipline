@@ -175,12 +175,19 @@ export function MainLayout() {
     const loadNotifCount = async () => {
       const user = storage.getCurrentUser();
       if (!user) return;
-      const { supabase: sb } = await import('../utils/supabase');
-      const { count } = await sb.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('read', false);
-      setNotifCount(count || 0);
+      try {
+        const res = await fetch(`https://pwgsrikdthttjbnboiua.supabase.co/rest/v1/notifications?user_id=eq.${user.id}&read=eq.false&select=id`, {
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3NyaWtkdGh0dGpibmJvaXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDAzNjksImV4cCI6MjA4OTg3NjM2OX0.Ch2tHyquSUsWaS7-J8CxgmmiBaAmVXCncLfbpy1HyyY',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3NyaWtkdGh0dGpibmJvaXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDAzNjksImV4cCI6MjA4OTg3NjM2OX0.Ch2tHyquSUsWaS7-J8CxgmmiBaAmVXCncLfbpy1HyyY',
+          },
+        });
+        const data = await res.json();
+        setNotifCount(Array.isArray(data) ? data.length : 0);
+      } catch {}
     };
     loadNotifCount();
-    const interval = setInterval(loadNotifCount, 15000);
+    const interval = setInterval(loadNotifCount, 10000);
     return () => clearInterval(interval);
   }, []);
 

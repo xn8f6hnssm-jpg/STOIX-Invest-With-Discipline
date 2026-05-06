@@ -1310,9 +1310,16 @@ export const storage = {
     const all = str ? JSON.parse(str) : [];
     all.push(notif);
     safeSetItem(KEYS.NOTIFICATIONS, JSON.stringify(all.slice(-100)));
-    // Sync to Supabase
-    import('./supabase').then(({ supabase }) => {
-      supabase.from('notifications').insert({
+    // Sync to Supabase via fetch (avoids dynamic import issues)
+    fetch('https://pwgsrikdthttjbnboiua.supabase.co/rest/v1/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3NyaWtkdGh0dGpibmJvaXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDAzNjksImV4cCI6MjA4OTg3NjM2OX0.Ch2tHyquSUsWaS7-J8CxgmmiBaAmVXCncLfbpy1HyyY',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3NyaWtkdGh0dGpibmJvaXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDAzNjksImV4cCI6MjA4OTg3NjM2OX0.Ch2tHyquSUsWaS7-J8CxgmmiBaAmVXCncLfbpy1HyyY',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
         id: notif.id,
         user_id: data.userId,
         type: data.type,
@@ -1320,8 +1327,8 @@ export const storage = {
         text: data.text || null,
         read: false,
         timestamp: notif.timestamp,
-      }).then(({ error }) => { if (error) console.error('Notification sync error:', error); });
-    });
+      }),
+    }).catch(err => console.error('Notification sync error:', err));
     return notif;
   },
 
