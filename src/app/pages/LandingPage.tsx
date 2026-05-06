@@ -51,7 +51,7 @@ export function LandingPage() {
           .features-grid { grid-template-columns: 1fr !important; }
           .pricing-grid { grid-template-columns: 1fr !important; max-width: 100% !important; }
           .nav-links { display: none !important; }
-          .hero-section { padding: 90px 20px 50px !important; }
+          .hero-section { padding: 64px 20px 32px !important; }
           .section-pad { padding: 60px 20px !important; }
           .stats-row { grid-template-columns: 1fr 1fr !important; }
           .hero-btns { flex-direction: column !important; }
@@ -84,7 +84,7 @@ export function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="hero-section" style={{ minHeight: 'auto', display: 'flex', alignItems: 'center', padding: 'clamp(70px, 12vw, 120px) clamp(20px, 5vw, 40px) clamp(40px, 8vw, 80px)', position: 'relative', overflow: 'hidden' }}>
+      <section className="hero-section" style={{ minHeight: 'auto', display: 'flex', alignItems: 'center', padding: '70px 20px 40px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: 0.05 }}>
           {[...Array(7)].map((_, i) => (
             <div key={i} style={{ position: 'absolute', top: '-50%', left: `${i * 16 - 5}%`, width: '2px', height: '200%', background: 'linear-gradient(to bottom, transparent, #C9A84C, transparent)', transform: 'rotate(-35deg)' }} />
@@ -131,7 +131,7 @@ export function LandingPage() {
               { icon: '🏆', title: 'Prop Firm Success', desc: 'Customise the dashboard to your prop firm\'s rules. Track daily loss limits, drawdown, and consistency rules to pass your challenge.' },
               { icon: '👥', title: 'Social & Community', desc: 'Follow other traders, share your journey, see what setups others are taking, and compete on the global leaderboard.' },
               { icon: '💬', title: 'Groups & DMs', desc: 'Create or join trading groups. Message traders directly. Build your own paid community and earn from your knowledge.' },
-              { icon: '⭐', title: 'League System', desc: 'Earn points for discipline, not just profits. Climb from Bronze III to Platinum I based on your consistency and daily check-in rate.' },
+              { icon: '⭐', title: 'League System', desc: 'Earn points for every clean day and journal entry. Climb from Bronze I to Platinum III as your points grow.' },
             ].map(f => (
               <div key={f.title} className="card-feature">
                 <div style={{ fontSize: 28, marginBottom: 16 }}>{f.icon}</div>
@@ -151,9 +151,9 @@ export function LandingPage() {
             <h2 className="big-heading" style={{ fontSize: 'clamp(30px, 7vw, 54px)', marginBottom: 24 }}>DISCIPLINE<br />IS THE <span className="gold">REAL EDGE.</span></h2>
             <div className="divider" />
             <p style={{ fontSize: 15, color: '#666', lineHeight: 1.8, marginBottom: 32 }}>
-              Most trading apps reward P&L. STOIX rewards discipline. Earn points for every clean day, every journal entry, every time you follow your rules. Lose points when you don't. Your league rank reflects who you actually are as a trader.
+              Most trading apps reward P&L. STOIX rewards discipline. Earn points for every clean day and journal entry. Your total points determine your league rank — the more consistent you are, the higher you climb.
             </p>
-            {['Discipline % determines your league rank — not P&L', 'Bronze → Silver → Gold → Diamond → Platinum', 'Global leaderboard ranked by discipline rate', 'Streak tracking and demotion risk alerts'].map(item => (
+            {['Earn points for clean days and journal entries', 'Bronze → Silver → Gold → Diamond → Platinum (I-III each)', 'Global leaderboard ranked by total points', 'Streak tracking and demotion risk alerts'].map(item => (
               <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, fontSize: 14, color: '#777' }}>
                 <span style={{ color: '#C9A84C', fontWeight: 700, flexShrink: 0 }}>→</span> {item}
               </div>

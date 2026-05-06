@@ -285,7 +285,7 @@ export function MainLayout() {
                   <Menu className="w-5 h-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent>
+              <SheetContent style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)' }}>
                 <SheetHeader>
                   <SheetTitle>Menu</SheetTitle>
                   <SheetDescription>Manage your account and settings</SheetDescription>
