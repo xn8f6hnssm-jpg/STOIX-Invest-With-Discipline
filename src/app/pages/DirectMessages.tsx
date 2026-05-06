@@ -24,11 +24,19 @@ export function DirectMessages() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isPremium = storage.isPremium();
 
+  const activePartnerIdRef = useRef<string | null>(null);
+  
+  useEffect(() => {
+    activePartnerIdRef.current = activePartnerId;
+  }, [activePartnerId]);
+
   useEffect(() => {
     if (currentUser) {
       loadConversations();
-      // Poll every 5 seconds for new messages
-      const interval = setInterval(loadConversations, 5000);
+      // Poll every 4 seconds for new messages
+      const interval = setInterval(() => {
+        loadConversations();
+      }, 4000);
       return () => clearInterval(interval);
     }
   }, []);
@@ -106,8 +114,9 @@ export function DirectMessages() {
         setConversations(convList);
 
         // Update active conversation messages if open
-        if (activePartnerId && convMap[activePartnerId]) {
-          setMessages(convMap[activePartnerId].sort((a, b) => a.timestamp - b.timestamp));
+        const currentPartnerId = activePartnerIdRef.current;
+        if (currentPartnerId && convMap[currentPartnerId]) {
+          setMessages(convMap[currentPartnerId].sort((a: any, b: any) => a.timestamp - b.timestamp));
         }
       }
     } catch (err) {
@@ -158,12 +167,14 @@ export function DirectMessages() {
       read: false,
     }).then(({ error }) => { if (error) console.error('DM sync error:', error); });
     setNewMessage(''); setImagePreview(null);
-    // Add to local messages state immediately
-    setMessages(prev => [...prev, {
+    // Add to local messages state immediately — don't reload yet
+    const sentMsg = {
       id: msgId, fromId: currentUser.id, toId: activePartnerId,
       text: newMessage.trim(), imageUrl: uploadedUrl, timestamp: msg.timestamp, read: false
-    }]);
-    loadConversations();
+    };
+    setMessages(prev => [...prev, sentMsg]);
+    // Reload conversations after Supabase confirms (1 second delay)
+    setTimeout(() => loadConversations(), 1000);
   };
 
   const handleDeleteMessage = (msgId: string) => {
