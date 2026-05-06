@@ -74,31 +74,35 @@ export function Dashboard() {
   const uploadingPic = useRef(false);
   const [profilePic, setProfilePic] = useState<string>('');
 
-  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
+    console.log('File selected:', file.name, file.size);
 
-    // Show instant preview using object URL
+    // Show instant preview
     const objectUrl = URL.createObjectURL(file);
     setProfilePic(objectUrl);
+    console.log('Preview set');
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      try {
-        const url = await storage.uploadImage(base64, user.id, user.id, 'profile', 'profile');
-        if (url) {
-          setProfilePic(url);
-          await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
-          const u = storage.getCurrentUser();
-          if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
-        }
-      } catch (err) {
-        console.error('Profile picture upload error:', err);
-        setProfilePic(objectUrl); // keep preview on error
-      }
-    };
-    reader.readAsDataURL(file);
+    // Convert to base64
+    const base64: string = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => resolve(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    });
+    console.log('Base64 ready, length:', base64.length);
+
+    // Upload to Supabase Storage
+    const url = await storage.uploadImage(base64, user.id, user.id, 'profile', 'profile');
+    console.log('Uploaded URL:', url);
+
+    if (url) {
+      setProfilePic(url);
+      await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
+      const u = storage.getCurrentUser();
+      if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
+      console.log('Profile pic saved');
+    }
   };
 
   const refreshData = async () => {
