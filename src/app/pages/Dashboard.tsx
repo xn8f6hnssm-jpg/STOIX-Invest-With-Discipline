@@ -75,10 +75,22 @@ export function Dashboard() {
     const file = e.target.files?.[0];
     if (file && user) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const imageUrl = reader.result as string;
+        // Show preview immediately
+        setUser(prev => prev ? { ...prev, profilePicture: imageUrl } : prev);
+        // Upload to Supabase storage
         storage.updateUserProfilePicture(user.id, imageUrl);
-        setUser(storage.getCurrentUser());
+        // Poll for the uploaded URL (upload is async)
+        let attempts = 0;
+        const poll = setInterval(() => {
+          const updated = storage.getCurrentUser();
+          if (updated?.profilePicture && !updated.profilePicture.startsWith('data:image')) {
+            setUser(updated);
+            clearInterval(poll);
+          }
+          if (++attempts > 20) clearInterval(poll);
+        }, 500);
       };
       reader.readAsDataURL(file);
     }
