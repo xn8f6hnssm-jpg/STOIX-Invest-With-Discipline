@@ -74,27 +74,38 @@ export function Dashboard() {
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && user) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const imageUrl = reader.result as string;
-        // Show preview immediately
-        setUser(prev => prev ? { ...prev, profilePicture: imageUrl } : prev);
-        // Upload to Supabase storage
-        storage.updateUserProfilePicture(user.id, imageUrl);
-        // Poll for the uploaded URL (upload is async)
-        let attempts = 0;
-        const poll = setInterval(() => {
-          const updated = storage.getCurrentUser();
-          if (updated?.profilePicture && !updated.profilePicture.startsWith('data:image')) {
-            setUser(updated);
-            clearInterval(poll);
-          }
-          if (++attempts > 20) clearInterval(poll);
-        }, 500);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file || !user) return;
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+
+      // 1. Update localStorage immediately so refreshData() picks up the new pic
+      const currentUser = storage.getCurrentUser();
+      if (currentUser) {
+        currentUser.profilePicture = base64;
+        storage.setCurrentUser(currentUser);
+      }
+
+      // 2. Show in UI immediately
+      setUser(prev => prev ? { ...prev, profilePicture: base64 } : prev);
+
+      // 3. Upload to Supabase Storage in background
+      try {
+        const url = await storage.uploadImage(base64, user.id, user.id, 'profile', 'profile');
+        if (url && !url.startsWith('data:image')) {
+          // Update localStorage with real URL
+          const u = storage.getCurrentUser();
+          if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
+          // Update UI with real URL
+          setUser(prev => prev ? { ...prev, profilePicture: url } : prev);
+          // Sync to Supabase users table
+          await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
+        }
+      } catch (err) {
+        console.error('Profile picture upload error:', err);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const refreshData = async () => {
