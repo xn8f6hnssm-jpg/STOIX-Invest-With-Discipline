@@ -289,7 +289,7 @@ export function MainLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+    <div className="min-h-screen bg-background overflow-x-hidden overscroll-none">
       <div className="w-full max-w-2xl mx-auto flex flex-col min-h-screen overflow-x-hidden">
         {/* Top bar */}
         <div className="border-b bg-card sticky top-0 z-10" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
@@ -355,12 +355,13 @@ export function MainLayout() {
         </div>
 
         {/* Main content — full width on mobile, padded on desktop */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-20 w-full">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-20 w-full overscroll-none">
           <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
             <style>{`
               @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
               * { -webkit-tap-highlight-color: transparent; }
               button, a { touch-action: manipulation; }
+              html, body { overflow-x: hidden; max-width: 100vw; overscroll-behavior-x: none; }
             `}</style>
             <Outlet />
           </div>

@@ -46,12 +46,24 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
     loadChannels();
   }, [groupId]);
 
+  const pendingMsgIds = useRef<Set<string>>(new Set());
+
   // Load messages when channel selected
   useEffect(() => {
     if (!selectedChannel) return;
     const loadMessages = async () => {
       const { data } = await supabase.from('group_messages').select('*').eq('channel_id', selectedChannel.id).order('timestamp', { ascending: true }).limit(100);
-      if (data) setMessages(data.map((m: any) => ({ id: m.id, userId: m.user_id, username: m.username, content: m.content, mentions: m.mentions || [], attachments: m.attachments || [], timestamp: m.timestamp })));
+      if (data) {
+        const fetched = data.map((m: any) => ({ id: m.id, userId: m.user_id, username: m.username, content: m.content, mentions: m.mentions || [], attachments: m.attachments || [], timestamp: m.timestamp }));
+        setMessages(prev => {
+          // Keep any pending messages that haven't been confirmed yet
+          const fetchedIds = new Set(fetched.map((m: any) => m.id));
+          const pending = prev.filter(m => pendingMsgIds.current.has(m.id) && !fetchedIds.has(m.id));
+          // Remove confirmed messages from pending set
+          fetched.forEach((m: any) => pendingMsgIds.current.delete(m.id));
+          return [...fetched, ...pending];
+        });
+      }
     };
     loadMessages();
     const interval = setInterval(loadMessages, 4000);
@@ -83,6 +95,7 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
 
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const newMsg = { id: msgId, userId: currentUserId, username: currentUsername, content: text, mentions, attachments: [], timestamp: Date.now() };
+    pendingMsgIds.current.add(msgId);
     setMessages(prev => [...prev, newMsg]);
     setMessageInput('');
     setShowMentions(false);
