@@ -128,31 +128,46 @@ export function GroupChat({ groupId, currentUserId, currentUsername, isAdmin, gr
   return (
     <div className="flex h-full relative overflow-hidden" style={{ height: 'calc(100dvh - 130px)' }}>
 
-      {/* Sidebar — always visible, narrow on mobile */}
-      <div className="w-36 sm:w-48 bg-muted/40 border-r flex flex-col flex-shrink-0 h-full">
-        <div className="flex items-center justify-between px-2 py-2 border-b">
-          <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Channels</span>
-          {isAdmin && (
-            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setShowCreateChannelModal(true)}>
-              <Plus className="w-3.5 h-3.5" />
-            </Button>
-          )}
-        </div>
-        <div className="flex-1 overflow-y-auto py-1">
-          {channels.map(ch => (
-            <button key={ch.id} onClick={() => setSelectedChannelId(ch.id)}
-              className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-xs transition-colors text-left rounded mx-1 ${selectedChannelId === ch.id ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-muted text-muted-foreground hover:text-foreground'}`}>
-              <Hash className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{ch.name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Channel sidebar — slides in from left as overlay */}
+      {showSidebar && (
+        <>
+          {/* Backdrop */}
+          <div className="absolute inset-0 z-20 bg-black/40" onClick={() => setShowSidebar(false)} />
+          {/* Sidebar panel */}
+          <div className="absolute left-0 top-0 bottom-0 z-30 w-56 bg-card border-r flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-3 py-3 border-b">
+              <span className="font-bold text-sm">Channels</span>
+              <div className="flex items-center gap-1">
+                {isAdmin && (
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowCreateChannelModal(true)}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                )}
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setShowSidebar(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+              {channels.map(ch => (
+                <button key={ch.id} onClick={() => { setSelectedChannelId(ch.id); setShowSidebar(false); }}
+                  className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${selectedChannelId === ch.id ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-muted text-muted-foreground hover:text-foreground'}`}>
+                  <Hash className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{ch.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Channel header */}
+      {/* Main chat area — full width */}
+      <div className="flex-1 flex flex-col min-w-0 w-full">
+        {/* Channel header with arrow to open sidebar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b bg-card flex-shrink-0">
+          <Button size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0" onClick={() => setShowSidebar(true)}>
+            <ChevronRight className="w-5 h-5" />
+          </Button>
           <Hash className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           <span className="font-semibold text-sm truncate">{selectedChannel?.name || 'general'}</span>
         </div>
