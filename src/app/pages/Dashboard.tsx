@@ -97,11 +97,14 @@ export function Dashboard() {
     console.log('Uploaded URL:', url);
 
     if (url) {
-      setProfilePic(url);
+      // Update Supabase first
       await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
+      // Update localStorage
       const u = storage.getCurrentUser();
       if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
-      console.log('Profile pic saved');
+      // Set profilePic LAST so it overrides anything refreshData might do
+      setProfilePic(url);
+      console.log('Profile pic saved:', url);
     }
   };
 
@@ -110,12 +113,6 @@ export function Dashboard() {
     if (currentUser) {
       // Only update user state if not currently uploading a profile pic
       if (!uploadingPic.current) {
-        // Load latest profile picture from Supabase users table
-        const { data: supaUser } = await supabase.from('users').select('profile_picture').eq('id', currentUser.id).maybeSingle();
-        if (supaUser?.profile_picture) {
-          currentUser.profilePicture = supaUser.profile_picture;
-          storage.setCurrentUser(currentUser);
-        }
         setUser({ ...currentUser });
       }
       const cleanDays = currentUser.cleanDays ?? 0;
@@ -166,8 +163,16 @@ export function Dashboard() {
       const u = storage.getCurrentUser();
       if (!u) return;
       const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
-      if (data?.profile_picture) setProfilePic(data.profile_picture);
-      else if (u.profilePicture) setProfilePic(u.profilePicture);
+      if (data?.profile_picture) {
+        setProfilePic(data.profile_picture);
+        // Also save to localStorage so it persists
+        if (u.profilePicture !== data.profile_picture) {
+          u.profilePicture = data.profile_picture;
+          storage.setCurrentUser(u);
+        }
+      } else if (u.profilePicture) {
+        setProfilePic(u.profilePicture);
+      }
     };
     loadPic();
   }, []);
