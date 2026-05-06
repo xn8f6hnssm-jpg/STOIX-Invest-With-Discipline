@@ -71,6 +71,7 @@ export function Dashboard() {
   const [followerList, setFollowerList] = useState<any[]>([]);
   const [followingList, setFollowingList] = useState<any[]>([]);
   const profilePicInputRef = useRef<HTMLInputElement>(null);
+  const uploadingPic = useRef(false);
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -79,25 +80,26 @@ export function Dashboard() {
     reader.onloadend = async () => {
       const base64 = reader.result as string;
 
-      // Show base64 preview in UI only (don't save to localStorage yet — it strips base64)
+      // Show base64 preview in UI only
+      uploadingPic.current = true;
       setUser(prev => prev ? { ...prev, profilePicture: base64 } : prev);
 
       // Upload to Supabase Storage first
       try {
         const url = await storage.uploadImage(base64, user.id, user.id, 'profile', 'profile');
         if (url) {
-          // Now save the real URL to localStorage and UI
+          // Save real URL to localStorage
           const u = storage.getCurrentUser();
-          if (u) {
-            u.profilePicture = url;
-            storage.setCurrentUser(u);
-          }
+          if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
+          // Update UI with real URL
           setUser(prev => prev ? { ...prev, profilePicture: url } : prev);
           // Sync to Supabase users table
           await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
         }
       } catch (err) {
         console.error('Profile picture upload error:', err);
+      } finally {
+        uploadingPic.current = false;
       }
     };
     reader.readAsDataURL(file);
@@ -106,7 +108,8 @@ export function Dashboard() {
   const refreshData = async () => {
     const currentUser = storage.getCurrentUser();
     if (currentUser) {
-      setUser(currentUser);
+      // Don't overwrite user state while uploading profile picture
+      if (!uploadingPic.current) setUser(currentUser);
       const cleanDays = currentUser.cleanDays ?? 0;
       const forfeitDays = currentUser.forfeitDays ?? 0;
       const totalDays = cleanDays + forfeitDays;
