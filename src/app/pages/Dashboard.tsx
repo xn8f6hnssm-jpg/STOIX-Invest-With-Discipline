@@ -76,30 +76,29 @@ export function Dashboard() {
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
+
+    // Create object URL for instant preview - no base64 needed
+    const objectUrl = URL.createObjectURL(file);
+    uploadingPic.current = true;
+    setUser(prev => prev ? { ...prev, profilePicture: objectUrl } : prev);
+
+    // Read as base64 for upload
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-
-      // Show base64 preview in UI only
-      uploadingPic.current = true;
-      setUser(prev => prev ? { ...prev, profilePicture: base64 } : prev);
-
-      // Upload to Supabase Storage first
       try {
         const url = await storage.uploadImage(base64, user.id, user.id, 'profile', 'profile');
         if (url) {
-          // Save real URL to localStorage
+          await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
           const u = storage.getCurrentUser();
           if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
-          // Update UI with real URL
           setUser(prev => prev ? { ...prev, profilePicture: url } : prev);
-          // Sync to Supabase users table
-          await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
         }
       } catch (err) {
         console.error('Profile picture upload error:', err);
       } finally {
         uploadingPic.current = false;
+        URL.revokeObjectURL(objectUrl);
       }
     };
     reader.readAsDataURL(file);
@@ -108,8 +107,16 @@ export function Dashboard() {
   const refreshData = async () => {
     const currentUser = storage.getCurrentUser();
     if (currentUser) {
-      // Don't overwrite user state while uploading profile picture
-      if (!uploadingPic.current) setUser(currentUser);
+      // Only update user state if not currently uploading a profile pic
+      if (!uploadingPic.current) {
+        // Load latest profile picture from Supabase users table
+        const { data: supaUser } = await supabase.from('users').select('profile_picture').eq('id', currentUser.id).maybeSingle();
+        if (supaUser?.profile_picture) {
+          currentUser.profilePicture = supaUser.profile_picture;
+          storage.setCurrentUser(currentUser);
+        }
+        setUser({ ...currentUser });
+      }
       const cleanDays = currentUser.cleanDays ?? 0;
       const forfeitDays = currentUser.forfeitDays ?? 0;
       const totalDays = cleanDays + forfeitDays;
@@ -147,12 +154,12 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const init = async () => {
       checkAndResetStreak();
-      refreshData();
+      await refreshData();
       setIsLoading(false);
-    }, 100);
-    return () => clearTimeout(timer);
+    };
+    init();
   }, []);
 
   useEffect(() => {
