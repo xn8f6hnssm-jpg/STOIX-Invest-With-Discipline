@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { WelcomeDialog } from '../components/WelcomeDialog';
 import { DisciplineShareCard } from '../components/DisciplineShareCard';
 import { Button } from '../components/ui/button';
@@ -70,6 +70,7 @@ export function Dashboard() {
   const [followingCount, setFollowingCount] = useState(0);
   const [followerList, setFollowerList] = useState<any[]>([]);
   const [followingList, setFollowingList] = useState<any[]>([]);
+  const profilePicInputRef = useRef<HTMLInputElement>(null);
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -375,10 +376,10 @@ export function Dashboard() {
                     <AvatarFallback className="text-2xl">{user.name.charAt(0).toUpperCase()}</AvatarFallback>
                   )}
                 </Avatar>
-                <label htmlFor="profile-pic-upload" className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors shadow-lg border-2 border-background">
+                <button onClick={() => profilePicInputRef.current?.click()} className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors shadow-lg border-2 border-background">
                   <Plus className="w-4 h-4" />
-                  <input id="profile-pic-upload" type="file" accept="image/*" onChange={handleProfilePictureChange} className="hidden" />
-                </label>
+                </button>
+                <input ref={profilePicInputRef} type="file" accept="image/*" onChange={handleProfilePictureChange} className="hidden" />
               </div>
               <div className={`relative px-4 py-3 rounded-xl bg-gradient-to-br ${TIER_GRADIENTS[league.tier]?.bg || 'from-slate-400 to-slate-600'} text-white shadow-lg flex flex-col items-center gap-1`}>
                 <LeagueBadgeIcon tier={league.tier} size={36} />
