@@ -1260,9 +1260,10 @@ export function Journal() {
                         {field.type === 'number' && (
                           <Input
                             type="number"
+                            step="any"
                             onWheel={(e) => e.currentTarget.blur()}
                             value={newEntry.customFields[field.name] || ''}
-                            onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: parseFloat(e.target.value) || 0 } })}
+                            onChange={(e) => setNewEntry({ ...newEntry, customFields: { ...newEntry.customFields, [field.name]: e.target.value } })}
                             placeholder={`Enter ${field.name}`}
                           />
                         )}

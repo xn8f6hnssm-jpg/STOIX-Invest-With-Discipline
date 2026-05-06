@@ -276,7 +276,7 @@ export function MainLayout() {
     <div className="min-h-screen bg-background overflow-x-hidden">
       <div className="w-full max-w-2xl mx-auto flex flex-col min-h-screen overflow-x-hidden">
         {/* Top bar */}
-        <div className="border-b bg-card sticky top-0 z-10">
+        <div className="border-b bg-card sticky top-0 z-10" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="px-4 py-3 flex items-center justify-between">
             <Logo size="sm" />
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>

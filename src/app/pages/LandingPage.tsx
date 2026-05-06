@@ -84,7 +84,7 @@ export function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="hero-section" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', padding: 'clamp(80px, 15vw, 120px) clamp(20px, 5vw, 40px) clamp(40px, 8vw, 80px)', position: 'relative', overflow: 'hidden' }}>
+      <section className="hero-section" style={{ minHeight: 'auto', display: 'flex', alignItems: 'center', padding: 'clamp(70px, 12vw, 120px) clamp(20px, 5vw, 40px) clamp(40px, 8vw, 80px)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: 0.05 }}>
           {[...Array(7)].map((_, i) => (
             <div key={i} style={{ position: 'absolute', top: '-50%', left: `${i * 16 - 5}%`, width: '2px', height: '200%', background: 'linear-gradient(to bottom, transparent, #C9A84C, transparent)', transform: 'rotate(-35deg)' }} />
@@ -153,7 +153,7 @@ export function LandingPage() {
             <p style={{ fontSize: 15, color: '#666', lineHeight: 1.8, marginBottom: 32 }}>
               Most trading apps reward P&L. STOIX rewards discipline. Earn points for every clean day, every journal entry, every time you follow your rules. Lose points when you don't. Your league rank reflects who you actually are as a trader.
             </p>
-            {['Points for every clean day and journal entry', 'Bronze → Silver → Gold → Diamond → Platinum', 'Global leaderboard ranked by discipline rate', 'Streak tracking and demotion risk alerts'].map(item => (
+            {['Discipline % determines your league rank — not P&L', 'Bronze → Silver → Gold → Diamond → Platinum', 'Global leaderboard ranked by discipline rate', 'Streak tracking and demotion risk alerts'].map(item => (
               <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, fontSize: 14, color: '#777' }}>
                 <span style={{ color: '#C9A84C', fontWeight: 700, flexShrink: 0 }}>→</span> {item}
               </div>
