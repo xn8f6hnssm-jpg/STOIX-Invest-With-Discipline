@@ -79,24 +79,19 @@ export function Dashboard() {
     reader.onloadend = async () => {
       const base64 = reader.result as string;
 
-      // 1. Update localStorage immediately so refreshData() picks up the new pic
-      const currentUser = storage.getCurrentUser();
-      if (currentUser) {
-        currentUser.profilePicture = base64;
-        storage.setCurrentUser(currentUser);
-      }
-
-      // 2. Show in UI immediately
+      // Show base64 preview in UI only (don't save to localStorage yet — it strips base64)
       setUser(prev => prev ? { ...prev, profilePicture: base64 } : prev);
 
-      // 3. Upload to Supabase Storage in background
+      // Upload to Supabase Storage first
       try {
         const url = await storage.uploadImage(base64, user.id, user.id, 'profile', 'profile');
-        if (url && !url.startsWith('data:image')) {
-          // Update localStorage with real URL
+        if (url) {
+          // Now save the real URL to localStorage and UI
           const u = storage.getCurrentUser();
-          if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
-          // Update UI with real URL
+          if (u) {
+            u.profilePicture = url;
+            storage.setCurrentUser(u);
+          }
           setUser(prev => prev ? { ...prev, profilePicture: url } : prev);
           // Sync to Supabase users table
           await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
