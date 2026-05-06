@@ -194,8 +194,9 @@ export function Social() {
   const handleComment = async (postId: string) => {
     if (!currentUser || !commentInputs[postId]?.trim()) return;
     const commentText = commentInputs[postId].trim();
+    const commentId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const newComment = {
-      id: `${Date.now()}_${currentUser.id}`,
+      id: commentId,
       userId: currentUser.id,
       username: currentUser.username,
       text: commentText,
@@ -209,15 +210,20 @@ export function Social() {
     setCommentInputs(prev => ({ ...prev, [postId]: '' }));
 
     // Save to Supabase
-    const { error } = await supabase.from('comments').insert({
-      id: newComment.id,
+    const { data, error } = await supabase.from('comments').insert({
+      id: commentId,
       post_id: postId,
       user_id: currentUser.id,
       username: currentUser.username,
       text: commentText,
       timestamp: newComment.timestamp,
-    });
-    if (error) console.error('Comment save error:', error);
+    }).select();
+    
+    if (error) {
+      console.error('Comment save error:', JSON.stringify(error));
+    } else {
+      console.log('Comment saved:', data);
+    }
 
     // Notify post owner
     const post = posts.find(p => p.id === postId);
