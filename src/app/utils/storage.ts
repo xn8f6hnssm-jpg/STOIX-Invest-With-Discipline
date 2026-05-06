@@ -1305,11 +1305,23 @@ export const storage = {
   },
 
   addNotification: (data: { userId: string; type: string; fromId?: string; text?: string; relatedId?: string }) => {
-    const notif = { id: `notif_${Date.now()}`, ...data, timestamp: Date.now(), read: false };
+    const notif = { id: `notif_${Date.now()}_${Math.random().toString(36).slice(2)}`, ...data, timestamp: Date.now(), read: false };
     const str = localStorage.getItem(KEYS.NOTIFICATIONS);
     const all = str ? JSON.parse(str) : [];
     all.push(notif);
     safeSetItem(KEYS.NOTIFICATIONS, JSON.stringify(all.slice(-100)));
+    // Sync to Supabase
+    import('../utils/supabase').then(({ supabase }) => {
+      supabase.from('notifications').insert({
+        id: notif.id,
+        user_id: data.userId,
+        type: data.type,
+        from_id: data.fromId || null,
+        text: data.text || null,
+        read: false,
+        timestamp: notif.timestamp,
+      }).then(({ error }) => { if (error) console.error('Notification sync error:', error); });
+    });
     return notif;
   },
 

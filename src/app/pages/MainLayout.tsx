@@ -169,6 +169,22 @@ export function MainLayout() {
   const [isPremium] = useState(false);
 
   const [syncing, setSyncing] = useState(true);
+  const [notifCount, setNotifCount] = useState(0);
+
+  useEffect(() => {
+    const loadNotifCount = async () => {
+      const user = storage.getCurrentUser();
+      if (!user) return;
+      const { supabase: sb } = await import('./utils/supabase');
+      const { count } = await sb.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('read', false);
+      setNotifCount(count || 0);
+    };
+    loadNotifCount();
+    const interval = setInterval(loadNotifCount, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const notifBadge = notifCount > 9 ? '9+' : notifCount > 0 ? String(notifCount) : null;
 
   useEffect(() => {
     const syncUser = async () => {
@@ -315,6 +331,7 @@ export function MainLayout() {
                     </Button>
                     <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/notifications'); setMenuOpen(false); }}>
                       Notifications
+                      {notifBadge && <span className="ml-auto bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded-full">{notifBadge}</span>}
                     </Button>
                     <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/settings'); setMenuOpen(false); }}>
                       Settings
