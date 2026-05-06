@@ -59,35 +59,47 @@ export function DisciplineShareCard() {
 
   const { from, todayStr } = getDateBounds(range);
 
-  // Trades & Wins
-  const allEntries = storage.getJournalEntries()
-    .filter((e: any) => e.userId === currentUser.id && !e.isNoTradeDay);
-  const periodEntries = allEntries.filter((e: any) => inRange(e.date, from));
-  const trades = periodEntries.length;
-  const wins   = periodEntries.filter((e: any) => e.result === 'win' || e.result === 'breakeven').length;
-
-  // Discipline Rate
+  // Get ALL day logs for this user - this is the source of truth for discipline
   const allDayLogs = (storage.getDayLogs ? storage.getDayLogs() : [])
     .filter((l: any) => l.userId === currentUser.id);
 
+  // Discipline Rate — always computed from day_logs (daily check-in source of truth)
   let disciplineRate: number;
-
-  if (range === 'overall') {
-    const clean = currentUser.cleanDays ?? 0;
-    const total = clean + (currentUser.forfeitDays ?? 0);
-    disciplineRate = total > 0 ? Math.round(clean / total * 100) : 0;
-  } else if (range === 'today') {
+  if (range === 'today') {
     const todayLog = allDayLogs.find((l: any) => l.date === todayStr);
     disciplineRate = todayLog ? (todayLog.isClean === true ? 100 : 0) : 0;
   } else {
-    const periodLogs = allDayLogs.filter((l: any) => inRange(l.date, from));
+    const periodLogs = range === 'overall'
+      ? allDayLogs
+      : allDayLogs.filter((l: any) => inRange(l.date, from));
     if (periodLogs.length === 0) {
-      disciplineRate = 0;
+      // Fall back to stored cleanDays/forfeitDays for overall if no logs
+      if (range === 'overall') {
+        const clean = currentUser.cleanDays ?? 0;
+        const total = clean + (currentUser.forfeitDays ?? 0);
+        disciplineRate = total > 0 ? Math.round(clean / total * 100) : 0;
+      } else {
+        disciplineRate = 0;
+      }
     } else {
       const cleanCount = periodLogs.filter((l: any) => l.isClean === true).length;
       disciplineRate = Math.round(cleanCount / periodLogs.length * 100);
     }
   }
+
+  // Trades & Wins — from journal entries (not no-trade days, not open positions)
+  const allEntries = storage.getJournalEntries()
+    .filter((e: any) => 
+      e.userId === currentUser.id && 
+      !e.isNoTradeDay && 
+      e.result && // must have a result (closed trade)
+      e.result !== 'open'
+    );
+  const periodEntries = range === 'overall'
+    ? allEntries
+    : allEntries.filter((e: any) => inRange(e.date, from));
+  const trades = periodEntries.length;
+  const wins = periodEntries.filter((e: any) => e.result === 'win').length;
 
   const streak  = currentUser.currentStreak || 0;
   const league  = getLeague(currentUser.totalPoints || 0);
