@@ -36,8 +36,6 @@ export function DirectMessages() {
   // Reload messages when active conversation changes
   useEffect(() => {
     if (activePartnerId && currentUser) {
-      const msgs = storage.getDMConversation(currentUser.id, activePartnerId);
-      setMessages(msgs);
       loadConversations();
     }
   }, [activePartnerId]);
@@ -46,8 +44,6 @@ export function DirectMessages() {
     if (!activePartnerId || !currentUser) return;
     const allUsers = storage.getAllUsers();
     setActivePartner(allUsers.find(u => u.id === activePartnerId) || null);
-    const msgs = storage.getDMConversation(currentUser.id, activePartnerId);
-    setMessages(msgs);
     storage.markDMsAsRead(currentUser.id, activePartnerId);
     loadConversations();
   }, [activePartnerId]);
@@ -55,45 +51,67 @@ export function DirectMessages() {
 
   const loadConversations = async () => {
     if (!currentUser) return;
-    // Pull new messages from Supabase into localStorage
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('direct_messages')
         .select('*')
         .or(`from_id.eq.${currentUser.id},to_id.eq.${currentUser.id}`)
         .order('timestamp', { ascending: true });
 
-      if (data && data.length > 0) {
-        // Group by conversation and merge into localStorage
-        data.forEach((msg: any) => {
-          const partnerId = msg.from_id === currentUser.id ? msg.to_id : msg.from_id;
-          const key = `dm_${[currentUser.id, partnerId].sort().join('_')}`;
-          try {
-            const existing = JSON.parse(localStorage.getItem(key) || '[]');
-            const existingIds = new Set(existing.map((m: any) => m.id));
-            if (!existingIds.has(msg.id)) {
-              existing.push({
-                id: msg.id,
-                fromId: msg.from_id,
-                toId: msg.to_id,
-                text: msg.text || '',
-                imageUrl: msg.image_url || undefined,
-                timestamp: msg.timestamp,
-                read: msg.read || false,
-              });
-              existing.sort((a: any, b: any) => a.timestamp - b.timestamp);
-              localStorage.setItem(key, JSON.stringify(existing));
-            }
-          } catch {}
+      if (data && !error) {
+        // Map to local format
+        const mapped = data.map((msg: any) => ({
+          id: msg.id,
+          fromId: msg.from_id,
+          toId: msg.to_id,
+          text: msg.text || '',
+          imageUrl: msg.image_url || undefined,
+          timestamp: msg.timestamp,
+          read: msg.read || false,
+        }));
+
+        // Group into conversations
+        const convMap: Record<string, any[]> = {};
+        mapped.forEach((msg: any) => {
+          const partnerId = msg.fromId === currentUser.id ? msg.toId : msg.fromId;
+          if (!convMap[partnerId]) convMap[partnerId] = [];
+          convMap[partnerId].push(msg);
         });
+
+        // Build conversation list
+        const allUsers = storage.getAllUsers();
+        const { data: supabaseUsers } = await supabase
+          .from('users')
+          .select('id, username, name, profile_picture')
+          .in('id', Object.keys(convMap));
+
+        const convList = Object.entries(convMap).map(([partnerId, msgs]) => {
+          const sortedMsgs = msgs.sort((a, b) => a.timestamp - b.timestamp);
+          const partner = supabaseUsers?.find((u: any) => u.id === partnerId) || 
+                         allUsers.find(u => u.id === partnerId);
+          return {
+            partnerId,
+            partner: partner ? {
+              id: partner.id,
+              username: partner.username,
+              name: partner.name,
+              profilePicture: (partner as any).profile_picture || (partner as any).profilePicture || '',
+            } : null,
+            lastMessage: sortedMsgs[sortedMsgs.length - 1],
+            unreadCount: sortedMsgs.filter(m => !m.read && m.toId === currentUser.id).length,
+            messages: sortedMsgs,
+          };
+        }).sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
+
+        setConversations(convList);
+
+        // Update active conversation messages if open
+        if (activePartnerId && convMap[activePartnerId]) {
+          setMessages(convMap[activePartnerId].sort((a, b) => a.timestamp - b.timestamp));
+        }
       }
     } catch (err) {
       console.error('DM sync error:', err);
-    }
-    setConversations(storage.getDMConversations(currentUser.id));
-    // Refresh active conversation if open
-    if (activePartnerId) {
-      setMessages(storage.getDMConversation(currentUser.id, activePartnerId));
     }
   };
 
@@ -140,7 +158,11 @@ export function DirectMessages() {
       read: false,
     }).then(({ error }) => { if (error) console.error('DM sync error:', error); });
     setNewMessage(''); setImagePreview(null);
-    setMessages(storage.getDMConversation(currentUser.id, activePartnerId));
+    // Add to local messages state immediately
+    setMessages(prev => [...prev, {
+      id: msgId, fromId: currentUser.id, toId: activePartnerId,
+      text: newMessage.trim(), imageUrl: uploadedUrl, timestamp: msg.timestamp, read: false
+    }]);
     loadConversations();
   };
 
