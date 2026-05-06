@@ -285,8 +285,8 @@ export function MainLayout() {
                   <Menu className="w-5 h-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)' }}>
-                <SheetHeader>
+              <SheetContent className="overflow-y-auto" style={{ paddingTop: '24px' }}>
+                <SheetHeader className="mb-2">
                   <SheetTitle>Menu</SheetTitle>
                   <SheetDescription>Manage your account and settings</SheetDescription>
                 </SheetHeader>

@@ -6,137 +6,102 @@ export function LandingPage() {
   const [scrollY, setScrollY] = useState(0);
 
   useEffect(() => {
-    // Skip landing page if user chose "remember me"
     const skipLanding = localStorage.getItem('stoix_skip_landing');
-    if (skipLanding === 'true') {
-      navigate('/app');
-      return;
-    }
+    if (skipLanding === 'true') { navigate('/app'); return; }
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   return (
-    <div style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif", background: '#080808', color: '#fff', minHeight: '100vh', overflowX: 'hidden' }}>
+    <div style={{ fontFamily: 'system-ui, sans-serif', background: '#080808', color: '#fff', overflowX: 'hidden' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         .gold { color: #C9A84C; }
-        .btn-primary {
-          background: #C9A84C; color: #000; border: none;
-          padding: 14px 36px; font-size: 15px; font-weight: 700;
-          letter-spacing: 0.08em; text-transform: uppercase;
-          cursor: pointer; transition: all 0.2s;
-        }
-        .btn-primary:hover { background: #e0bf6a; transform: translateY(-1px); }
-        .btn-outline {
-          background: transparent; color: #C9A84C;
-          border: 1px solid #C9A84C; padding: 13px 32px;
-          font-size: 15px; font-weight: 600; letter-spacing: 0.06em;
-          cursor: pointer; transition: all 0.2s;
-        }
-        .btn-outline:hover { background: #C9A84C20; }
-        .fade-up { opacity: 0; transform: translateY(30px); animation: fadeUp 0.7s forwards; }
-        @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
-        .card-feature { border: 1px solid #1f1f1f; background: #0e0e0e; padding: 32px; transition: border-color 0.3s, transform 0.2s; }
-        .card-feature:hover { border-color: #C9A84C40; transform: translateY(-2px); }
-        .big-heading { font-family: 'Bebas Neue', sans-serif; line-height: 0.95; letter-spacing: 0.02em; }
-        .divider { width: 40px; height: 2px; background: #C9A84C; margin: 24px 0; }
-        .pill { display: inline-flex; align-items: center; gap: 8px; background: #C9A84C15; border: 1px solid #C9A84C30; color: #C9A84C; padding: 6px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
-        .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: #C9A84C; margin-bottom: 16px; }
-        @media (max-width: 768px) {
-          .big-heading { font-size: 48px !important; }
-          .two-col { grid-template-columns: 1fr !important; gap: 40px !important; }
-          .features-grid { grid-template-columns: 1fr !important; }
-          .pricing-grid { grid-template-columns: 1fr !important; max-width: 100% !important; }
-          .nav-links { display: none !important; }
-          .hero-section { padding: 64px 20px 32px !important; }
-          .section-pad { padding: 60px 20px !important; }
-          .stats-row { grid-template-columns: 1fr 1fr !important; }
-          .hero-btns { flex-direction: column !important; }
-          .hero-btns button { width: 100% !important; }
-          .hero-checks { flex-direction: column !important; gap: 12px !important; }
-          .nav-mobile-btns { gap: 8px !important; }
-          .nav-mobile-btns button { padding: 8px 14px !important; font-size: 12px !important; }
-        }
+        .heading { font-family: 'Bebas Neue', sans-serif; line-height: 1; letter-spacing: 0.02em; }
+        .btn-gold { background: #C9A84C; color: #000; border: none; padding: 14px 28px; font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; width: 100%; }
+        .btn-outline { background: transparent; color: #C9A84C; border: 1px solid #C9A84C; padding: 13px 28px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; }
+        .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: #C9A84C; margin-bottom: 12px; }
+        .feature-card { border: 1px solid #1a1a1a; background: #0e0e0e; padding: 24px; }
+        .divider { width: 32px; height: 2px; background: #C9A84C; margin: 16px 0; }
       `}</style>
 
       {/* Nav */}
-      <nav className="nav-mobile" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, borderBottom: scrollY > 50 ? '1px solid #1a1a1a' : 'none', background: scrollY > 50 ? 'rgba(8,8,8,0.95)' : 'transparent', backdropFilter: scrollY > 50 ? 'blur(12px)' : 'none', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, background: '#0a0a0a', position: 'relative', overflow: 'hidden', border: '1px solid #222' }}>
+      <nav style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+        background: scrollY > 40 ? 'rgba(8,8,8,0.97)' : 'transparent',
+        borderBottom: scrollY > 40 ? '1px solid #1a1a1a' : 'none',
+        padding: '12px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        transition: 'all 0.3s',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 28, height: 28, background: '#0a0a0a', border: '1px solid #222', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', inset: 0, background: '#C9A84C', clipPath: 'polygon(30% 0%, 70% 0%, 55% 100%, 15% 100%)' }} />
           </div>
-          <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: '0.1em' }}>STOIX</span>
+          <span style={{ fontFamily: 'Bebas Neue', fontSize: 20, letterSpacing: '0.1em' }}>STOIX</span>
         </div>
-        <div className="nav-links" style={{ display: 'flex', gap: 36, fontSize: 13, color: '#888', fontWeight: 500 }}>
-          {['Features', 'Pricing', 'Community'].map(item => (
-            <span key={item} style={{ cursor: 'pointer', transition: 'color 0.2s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#888')}>{item}</span>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn-outline" style={{ padding: '8px 14px', fontSize: 12 }} onClick={() => navigate('/login')}>Log In</button>
-          <button className="btn-primary" style={{ padding: '8px 14px', fontSize: 12 }} onClick={() => navigate('/login?signup=true')}>Get Started</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => navigate('/login')} style={{ background: 'transparent', color: '#C9A84C', border: '1px solid #C9A84C', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Log In</button>
+          <button onClick={() => navigate('/login?signup=true')} style={{ background: '#C9A84C', color: '#000', border: 'none', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Sign Up</button>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="hero-section" style={{ minHeight: 'auto', display: 'flex', alignItems: 'center', padding: '70px 20px 40px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: 0.05 }}>
-          {[...Array(7)].map((_, i) => (
-            <div key={i} style={{ position: 'absolute', top: '-50%', left: `${i * 16 - 5}%`, width: '2px', height: '200%', background: 'linear-gradient(to bottom, transparent, #C9A84C, transparent)', transform: 'rotate(-35deg)' }} />
-          ))}
-        </div>
-        <div style={{ maxWidth: 1100, margin: '0 auto', width: '100%' }}>
-          <div className="fade-up">
-            <div className="pill"><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', display: 'inline-block' }} />The Ultimate Traders Dashboard</div>
+      {/* Hero - compact on mobile */}
+      <section style={{ padding: '64px 20px 40px' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#C9A84C15', border: '1px solid #C9A84C30', color: '#C9A84C', padding: '5px 14px', fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 20 }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#C9A84C', display: 'inline-block' }} />
+            The Ultimate Traders Dashboard
           </div>
-          <h1 className="big-heading fade-up" style={{ fontSize: 'clamp(36px, 10vw, 88px)', maxWidth: 900, animationDelay: '0.1s' }}>
-            EVERYTHING A<br />TRADER NEEDS<br /><span className="gold">IN ONE PLACE.</span>
+          <h1 className="heading" style={{ fontSize: 'clamp(40px, 12vw, 80px)', marginBottom: 16 }}>
+            EVERYTHING A TRADER NEEDS<br />
+            <span className="gold">IN ONE PLACE.</span>
           </h1>
-          <p className="fade-up" style={{ fontSize: 'clamp(14px, 4vw, 17px)', color: '#777', maxWidth: 560, lineHeight: 1.8, margin: '24px 0 32px', animationDelay: '0.2s', fontWeight: 300 }}>
-            Journal your trades, track your discipline, stop revenge trading, connect with other traders, and let AI turn your history into a refined edge — all in one dashboard built for serious traders.
+          <p style={{ fontSize: 15, color: '#777', lineHeight: 1.7, marginBottom: 28, maxWidth: 480 }}>
+            Journal your trades, track your discipline, stop revenge trading, connect with other traders, and let AI turn your history into a refined edge.
           </p>
-          <div className="fade-up hero-btns" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', animationDelay: '0.3s', width: '100%' }}>
-            <button className="btn-primary" style={{ fontSize: 15, flex: 1, minWidth: 160 }} onClick={() => navigate('/login?signup=true')}>Start For Free</button>
-            <button className="btn-outline" style={{ flex: 1, minWidth: 160 }} onClick={() => navigate('/login')}>Log In</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 320 }}>
+            <button className="btn-gold" onClick={() => navigate('/login?signup=true')}>Start For Free</button>
+            <button className="btn-outline" onClick={() => navigate('/login')}>Log In</button>
           </div>
-          <div className="hero-checks fade-up" style={{ marginTop: 40, display: 'flex', gap: 24, flexWrap: 'wrap', animationDelay: '0.4s' }}>
-            {['Free to start', 'Premium from $12.99/mo', 'Cancel anytime'].map(text => (
-              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#555' }}>
-                <span style={{ color: '#C9A84C' }}>✓</span> {text}
-              </div>
+          <div style={{ marginTop: 24, display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+            {['Free to start', 'Premium from $12.99/mo', 'Cancel anytime'].map(t => (
+              <span key={t} style={{ fontSize: 12, color: '#555', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: '#C9A84C' }}>✓</span>{t}
+              </span>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="section-pad" style={{ padding: '120px 40px', borderTop: '1px solid #141414' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div className="section-label">Everything You Need</div>
-          <h2 className="big-heading" style={{ fontSize: 'clamp(32px, 8vw, 60px)', marginBottom: 16 }}>BUILT FOR TRADERS,<br /><span className="gold">BY TRADERS</span></h2>
-          <p style={{ color: '#555', fontSize: 15, marginBottom: 64, maxWidth: 500 }}>Every feature was designed to make you a more disciplined, more consistent, and more profitable trader.</p>
-
-          <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
+      {/* Features */}
+      <section style={{ padding: '60px 20px', borderTop: '1px solid #141414' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+          <div className="section-label">Features</div>
+          <h2 className="heading" style={{ fontSize: 'clamp(28px, 8vw, 50px)', marginBottom: 32 }}>
+            BUILT FOR TRADERS,<br /><span className="gold">BY TRADERS</span>
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {[
-              { icon: '📓', title: 'AI Trading Journal', desc: 'Log every trade with custom fields, screenshots, and strategy tags. The AI analyses your patterns and turns your history into a refined edge.' },
-              { icon: '✅', title: 'Daily Check-In', desc: 'Build the discipline habit. Log clean and forfeit days, track streaks, earn points, and climb the league system from Bronze to Platinum.' },
-              { icon: '🛡️', title: 'RevengeX', desc: 'Automatically detects revenge trading patterns from your journal. Get alerts before you blow your account chasing losses.' },
-              { icon: '🤖', title: 'AI Analytics', desc: 'Deep analysis of your live trades, backtesting, and A+ setups. Finds your highest-probability confluences and tells you exactly what to focus on.' },
-              { icon: '🧠', title: 'Mental Preparation', desc: 'A fully customisable pre-session mental prep routine. Set your mindset, review your rules, and get ready to trade before the market opens.' },
-              { icon: '🏆', title: 'Prop Firm Success', desc: 'Customise the dashboard to your prop firm\'s rules. Track daily loss limits, drawdown, and consistency rules to pass your challenge.' },
-              { icon: '👥', title: 'Social & Community', desc: 'Follow other traders, share your journey, see what setups others are taking, and compete on the global leaderboard.' },
-              { icon: '💬', title: 'Groups & DMs', desc: 'Create or join trading groups. Message traders directly. Build your own paid community and earn from your knowledge.' },
-              { icon: '⭐', title: 'League System', desc: 'Earn points for every clean day and journal entry. Climb from Bronze I to Platinum III as your points grow.' },
+              { icon: '📓', title: 'AI Trading Journal', desc: 'Log every trade with custom fields and screenshots. AI finds your patterns and builds your edge.' },
+              { icon: '✅', title: 'Daily Check-In', desc: 'Build discipline daily. Log clean/forfeit days, earn points, and climb the league.' },
+              { icon: '🛡️', title: 'RevengeX', desc: 'Detects revenge trading patterns. Stops you before you blow your account.' },
+              { icon: '🤖', title: 'AI Analytics', desc: 'Deep analysis of your trades, backtesting, and A+ setups to find your edge.' },
+              { icon: '🧠', title: 'Mental Preparation', desc: 'Customisable pre-session routine to get your mindset right before the market.' },
+              { icon: '🏆', title: 'Prop Firm Success', desc: 'Customise to your prop firm rules. Track daily loss, drawdown, and consistency.' },
+              { icon: '👥', title: 'Social & Community', desc: 'Follow traders, share setups, and compete on the global leaderboard.' },
+              { icon: '💬', title: 'Groups & DMs', desc: 'Create paid or free trading groups. Message traders directly.' },
             ].map(f => (
-              <div key={f.title} className="card-feature">
-                <div style={{ fontSize: 28, marginBottom: 16 }}>{f.icon}</div>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, letterSpacing: '0.02em' }}>{f.title}</h3>
-                <p style={{ fontSize: 13, color: '#555', lineHeight: 1.75 }}>{f.desc}</p>
+              <div key={f.title} className="feature-card">
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 24, flexShrink: 0 }}>{f.icon}</span>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{f.title}</p>
+                    <p style={{ fontSize: 13, color: '#555', lineHeight: 1.6 }}>{f.desc}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -144,39 +109,31 @@ export function LandingPage() {
       </section>
 
       {/* League System */}
-      <section className="section-pad" style={{ padding: '120px 40px', background: '#0a0a0a', borderTop: '1px solid #141414' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }} className="two-col">
-          <div>
-            <div className="section-label">League System</div>
-            <h2 className="big-heading" style={{ fontSize: 'clamp(30px, 7vw, 54px)', marginBottom: 24 }}>DISCIPLINE<br />IS THE <span className="gold">REAL EDGE.</span></h2>
-            <div className="divider" />
-            <p style={{ fontSize: 15, color: '#666', lineHeight: 1.8, marginBottom: 32 }}>
-              Most trading apps reward P&L. STOIX rewards discipline. Earn points for every clean day and journal entry. Your total points determine your league rank — the more consistent you are, the higher you climb.
-            </p>
-            {['Earn points for clean days and journal entries', 'Bronze → Silver → Gold → Diamond → Platinum (I-III each)', 'Global leaderboard ranked by total points', 'Streak tracking and demotion risk alerts'].map(item => (
-              <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, fontSize: 14, color: '#777' }}>
-                <span style={{ color: '#C9A84C', fontWeight: 700, flexShrink: 0 }}>→</span> {item}
-              </div>
-            ))}
-            <button className="btn-primary" style={{ marginTop: 36 }} onClick={() => navigate('/login?signup=true')}>Start Climbing</button>
-          </div>
-          <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', padding: 40 }}>
-            {[
-              { league: 'Platinum', sub: 'I — V', rate: '90%+', color: '#e2e8f0' },
-              { league: 'Diamond', sub: 'I — V', rate: '75%+', color: '#67e8f9' },
-              { league: 'Gold', sub: 'I — V', rate: '60%+', color: '#C9A84C' },
-              { league: 'Silver', sub: 'I — V', rate: '40%+', color: '#94a3b8' },
-              { league: 'Bronze', sub: 'I — V', rate: 'Starting', color: '#b45309' },
+      <section style={{ padding: '60px 20px', background: '#0a0a0a', borderTop: '1px solid #141414' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+          <div className="section-label">League System</div>
+          <h2 className="heading" style={{ fontSize: 'clamp(28px, 8vw, 50px)', marginBottom: 8 }}>
+            EARN POINTS.<br /><span className="gold">CLIMB THE RANKS.</span>
+          </h2>
+          <div className="divider" />
+          <p style={{ fontSize: 14, color: '#666', lineHeight: 1.8, marginBottom: 24 }}>
+            Earn points for every clean day and journal entry. Your total points determine your league — Bronze, Silver, Gold, Diamond, or Platinum. Each league has ranks I, II, and III.
+          </p>
+          <div style={{ border: '1px solid #1a1a1a', overflow: 'hidden' }}>
+            [
+              { league: 'Platinum', ranks: 'I · II · III', desc: '6,000 — 7,000+ pts', color: '#e2e8f0' },
+              { league: 'Diamond', ranks: 'I · II · III', desc: '4,500 — 5,999 pts', color: '#67e8f9' },
+              { league: 'Gold', ranks: 'I · II · III', desc: '3,000 — 4,499 pts', color: '#C9A84C' },
+              { league: 'Silver', ranks: 'I · II · III', desc: '1,500 — 2,999 pts', color: '#94a3b8' },
+              { league: 'Bronze', ranks: 'I · II · III', desc: '0 — 1,499 pts', color: '#b45309' },
             ].map((l, i) => (
-              <div key={l.league} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 0', borderBottom: i < 4 ? '1px solid #141414' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, flexShrink: 0 }} />
-                  <div>
-                    <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: '0.05em', color: l.color }}>{l.league}</span>
-                    <span style={{ fontSize: 12, color: '#333', marginLeft: 8 }}>{l.sub}</span>
-                  </div>
+              <div key={l.league} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: i < 4 ? '1px solid #141414' : 'none', background: '#0e0e0e' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: l.color }} />
+                  <span style={{ fontFamily: 'Bebas Neue', fontSize: 18, color: l.color, letterSpacing: '0.05em' }}>{l.league}</span>
+                  <span style={{ fontSize: 11, color: '#333' }}>{l.ranks}</span>
                 </div>
-                <span style={{ fontSize: 13, color: '#444' }}>{l.rate} discipline</span>
+                <span style={{ fontSize: 12, color: '#444' }}>{l.desc}</span>
               </div>
             ))}
           </div>
@@ -184,70 +141,63 @@ export function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section className="section-pad" style={{ padding: '120px 40px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <section style={{ padding: '60px 20px', borderTop: '1px solid #141414' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
           <div className="section-label">Pricing</div>
-          <h2 className="big-heading" style={{ fontSize: 'clamp(32px, 8vw, 60px)', marginBottom: 16 }}>SIMPLE, <span className="gold">FAIR PRICING</span></h2>
-          <p style={{ color: '#555', fontSize: 15, marginBottom: 64 }}>Start free. Upgrade when you're ready to unlock everything.</p>
+          <h2 className="heading" style={{ fontSize: 'clamp(28px, 8vw, 50px)', marginBottom: 8 }}>SIMPLE, <span className="gold">FAIR PRICING</span></h2>
+          <p style={{ color: '#555', fontSize: 14, marginBottom: 24 }}>Start free. Upgrade when ready.</p>
 
-          <div className="pricing-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, maxWidth: 760 }}>
-            <div style={{ background: '#0e0e0e', border: '1px solid #1f1f1f', padding: 48 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', color: '#555', textTransform: 'uppercase', marginBottom: 20 }}>Free</div>
-              <div style={{ fontFamily: 'Bebas Neue', fontSize: 56, marginBottom: 4 }}>$0</div>
-              <div style={{ color: '#444', fontSize: 13, marginBottom: 40 }}>Forever free</div>
-              {['Daily check-ins & streaks', 'Basic trading journal', '3 custom journal fields', 'Community & leaderboard', 'A+ Trade tracker (2 fields)', 'Social feed'].map(f => (
-                <div key={f} style={{ display: 'flex', gap: 12, marginBottom: 13, fontSize: 13, color: '#666' }}>
-                  <span style={{ color: '#C9A84C', flexShrink: 0 }}>✓</span>{f}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Free */}
+            <div style={{ background: '#0e0e0e', border: '1px solid #1f1f1f', padding: 28 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', color: '#555', textTransform: 'uppercase', marginBottom: 12 }}>Free</p>
+              <p style={{ fontFamily: 'Bebas Neue', fontSize: 48, marginBottom: 4 }}>$0</p>
+              <p style={{ color: '#444', fontSize: 13, marginBottom: 20 }}>Forever free</p>
+              {['Daily check-ins & streaks', 'Basic trading journal', '3 custom fields', 'Community & leaderboard', 'Social feed'].map(f => (
+                <div key={f} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13, color: '#666' }}>
+                  <span style={{ color: '#C9A84C' }}>✓</span>{f}
                 </div>
               ))}
-              <button className="btn-outline" style={{ width: '100%', marginTop: 40 }} onClick={() => navigate('/login?signup=true')}>Get Started Free</button>
+              <button className="btn-outline" style={{ marginTop: 20 }} onClick={() => navigate('/login?signup=true')}>Get Started Free</button>
             </div>
 
-            <div style={{ background: '#0d0b06', border: '1px solid #C9A84C40', padding: 48, position: 'relative' }}>
-              <div style={{ position: 'absolute', top: 20, right: 20, background: '#C9A84C', color: '#000', fontSize: 10, fontWeight: 800, padding: '4px 10px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Most Popular</div>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', color: '#C9A84C', textTransform: 'uppercase', marginBottom: 20 }}>Premium</div>
-              <div style={{ fontFamily: 'Bebas Neue', fontSize: 56, color: '#C9A84C', marginBottom: 4 }}>$12.99</div>
-              <div style={{ color: '#666', fontSize: 13, marginBottom: 40 }}>per month · or $119.99/yr (save 23%)</div>
-              {['Everything in Free', 'Unlimited custom journal fields', 'AI Strategy Builder & Analytics', 'Backtesting journal', 'Mental preparation suite', 'Prop firm success tracker', 'Groups & paid communities', 'Unlimited A+ trade fields', 'Priority support'].map(f => (
-                <div key={f} style={{ display: 'flex', gap: 12, marginBottom: 13, fontSize: 13, color: '#888' }}>
-                  <span style={{ color: '#C9A84C', flexShrink: 0 }}>✓</span>{f}
+            {/* Premium */}
+            <div style={{ background: '#0d0b06', border: '1px solid #C9A84C50', padding: 28, position: 'relative' }}>
+              <div style={{ position: 'absolute', top: 16, right: 16, background: '#C9A84C', color: '#000', fontSize: 9, fontWeight: 800, padding: '3px 8px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Most Popular</div>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', color: '#C9A84C', textTransform: 'uppercase', marginBottom: 12 }}>Premium</p>
+              <p style={{ fontFamily: 'Bebas Neue', fontSize: 48, color: '#C9A84C', marginBottom: 4 }}>$12.99</p>
+              <p style={{ color: '#666', fontSize: 13, marginBottom: 20 }}>per month · or $119.99/yr</p>
+              {['Everything in Free', 'Unlimited custom fields', 'AI Strategy Builder', 'Backtesting journal', 'Mental prep suite', 'Prop firm tracker', 'Groups & paid communities'].map(f => (
+                <div key={f} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13, color: '#888' }}>
+                  <span style={{ color: '#C9A84C' }}>✓</span>{f}
                 </div>
               ))}
-              <button className="btn-primary" style={{ width: '100%', marginTop: 40 }} onClick={() => navigate('/app/upgrade')}>Upgrade to Premium</button>
+              <button className="btn-gold" style={{ marginTop: 20 }} onClick={() => navigate('/app/upgrade')}>Upgrade to Premium</button>
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="section-pad" style={{ padding: '120px 40px', borderTop: '1px solid #141414', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: 0.04 }}>
-          {[...Array(8)].map((_, i) => (
-            <div key={i} style={{ position: 'absolute', top: '-50%', left: `${i * 14 - 5}%`, width: '2px', height: '200%', background: '#C9A84C', transform: 'rotate(-35deg)' }} />
-          ))}
-        </div>
-        <div style={{ maxWidth: 680, margin: '0 auto', position: 'relative' }}>
-          <div className="section-label" style={{ textAlign: 'center' }}>Join Today</div>
-          <h2 className="big-heading" style={{ fontSize: 'clamp(36px, 9vw, 72px)', marginBottom: 24 }}>
+      <section style={{ padding: '60px 20px', borderTop: '1px solid #141414', textAlign: 'center' }}>
+        <div style={{ maxWidth: 480, margin: '0 auto' }}>
+          <h2 className="heading" style={{ fontSize: 'clamp(32px, 10vw, 60px)', marginBottom: 16 }}>
             STOP GUESSING.<br /><span className="gold">START WINNING.</span>
           </h2>
-          <p style={{ color: '#555', fontSize: 16, marginBottom: 48, lineHeight: 1.8 }}>
-            Join traders who are building real discipline, finding their edge, and becoming consistently profitable with STOIX.
+          <p style={{ color: '#555', fontSize: 14, marginBottom: 28, lineHeight: 1.7 }}>
+            Join traders building real discipline and finding their edge with STOIX.
           </p>
-          <button className="btn-primary" style={{ fontSize: 16, padding: '18px 52px' }} onClick={() => navigate('/login?signup=true')}>Create Free Account</button>
+          <button className="btn-gold" style={{ maxWidth: 280, margin: '0 auto', display: 'block' }} onClick={() => navigate('/login?signup=true')}>
+            Create Free Account
+          </button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer style={{ padding: '32px 40px', borderTop: '1px solid #141414', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 24, height: 24, background: '#0a0a0a', position: 'relative', overflow: 'hidden', border: '1px solid #222' }}>
-            <div style={{ position: 'absolute', inset: 0, background: '#C9A84C', clipPath: 'polygon(30% 0%, 70% 0%, 55% 100%, 15% 100%)' }} />
-          </div>
-          <span style={{ fontFamily: 'Bebas Neue', fontSize: 16, letterSpacing: '0.1em' }}>STOIX</span>
-        </div>
-        <div style={{ fontSize: 12, color: '#333' }}>© 2025 Stoix. All rights reserved.</div>
-        <div style={{ display: 'flex', gap: 24, fontSize: 12, color: '#444' }}>
+      <footer style={{ padding: '24px 20px', borderTop: '1px solid #141414', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <span style={{ fontFamily: 'Bebas Neue', fontSize: 16, letterSpacing: '0.1em' }}>STOIX</span>
+        <span style={{ fontSize: 11, color: '#333' }}>© 2025 Stoix. All rights reserved.</span>
+        <div style={{ display: 'flex', gap: 20, fontSize: 12, color: '#444' }}>
           <span style={{ cursor: 'pointer' }} onClick={() => navigate('/app/legal')}>Privacy</span>
           <span style={{ cursor: 'pointer' }} onClick={() => navigate('/app/legal')}>Terms</span>
         </div>
