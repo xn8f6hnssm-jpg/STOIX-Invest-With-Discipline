@@ -72,7 +72,7 @@ export function Dashboard() {
   const [followingList, setFollowingList] = useState<any[]>([]);
   const profilePicInputRef = useRef<HTMLInputElement>(null);
   const uploadingPic = useRef(false);
-  const [profilePic, setProfilePic] = useState<string>('');
+  const [profilePic, setProfilePic] = useState<string>(storage.getCurrentUser()?.profilePicture || '');
   const latestPicUrl = useRef<string>('');
 
   const safeSetProfilePic = (url: string) => {
