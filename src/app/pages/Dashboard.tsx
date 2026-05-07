@@ -73,11 +73,6 @@ export function Dashboard() {
   const profilePicInputRef = useRef<HTMLInputElement>(null);
   const uploadingPic = useRef(false);
   const [profilePic, setProfilePic] = useState<string>(storage.getCurrentUser()?.profilePicture || '');
-  const latestPicUrl = useRef<string>('');
-
-  const safeSetProfilePic = (url: string) => {
-    setProfilePic(url);
-  };
 
   const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -169,7 +164,7 @@ export function Dashboard() {
       if (!u) return;
       const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
       const picUrl = data?.profile_picture || u.profilePicture || '';
-      if (picUrl && picUrl !== latestPicUrl.current) {
+      if (picUrl) {
         setProfilePic(picUrl);
         if (u.profilePicture !== picUrl) {
           u.profilePicture = picUrl;
