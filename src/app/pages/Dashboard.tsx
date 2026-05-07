@@ -158,17 +158,17 @@ export function Dashboard() {
       setIsLoading(false);
     };
     init();
-    // Load profile picture from Supabase independently
+    // Load profile picture from Supabase on mount
     const loadPic = async () => {
       const u = storage.getCurrentUser();
       if (!u) return;
-      const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
-      const picUrl = data?.profile_picture || u.profilePicture || '';
-      if (picUrl) {
-        setProfilePic(picUrl);
-        if (u.profilePicture !== picUrl) {
-          u.profilePicture = picUrl;
+      // Only load from Supabase if localStorage doesn't have it
+      if (!u.profilePicture) {
+        const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
+        if (data?.profile_picture) {
+          u.profilePicture = data.profile_picture;
           storage.setCurrentUser(u);
+          setProfilePic(data.profile_picture);
         }
       }
     };
