@@ -76,8 +76,7 @@ export function Dashboard() {
   const latestPicUrl = useRef<string>('');
 
   const safeSetProfilePic = (url: string) => {
-    latestPicUrl.current = url;
-    safeSetProfilePic(url);
+    setProfilePic(url);
   };
 
   const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,7 +86,7 @@ export function Dashboard() {
 
     // Show instant preview
     const objectUrl = URL.createObjectURL(file);
-    safeSetProfilePic(objectUrl);
+    setProfilePic(objectUrl);
     console.log('Preview set');
 
     // Convert to base64
@@ -109,7 +108,7 @@ export function Dashboard() {
       const u = storage.getCurrentUser();
       if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
       // Set profilePic LAST so it overrides anything refreshData might do
-      safeSetProfilePic(url);
+      setProfilePic(url);
       console.log('Profile pic saved:', url);
     }
   };
@@ -171,7 +170,7 @@ export function Dashboard() {
       const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
       const picUrl = data?.profile_picture || u.profilePicture || '';
       if (picUrl && picUrl !== latestPicUrl.current) {
-        safeSetProfilePic(picUrl);
+        setProfilePic(picUrl);
         if (u.profilePicture !== picUrl) {
           u.profilePicture = picUrl;
           storage.setCurrentUser(u);
