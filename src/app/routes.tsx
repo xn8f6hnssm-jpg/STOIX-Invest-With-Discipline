@@ -3,6 +3,7 @@ import { OnboardingAccount } from "./pages/onboarding/OnboardingAccount";
 import { OnboardingProfile } from "./pages/onboarding/OnboardingProfile";
 import { OnboardingRules } from "./pages/onboarding/OnboardingRules";
 import { Login } from "./pages/onboarding/Login";
+import { ResetPassword } from "./pages/onboarding/ResetPassword";
 import { MainLayout } from "./pages/MainLayout";
 import { Dashboard } from "./pages/Dashboard";
 import { DailyCheck } from "./pages/DailyCheck";
@@ -50,101 +51,36 @@ export const router = createBrowserRouter([
     element: <Login />,
   },
   {
+    path: "/app/reset-password",
+    element: <ResetPassword />,
+  },
+  {
     path: "/app",
     element: <MainLayout />,
     children: [
-      {
-        index: true,
-        element: <Dashboard />,
-      },
-      {
-        path: "daily-check",
-        element: <DailyCheck />,
-      },
-      {
-        path: "revengex",
-        element: <RevengeX />,
-      },
-      {
-        path: "journal",
-        element: <Journal />,
-      },
-      {
-        path: "trade-replay/:entryId",
-        element: <TradeReplay />,
-      },
-      {
-        path: "social",
-        element: <Social />,
-      },
-      {
-        path: "profile/:userId",
-        element: <UserProfile />,
-      },
-      {
-        path: "groups",
-        element: <Groups />,
-      },
-      {
-        path: "groups/:groupId",
-        element: <GroupDetail />,
-      },
-      {
-        path: "credits",
-        element: <Credits />,
-      },
-      {
-        path: "messages",
-        element: <DirectMessages />,
-      },
-      {
-        path: "messages/:userId",
-        element: <DirectMessages />,
-      },
-      {
-        path: "notifications",
-        element: <Notifications />,
-      },
-      {
-        path: "settings",
-        element: <Settings />,
-      },
-      {
-        path: "edit-rules",
-        element: <EditRules />,
-      },
-      {
-        path: "upgrade",
-        element: <Upgrade />,
-      },
-      {
-        path: "upgrade/success",
-        element: <UpgradeSuccess />,
-      },
-      {
-        path: "ai-analytics",
-        element: <AIAnalytics />,
-      },
-      {
-        path: "achievements",
-        element: <Achievements />,
-      },
-      {
-        path: "prop-firm-success",
-        element: <PropFirmSuccess />,
-      },
-      {
-        path: "mental-prep",
-        element: <MentalPreparation />,
-      },
-      {
-        path: "debug-storage",
-        element: <DebugStorage />,
-      },
-      {
-        path: "legal",
-        element: <TermsAndPrivacy />,
-      },
+      { index: true, element: <Dashboard /> },
+      { path: "daily-check", element: <DailyCheck /> },
+      { path: "revengex", element: <RevengeX /> },
+      { path: "journal", element: <Journal /> },
+      { path: "trade-replay/:entryId", element: <TradeReplay /> },
+      { path: "social", element: <Social /> },
+      { path: "profile/:userId", element: <UserProfile /> },
+      { path: "groups", element: <Groups /> },
+      { path: "groups/:groupId", element: <GroupDetail /> },
+      { path: "credits", element: <Credits /> },
+      { path: "messages", element: <DirectMessages /> },
+      { path: "messages/:userId", element: <DirectMessages /> },
+      { path: "notifications", element: <Notifications /> },
+      { path: "settings", element: <Settings /> },
+      { path: "edit-rules", element: <EditRules /> },
+      { path: "upgrade", element: <Upgrade /> },
+      { path: "upgrade/success", element: <UpgradeSuccess /> },
+      { path: "ai-analytics", element: <AIAnalytics /> },
+      { path: "achievements", element: <Achievements /> },
+      { path: "prop-firm-success", element: <PropFirmSuccess /> },
+      { path: "mental-prep", element: <MentalPreparation /> },
+      { path: "debug-storage", element: <DebugStorage /> },
+      { path: "legal", element: <TermsAndPrivacy /> },
     ],
   },
 ]);

@@ -9,6 +9,7 @@ import { getAccessToken } from '../utils/supabase';
 import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router';
+import { signOut } from '../utils/auth';
 import { storage } from '../utils/storage';
 import { PremiumBadge } from '../components/PremiumBadge';
 import { Badge } from '../components/ui/badge';
@@ -188,6 +189,10 @@ export function Settings() {
           <CardContent className="space-y-4">
             <Button variant="outline" className="w-full">Change Password</Button>
             <Button variant="outline" className="w-full">Update Email</Button>
+            <Button variant="outline" className="w-full" onClick={async () => {
+              await signOut();
+              navigate('/login');
+            }}>Sign Out</Button>
             <Button variant="destructive" className="w-full">Delete Account</Button>
           </CardContent>
         </Card>
