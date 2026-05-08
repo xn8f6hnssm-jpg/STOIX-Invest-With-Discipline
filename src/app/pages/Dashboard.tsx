@@ -71,40 +71,57 @@ export function Dashboard() {
   const [followerList, setFollowerList] = useState<any[]>([]);
   const [followingList, setFollowingList] = useState<any[]>([]);
   const profilePicInputRef = useRef<HTMLInputElement>(null);
-  const uploadingPic = useRef(false);
-  const [profilePic, setProfilePic] = useState<string>(storage.getCurrentUser()?.profilePicture || '');
+  const [profilePic, setProfilePic] = useState<string>('');
+  const [uploadingPic, setUploadingPic] = useState(false);
 
   const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    console.log('File selected:', file.name, file.size);
 
-    // Show instant preview
+    setUploadingPic(true);
+
+    // Show instant preview with object URL
     const objectUrl = URL.createObjectURL(file);
     setProfilePic(objectUrl);
-    console.log('Preview set');
 
-    // Convert to base64
-    const base64: string = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => resolve(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    });
-    console.log('Base64 ready, length:', base64.length);
+    try {
+      // Convert to base64
+      const base64: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-    // Upload to Supabase Storage
-    const url = await storage.uploadImage(base64, user.id, user.id, 'profile', 'profile');
-    console.log('Uploaded URL:', url);
+      // Upload to Supabase Storage with unique filename
+      const filename = `avatar_${Date.now()}`;
+      const url = await storage.uploadImage(base64, user.id, filename, 'profile', 'profile');
 
-    if (url) {
-      // Update Supabase first
-      await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
+      if (!url) throw new Error('Upload failed - no URL returned');
+
+      // Update Supabase users table
+      const { error } = await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
+      if (error) throw new Error('DB update failed: ' + error.message);
+
       // Update localStorage
       const u = storage.getCurrentUser();
-      if (u) { u.profilePicture = url; storage.setCurrentUser(u); }
-      // Set profilePic LAST so it overrides anything refreshData might do
-      setProfilePic(url);
-      console.log('Profile pic saved:', url);
+      if (u) {
+        u.profilePicture = url;
+        localStorage.setItem('tradeforge_current_user', JSON.stringify(u));
+        const allUsers = JSON.parse(localStorage.getItem('tradeforge_all_users') || '[]');
+        const idx = allUsers.findIndex((au: any) => au.id === u.id);
+        if (idx !== -1) { allUsers[idx].profilePicture = url; localStorage.setItem('tradeforge_all_users', JSON.stringify(allUsers)); }
+      }
+
+      // Set final URL with cache buster
+      setProfilePic(url + '?t=' + Date.now());
+    } catch (err) {
+      console.error('Profile picture upload error:', err);
+      // Revert preview on error
+      const u = storage.getCurrentUser();
+      setProfilePic(u?.profilePicture || '');
+    } finally {
+      setUploadingPic(false);
     }
   };
 
@@ -112,7 +129,7 @@ export function Dashboard() {
     const currentUser = storage.getCurrentUser();
     if (currentUser) {
       // Only update user state if not currently uploading a profile pic
-      if (!uploadingPic.current) {
+      if (!uploadingPic) {
         setUser({ ...currentUser });
       }
       const cleanDays = currentUser.cleanDays ?? 0;
@@ -158,18 +175,18 @@ export function Dashboard() {
       setIsLoading(false);
     };
     init();
-    // Load profile picture from Supabase on mount
+    // Always load profile picture from Supabase on mount - single source of truth
     const loadPic = async () => {
       const u = storage.getCurrentUser();
       if (!u) return;
-      // Only load from Supabase if localStorage doesn't have it
-      if (!u.profilePicture) {
-        const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
-        if (data?.profile_picture) {
-          u.profilePicture = data.profile_picture;
-          storage.setCurrentUser(u);
-          setProfilePic(data.profile_picture);
-        }
+      const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
+      if (data?.profile_picture) {
+        setProfilePic(data.profile_picture + '?t=' + Date.now());
+        // Update localStorage
+        u.profilePicture = data.profile_picture;
+        localStorage.setItem('tradeforge_current_user', JSON.stringify(u));
+      } else if (u.profilePicture && !u.profilePicture.startsWith('data:image')) {
+        setProfilePic(u.profilePicture);
       }
     };
     loadPic();
@@ -400,9 +417,14 @@ export function Dashboard() {
               <div className="relative">
                 <Avatar className="w-24 h-24">
                   {profilePic ? (
-                    <AvatarImage src={profilePic} alt="Profile Picture" />
+                    <AvatarImage src={profilePic} alt="Profile Picture" key={profilePic} />
                   ) : (
                     <AvatarFallback className="text-2xl">{user.name.charAt(0).toUpperCase()}</AvatarFallback>
+                  )}
+                  {uploadingPic && (
+                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                    </div>
                   )}
                 </Avatar>
                 <button onClick={() => profilePicInputRef.current?.click()} className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors shadow-lg border-2 border-background">

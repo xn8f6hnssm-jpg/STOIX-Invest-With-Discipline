@@ -34,11 +34,12 @@ async function syncDataFromSupabase(userId: string) {
       const localUser = JSON.parse(localStorage.getItem('tradeforge_current_user') || '{}');
       const merged = {
         ...localUser,
-        totalPoints: userData.total_points || localUser.totalPoints || 0,
-        cleanDays: userData.clean_days || localUser.cleanDays || 0,
-        forfeitDays: userData.forfeit_days || localUser.forfeitDays || 0,
-        currentStreak: userData.current_streak || localUser.currentStreak || 0,
-        isPremium: userData.is_premium || localUser.isPremium || false,
+        totalPoints: userData.total_points ?? localUser.totalPoints ?? 0,
+        cleanDays: userData.clean_days ?? localUser.cleanDays ?? 0,
+        forfeitDays: userData.forfeit_days ?? localUser.forfeitDays ?? 0,
+        currentStreak: userData.current_streak ?? localUser.currentStreak ?? 0,
+        isPremium: userData.is_premium ?? localUser.isPremium ?? false,
+        // Always use Supabase profile_picture — it's the single source of truth
         profilePicture: userData.profile_picture || localUser.profilePicture || '',
         achievements: userData.achievements || localUser.achievements || [],
       };
@@ -261,7 +262,7 @@ export function MainLayout() {
             followers: 0,
             following: 0,
             isVerified: false,
-            profilePicture: '',
+            profilePicture: supabaseUser.user_metadata?.profilePicture || '',
             isPremium: false,
           };
           storage.setCurrentUser(userData);
