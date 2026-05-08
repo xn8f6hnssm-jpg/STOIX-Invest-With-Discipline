@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Button } from '../components/ui/button';
-import { Crown, Bug, Shield, User, Mail, Users2, FileText, UserPlus } from 'lucide-react';
+import { Crown, Shield, User, Mail, Users2, FileText, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAccessToken } from '../utils/supabase';
 import { projectId, publicAnonKey } from '../../../utils/supabase/info';
@@ -218,22 +218,7 @@ export function Settings() {
           </CardContent>
         </Card>
 
-        {/* Developer Tools */}
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Bug className="w-5 h-5" />
-              Developer Tools
-            </CardTitle>
-            <CardDescription>Debug and troubleshooting utilities</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full" onClick={() => navigate('/app/debug-storage')}>
-              <Bug className="w-4 h-4 mr-2" />
-              Storage Debug Panel
-            </Button>
-          </CardContent>
-        </Card>
+
       </div>
     </div>
   );

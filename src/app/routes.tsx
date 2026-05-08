@@ -25,7 +25,6 @@ import { AIAnalytics } from "./pages/AIAnalytics";
 import { Achievements } from "./pages/Achievements";
 import { PropFirmSuccess } from "./pages/PropFirmSuccess";
 import { MentalPreparation } from "./pages/MentalPreparation";
-import { DebugStorage } from "./pages/DebugStorage";
 import { TermsAndPrivacy } from "./pages/TermsAndPrivacy";
 import { LandingPage } from "./pages/LandingPage";
 
@@ -79,7 +78,6 @@ export const router = createBrowserRouter([
       { path: "achievements", element: <Achievements /> },
       { path: "prop-firm-success", element: <PropFirmSuccess /> },
       { path: "mental-prep", element: <MentalPreparation /> },
-      { path: "debug-storage", element: <DebugStorage /> },
       { path: "legal", element: <TermsAndPrivacy /> },
     ],
   },
