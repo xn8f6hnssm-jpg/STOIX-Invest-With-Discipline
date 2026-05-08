@@ -52,7 +52,7 @@ export function Login() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <Logo size="lg" className="mx-auto mb-4" />
+          <Logo size="lg" className="mx-auto mb-4" darkMode={true} />
           <h1 className="text-2xl font-bold mb-1">Welcome Back</h1>
           <p className="text-muted-foreground text-sm">Sign in to your STOIX account</p>
         </div>
@@ -110,7 +110,7 @@ export function Login() {
 
         <div className="text-center space-y-3">
           <p className="text-sm text-muted-foreground">Don't have an account?</p>
-          <Button variant="outline" className="w-full" onClick={() => navigate('/login?signup=true')}>Create Account</Button>
+          <Button variant="outline" className="w-full" onClick={() => navigate('/signup')}>Create Account</Button>
         </div>
 
         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">

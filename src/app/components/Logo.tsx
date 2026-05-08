@@ -11,10 +11,10 @@ interface LogoProps {
 
 export function Logo({ size = 'md', showText = true, className = '', darkMode = false }: LogoProps) {
   const cfg = {
-    sm: { ms: 28, fs: 15, gap: 8,  sub: false, ls: '-0.04em' },
-    md: { ms: 38, fs: 19, gap: 11, sub: false, ls: '-0.04em' },
-    lg: { ms: 52, fs: 26, gap: 14, sub: true,  ls: '-0.05em' },
-    xl: { ms: 70, fs: 36, gap: 18, sub: true,  ls: '-0.05em' },
+    sm: { ms: 34, fs: 17, gap: 9,  sub: false, ls: '-0.04em' },
+    md: { ms: 46, fs: 22, gap: 12, sub: false, ls: '-0.04em' },
+    lg: { ms: 62, fs: 30, gap: 15, sub: true,  ls: '-0.05em' },
+    xl: { ms: 82, fs: 42, gap: 20, sub: true,  ls: '-0.05em' },
   }[size];
 
   const { ms, fs, gap, sub } = cfg;
@@ -35,7 +35,7 @@ export function Logo({ size = 'md', showText = true, className = '', darkMode = 
   const massFill   = darkMode ? '#2a2a2a' : '#1e1e1e';
   const bgFill     = darkMode ? 'transparent' : 'transparent';
   const textColor  = darkMode ? '#ffffff' : '#0f172a';
-  const subColor   = darkMode ? 'rgba(255,255,255,0.45)' : 'rgba(15,23,42,0.4)';
+  const subColor   = darkMode ? 'rgba(255,255,255,0.7)' : 'rgba(15,23,42,0.4)';
   const goldColor  = '#c9a84c';
 
   return (
