@@ -215,6 +215,15 @@ export function MainLayout() {
     const syncUser = async () => {
       setSyncing(true);
       try {
+        // Quick check - if no local user and no supabase session redirect to login
+        const localUser = storage.getCurrentUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!localUser && !session) {
+          navigate('/login');
+          setSyncing(false);
+          return;
+        }
+
         const justCompletedOnboarding = sessionStorage.getItem('just_completed_onboarding');
         if (justCompletedOnboarding) {
           sessionStorage.removeItem('just_completed_onboarding');
@@ -223,9 +232,10 @@ export function MainLayout() {
           return;
         }
 
-        const localUser = storage.getCurrentUser();
+        const currentLocalUser = localUser || storage.getCurrentUser();
 
-        if (localUser) {
+        if (currentLocalUser) {
+          const localUser = currentLocalUser;
           // Strip base64 profile pictures from localStorage to prevent quota errors
           if (localUser.profilePicture?.startsWith('data:image')) {
             localUser.profilePicture = '';
@@ -270,7 +280,7 @@ export function MainLayout() {
           await syncDataFromSupabase(supabaseUser.id);
           await syncUserToSupabase();
           } else {
-          navigate('/');
+          navigate('/login');
         }
       } catch (err) {
         console.error('Sync error:', err);
