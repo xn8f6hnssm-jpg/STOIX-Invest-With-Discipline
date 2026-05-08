@@ -95,7 +95,7 @@ const STEPS = [
     premium: {
       title: 'Premium unlocks more',
       points: [
-        'Account Protection Mode — auto-blocks trading when rules are breached',
+        'Account Protection Mode — locks your STOIX dashboard when rules are breached',
         'Pre-Trade Checklist — verify rules before every trade',
         'Prop firm rule templates (FTMO, MyFundedFX, etc.)',
       ],
