@@ -392,11 +392,11 @@ export function Journal() {
         .filter(e => !e.isNoTradeDay)
         .slice(0, 5);
       
-      if (recentEntries.length >= 3) {
-        const hasRecentLoss = recentEntries.slice(1).some(e => e.result === 'loss');
-        const multipleTradesAfterLoss = recentEntries.slice(0, 3).length === 3;
-        
-        if (hasRecentLoss && multipleTradesAfterLoss && entry.result === 'loss') {
+      // Show warning after 2 consecutive losses
+      if (recentEntries.length >= 2) {
+        const lastTwo = recentEntries.slice(0, 2);
+        const twoConsecutiveLosses = lastTwo.every(e => e.result === 'loss');
+        if (twoConsecutiveLosses) {
           setShowRevengeTradingAlert(true);
         }
       }
