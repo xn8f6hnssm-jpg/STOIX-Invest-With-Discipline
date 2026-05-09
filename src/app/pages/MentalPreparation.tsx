@@ -254,14 +254,27 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     { phase: 'exhale', duration: 4000, instruction: 'Breathe Out' },
   ];
 
-  const [selectedTradingQuote] = useState(() => TRADING_QUOTES[Math.floor(Math.random() * TRADING_QUOTES.length)]);
-
-  const [selectedGeneralQuote] = useState(() => {
+  const [tradingQuotes, setTradingQuotes] = useState<string[]>(() => [TRADING_QUOTES[Math.floor(Math.random() * TRADING_QUOTES.length)]]);
+  const [generalQuotes, setGeneralQuotes] = useState<string[]>(() => {
     const saved = storage.getMentalPrepSettings();
     const quoteSources = saved?.quoteSources || ['movies', 'books', 'anime', 'philosophy', 'sports'];
     const enabledQuotes = quoteSources.flatMap(source => CATEGORIZED_QUOTES[source as keyof typeof CATEGORIZED_QUOTES] || []);
-    return enabledQuotes.length > 0 ? enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)] : '';
+    return enabledQuotes.length > 0 ? [enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)]] : [];
   });
+
+  const addTradingQuote = () => {
+    const remaining = TRADING_QUOTES.filter(q => !tradingQuotes.includes(q));
+    if (remaining.length === 0) return;
+    setTradingQuotes(prev => [...prev, remaining[Math.floor(Math.random() * remaining.length)]]);
+  };
+
+  const addGeneralQuote = () => {
+    const quoteSources = settings.quoteSources || ['movies', 'books', 'anime', 'philosophy', 'sports'];
+    const allQuotes = quoteSources.flatMap(source => CATEGORIZED_QUOTES[source as keyof typeof CATEGORIZED_QUOTES] || []);
+    const remaining = allQuotes.filter(q => !generalQuotes.includes(q));
+    if (remaining.length === 0) return;
+    setGeneralQuotes(prev => [...prev, remaining[Math.floor(Math.random() * remaining.length)]]);
+  };
 
   // Show only enabled affirmations
   const displayAffirmations = affirmations.length > 0
@@ -749,41 +762,47 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
       <div className="space-y-6">
         {/* Trading Quote */}
         {settings.showTradingQuote && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Quote className="w-5 h-5 text-blue-500" />
-                  Trading Wisdom
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Quote className="w-5 h-5 text-blue-500" />
+                    Trading Wisdom
+                  </CardTitle>
+                  <Button size="sm" variant="ghost" onClick={addTradingQuote} className="text-xs text-muted-foreground">
+                    + Another
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-lg italic leading-relaxed">"{selectedTradingQuote}"</p>
+              <CardContent className="space-y-3">
+                {tradingQuotes.map((q, i) => (
+                  <p key={i} className="text-base italic leading-relaxed border-l-2 border-blue-500/30 pl-3">"{q}"</p>
+                ))}
               </CardContent>
             </Card>
           </motion.div>
         )}
 
         {/* General Quote */}
-        {settings.showGeneralQuote && selectedGeneralQuote && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-          >
+        {settings.showGeneralQuote && generalQuotes.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Heart className="w-5 h-5 text-pink-500" />
-                  Inspiration
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Heart className="w-5 h-5 text-pink-500" />
+                    Inspiration
+                  </CardTitle>
+                  <Button size="sm" variant="ghost" onClick={addGeneralQuote} className="text-xs text-muted-foreground">
+                    + Another
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-lg italic leading-relaxed">"{selectedGeneralQuote}"</p>
+              <CardContent className="space-y-3">
+                {generalQuotes.map((q, i) => (
+                  <p key={i} className="text-base italic leading-relaxed border-l-2 border-pink-500/30 pl-3">"{q}"</p>
+                ))}
               </CardContent>
             </Card>
           </motion.div>
