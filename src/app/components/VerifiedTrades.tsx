@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -7,7 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { supabase } from '../utils/supabase';
 import { storage } from '../utils/storage';
 import { 
-  Shield, Plus, Trash2, RefreshCw, TrendingUp, TrendingDown, 
+  Shield, Plus, Trash2, RefreshCw, TrendingUp, TrendingDown, Upload, 
   Award, Target, Clock, BarChart2, Zap, CheckCircle, AlertCircle,
   Copy, Check, Download
 } from 'lucide-react';
@@ -42,10 +42,41 @@ export function VerifiedTrades() {
   const [connecting, setConnecting] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (currentUser) loadData();
+    if (currentUser) {
+      loadData();
+      const saved = localStorage.getItem(`stoix_trade_screenshots_${currentUser.id}`);
+      if (saved) setScreenshots(JSON.parse(saved));
+    }
   }, []);
+
+  const handleScreenshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length || !currentUser) return;
+    setUploadingScreenshot(true);
+    const readers = files.map(file => new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    }));
+    Promise.all(readers).then(newScreenshots => {
+      const updated = [...screenshots, ...newScreenshots];
+      setScreenshots(updated);
+      localStorage.setItem(`stoix_trade_screenshots_${currentUser.id}`, JSON.stringify(updated));
+      setUploadingScreenshot(false);
+      toast.success('Screenshot added!');
+    });
+  };
+
+  const handleDeleteScreenshot = (idx: number) => {
+    const updated = screenshots.filter((_, i) => i !== idx);
+    setScreenshots(updated);
+    if (currentUser) localStorage.setItem(`stoix_trade_screenshots_${currentUser.id}`, JSON.stringify(updated));
+  };
 
   const loadData = async () => {
     if (!currentUser) return;
@@ -136,23 +167,102 @@ export function VerifiedTrades() {
         </Button>
       </div>
 
+      {/* WIP Banner */}
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🔧</span>
+            <div>
+              <p className="font-semibold text-sm text-amber-500">Work in Progress</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                We're building direct broker integration so STOIX automatically pulls all your trade data — entries, exits, P&L, RR, and more — directly from your account. No manual input. No faking results.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                <strong>Coming soon:</strong> Tradovate, NinjaTrader, Rithmic, MT4/MT5, cTrader
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Screenshot Upload */}
+      <Card>
+        <CardContent className="pt-4 pb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-sm">Trade Screenshots</p>
+              <p className="text-xs text-muted-foreground">Upload screenshots of your trades while broker sync is being built</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => screenshotInputRef.current?.click()} disabled={uploadingScreenshot}>
+              <Plus className="w-4 h-4 mr-1" />{uploadingScreenshot ? 'Uploading...' : 'Add'}
+            </Button>
+            <input ref={screenshotInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleScreenshotUpload} />
+          </div>
+
+          {screenshots.length === 0 ? (
+            <div className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => screenshotInputRef.current?.click()}>
+              <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-40" />
+              <p className="text-sm text-muted-foreground">Tap to upload trade screenshots</p>
+              <p className="text-xs text-muted-foreground mt-1">PnL screenshots, trade confirmations, broker statements</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {screenshots.map((src, i) => (
+                <div key={i} className="relative group rounded-xl overflow-hidden border">
+                  <img src={src} alt={`Trade ${i + 1}`} className="w-full h-36 object-cover" />
+                  <button onClick={() => handleDeleteScreenshot(i)}
+                    className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              <div className="border-2 border-dashed rounded-xl h-36 flex items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => screenshotInputRef.current?.click()}>
+                <Plus className="w-6 h-6 text-muted-foreground" />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* No connection state */}
       {!hasConnection && !showConnect && (
         <Card className="border-dashed">
-          <CardContent className="py-10 text-center space-y-4">
-            <Shield className="w-12 h-12 mx-auto text-muted-foreground opacity-40" />
+          <CardContent className="py-6 text-center space-y-3">
+            <Shield className="w-10 h-10 mx-auto text-muted-foreground opacity-40" />
             <div>
-              <h3 className="font-semibold mb-1">Connect Your MT4/MT5 Account</h3>
-              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                Automatically sync all your trades directly from your broker. No manual entry — everything is verified.
+              <h3 className="font-semibold text-sm mb-1">MT4/MT5 Available Now</h3>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                If you trade on MT4 or MT5 you can connect your account now using our EA.
               </p>
             </div>
-            <Button onClick={() => setShowConnect(true)}>
-              <Plus className="w-4 h-4 mr-2" />Connect Account
+            <Button size="sm" onClick={() => setShowConnect(true)}>
+              <Plus className="w-4 h-4 mr-2" />Connect MT4/MT5
             </Button>
           </CardContent>
         </Card>
       )}
+
+      {/* Coming Soon platforms */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Coming Soon</p>
+        {[
+          { name: 'Tradovate', desc: 'Futures · NQ, ES, CL', icon: '⚡' },
+          { name: 'NinjaTrader', desc: 'Futures · All instruments', icon: '🥷' },
+          { name: 'Rithmic', desc: 'Apex, Topstep, & more', icon: '🏆' },
+          { name: 'cTrader', desc: 'Forex & CFDs', icon: '📊' },
+        ].map(p => (
+          <div key={p.name} className="flex items-center justify-between p-3 rounded-lg border border-dashed bg-muted/30">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">{p.icon}</span>
+              <div>
+                <p className="font-medium text-sm">{p.name}</p>
+                <p className="text-xs text-muted-foreground">{p.desc}</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+          </div>
+        ))}
+      </div>
 
       {/* New key display */}
       {newKey && (
