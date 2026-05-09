@@ -2099,11 +2099,10 @@ export function Journal() {
             )}
           </div>
         </TabsContent>
+        <TabsContent value="verified">
+          <VerifiedTrades />
+        </TabsContent>
       </Tabs>
-
-      <TabsContent value="verified">
-        <VerifiedTrades />
-      </TabsContent>
 
       {/* Revenge Trading Alert */}
       {showRevengeTradingAlert && (
