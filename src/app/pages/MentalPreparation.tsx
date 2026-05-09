@@ -208,6 +208,13 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
   });
 
   const [affirmations, setAffirmations] = useState<string[]>(() => storage.getAffirmations());
+  const [enabledAffirmations, setEnabledAffirmations] = useState<Set<number>>(() => {
+    const saved = localStorage.getItem('stoix_enabled_affirmations');
+    if (saved) return new Set(JSON.parse(saved));
+    // All enabled by default
+    const all = storage.getAffirmations();
+    return new Set(all.map((_, i) => i));
+  });
   const [newAffirmation, setNewAffirmation] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
@@ -256,15 +263,15 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     return enabledQuotes.length > 0 ? enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)] : '';
   });
 
-  // Derive selectedAffirmation from current affirmations state so it updates live
-  const selectedAffirmation = affirmations.length > 0
-    ? affirmations[affirmations.length - 1]
-    : DEFAULT_AFFIRMATIONS[Math.floor(Math.random() * DEFAULT_AFFIRMATIONS.length)];
+  // Show only enabled affirmations
+  const displayAffirmations = affirmations.length > 0
+    ? affirmations.filter((_, i) => enabledAffirmations.has(i))
+    : [DEFAULT_AFFIRMATIONS[Math.floor(Math.random() * DEFAULT_AFFIRMATIONS.length)]];
 
-  const selectedReligiousText = (() => {
+  const [selectedReligiousText] = useState(() => {
     const texts = RELIGIOUS_TEXTS[settings.selectedReligion as keyof typeof RELIGIOUS_TEXTS] || [];
     return texts.length > 0 ? texts[Math.floor(Math.random() * texts.length)] : '';
-  })();
+  });
 
   const updateSettings = (updates: Partial<MentalPrepSettings>) => {
     const newSettings = { ...settings, ...updates };
@@ -284,8 +291,12 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     const updated = [...affirmations, newAffirmation.trim()];
     setAffirmations(updated);
     storage.saveAffirmations(updated);
+    // Enable new affirmation by default
+    const updatedEnabled = new Set(enabledAffirmations);
+    updatedEnabled.add(updated.length - 1);
+    setEnabledAffirmations(updatedEnabled);
+    localStorage.setItem('stoix_enabled_affirmations', JSON.stringify([...updatedEnabled]));
     setNewAffirmation('');
-    // Stay on current screen — no navigation or state change
   };
 
   const deleteAffirmation = (index: number) => {
@@ -640,25 +651,28 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                 </p>
               ) : (
                 <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Check which affirmations to show during preparation:</p>
                   {affirmations.map((affirmation, index) => (
                     <div key={index} className="flex items-start gap-2 p-3 rounded-lg bg-muted">
                       {editingIndex === index ? (
                         <>
-                          <Input
-                            value={editText}
-                            onChange={(e) => setEditText(e.target.value)}
-                            className="flex-1"
-                            autoFocus
-                          />
-                          <Button size="sm" onClick={saveEditAffirmation}>
-                            Save
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={cancelEdit}>
-                            Cancel
-                          </Button>
+                          <Input value={editText} onChange={(e) => setEditText(e.target.value)} className="flex-1" autoFocus />
+                          <Button size="sm" onClick={saveEditAffirmation}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={cancelEdit}>Cancel</Button>
                         </>
                       ) : (
                         <>
+                          <Checkbox
+                            checked={enabledAffirmations.has(index)}
+                            onCheckedChange={(checked) => {
+                              const updated = new Set(enabledAffirmations);
+                              if (checked) updated.add(index);
+                              else updated.delete(index);
+                              setEnabledAffirmations(updated);
+                              localStorage.setItem('stoix_enabled_affirmations', JSON.stringify([...updated]));
+                            }}
+                            className="mt-0.5"
+                          />
                           <p className="flex-1 text-sm">{affirmation}</p>
                           <Button size="sm" variant="ghost" onClick={() => startEditAffirmation(index)}>
                             <Edit2 className="w-4 h-4" />
@@ -776,7 +790,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
         )}
 
         {/* Personal Affirmation */}
-        {settings.showAffirmation && selectedAffirmation && (
+        {settings.showAffirmation && displayAffirmations.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -786,17 +800,19 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  Your Affirmation
+                  Your Affirmations
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-lg font-semibold leading-relaxed text-green-500">{selectedAffirmation}</p>
+              <CardContent className="space-y-2">
+                {displayAffirmations.map((aff, i) => (
+                  <p key={i} className="text-base font-semibold leading-relaxed text-green-500">✓ {aff}</p>
+                ))}
               </CardContent>
             </Card>
           </motion.div>
         )}
 
-        {settings.showAffirmation && !selectedAffirmation && (
+        {settings.showAffirmation && affirmations.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -806,19 +822,14 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  Your Affirmation
+                  Your Affirmations
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
                   No affirmations added yet. Go to settings to add your personal affirmations.
                 </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => setShowSettings(true)}
-                >
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowSettings(true)}>
                   Add Affirmations
                 </Button>
               </CardContent>

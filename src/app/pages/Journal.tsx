@@ -611,13 +611,15 @@ export function Journal() {
     ? filteredEntries.filter(e => e.action === 'sell')
     : filteredEntries;
 
+  // Exclude no trade days and breakeven from win rate calc
+  const ratedEntries = entriesForAvgCalc.filter(e => !e.isNoTradeDay && e.result !== 'breakeven');
   const stats = {
-    totalTrades: isLongTermHold ? entriesForAvgCalc.length : filteredEntries.length,
-    wins: entriesForAvgCalc.filter(e => e.result === 'win' || e.result === 'breakeven').length,
-    losses: entriesForAvgCalc.filter(e => e.result === 'loss').length,
-    winRate: entriesForAvgCalc.length > 0 ? Math.round((entriesForAvgCalc.filter(e => e.result === 'win' || e.result === 'breakeven').length / entriesForAvgCalc.length) * 100) : 0,
-    avgRR: entriesForAvgCalc.length > 0 ? 
-      (entriesForAvgCalc.reduce((sum, e) => sum + (e.riskReward || 0), 0) / entriesForAvgCalc.length).toFixed(2) : 
+    totalTrades: isLongTermHold ? entriesForAvgCalc.length : filteredEntries.filter(e => !e.isNoTradeDay).length,
+    wins: ratedEntries.filter(e => e.result === 'win').length,
+    losses: ratedEntries.filter(e => e.result === 'loss').length,
+    winRate: ratedEntries.length > 0 ? Math.round((ratedEntries.filter(e => e.result === 'win').length / ratedEntries.length) * 100) : 0,
+    avgRR: entriesForAvgCalc.filter(e => !e.isNoTradeDay).length > 0 ? 
+      (entriesForAvgCalc.filter(e => !e.isNoTradeDay).reduce((sum, e) => sum + (e.riskReward || 0), 0) / entriesForAvgCalc.filter(e => !e.isNoTradeDay).length).toFixed(2) : 
       '0.00',
   };
 
@@ -1723,18 +1725,18 @@ export function Journal() {
           />
         </div>
         
-        <TabsList className="grid w-full grid-cols-4 mb-6">
-          <TabsTrigger value="live">Live</TabsTrigger>
-          <TabsTrigger value="backtesting" disabled={!isPremium}>
+        <TabsList className="grid w-full grid-cols-2 gap-1 mb-6 h-auto">
+          <TabsTrigger value="live" className="text-xs py-2">Live Trading</TabsTrigger>
+          <TabsTrigger value="backtesting" disabled={!isPremium} className="text-xs py-2">
             <div className="flex items-center gap-1">
               {!isPremium && <Lock className="w-3 h-3" />}
-              Back
+              Backtesting
             </div>
           </TabsTrigger>
-          <TabsTrigger value="aplus">A+</TabsTrigger>
-          <TabsTrigger value="verified">
+          <TabsTrigger value="aplus" className="text-xs py-2">A+ Trade of Day</TabsTrigger>
+          <TabsTrigger value="verified" className="text-xs py-2">
             <div className="flex items-center gap-1">
-              <span>🛡️</span>Verified
+              <span>🛡️</span>Verified Trades
             </div>
           </TabsTrigger>
         </TabsList>
