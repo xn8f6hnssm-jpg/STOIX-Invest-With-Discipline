@@ -386,14 +386,14 @@ export function Dashboard() {
 
       {/* Followers / Following Modal */}
       <Dialog open={!!followModal} onOpenChange={() => setFollowModal(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-sm flex flex-col" style={{ maxHeight: '80vh' }}>
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
               {followModal === 'followers' ? 'Followers' : 'Following'}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+          <div className="space-y-2 overflow-y-auto flex-1 pr-1">
             {(followModal === 'followers' ? followerList : followingList).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 {followModal === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
