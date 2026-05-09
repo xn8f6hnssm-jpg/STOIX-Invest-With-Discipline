@@ -254,26 +254,34 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     { phase: 'exhale', duration: 4000, instruction: 'Breathe Out' },
   ];
 
-  const [tradingQuotes, setTradingQuotes] = useState<string[]>(() => [TRADING_QUOTES[Math.floor(Math.random() * TRADING_QUOTES.length)]]);
-  const [generalQuotes, setGeneralQuotes] = useState<string[]>(() => {
+  const [tradingQuote, setTradingQuote] = useState(() => TRADING_QUOTES[Math.floor(Math.random() * TRADING_QUOTES.length)]);
+  const [generalQuote, setGeneralQuote] = useState(() => {
     const saved = storage.getMentalPrepSettings();
     const quoteSources = saved?.quoteSources || ['movies', 'books', 'anime', 'philosophy', 'sports'];
     const enabledQuotes = quoteSources.flatMap(source => CATEGORIZED_QUOTES[source as keyof typeof CATEGORIZED_QUOTES] || []);
-    return enabledQuotes.length > 0 ? [enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)]] : [];
+    return enabledQuotes.length > 0 ? enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)] : '';
+  });
+  const [religiousQuote, setReligiousQuote] = useState(() => {
+    const texts = RELIGIOUS_TEXTS[settings.selectedReligion as keyof typeof RELIGIOUS_TEXTS] || [];
+    return texts.length > 0 ? texts[Math.floor(Math.random() * texts.length)] : '';
   });
 
-  const addTradingQuote = () => {
-    const remaining = TRADING_QUOTES.filter(q => !tradingQuotes.includes(q));
-    if (remaining.length === 0) return;
-    setTradingQuotes(prev => [...prev, remaining[Math.floor(Math.random() * remaining.length)]]);
+  const regenTradingQuote = () => {
+    const others = TRADING_QUOTES.filter(q => q !== tradingQuote);
+    setTradingQuote(others[Math.floor(Math.random() * others.length)]);
   };
 
-  const addGeneralQuote = () => {
+  const regenGeneralQuote = () => {
     const quoteSources = settings.quoteSources || ['movies', 'books', 'anime', 'philosophy', 'sports'];
     const allQuotes = quoteSources.flatMap(source => CATEGORIZED_QUOTES[source as keyof typeof CATEGORIZED_QUOTES] || []);
-    const remaining = allQuotes.filter(q => !generalQuotes.includes(q));
-    if (remaining.length === 0) return;
-    setGeneralQuotes(prev => [...prev, remaining[Math.floor(Math.random() * remaining.length)]]);
+    const others = allQuotes.filter(q => q !== generalQuote);
+    if (others.length > 0) setGeneralQuote(others[Math.floor(Math.random() * others.length)]);
+  };
+
+  const regenReligiousQuote = () => {
+    const texts = RELIGIOUS_TEXTS[settings.selectedReligion as keyof typeof RELIGIOUS_TEXTS] || [];
+    const others = texts.filter(t => t !== religiousQuote);
+    if (others.length > 0) setReligiousQuote(others[Math.floor(Math.random() * others.length)]);
   };
 
   // Show only enabled affirmations
@@ -281,10 +289,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     ? affirmations.filter((_, i) => enabledAffirmations.has(i))
     : [DEFAULT_AFFIRMATIONS[Math.floor(Math.random() * DEFAULT_AFFIRMATIONS.length)]];
 
-  const [selectedReligiousText] = useState(() => {
-    const texts = RELIGIOUS_TEXTS[settings.selectedReligion as keyof typeof RELIGIOUS_TEXTS] || [];
-    return texts.length > 0 ? texts[Math.floor(Math.random() * texts.length)] : '';
-  });
+
 
   const updateSettings = (updates: Partial<MentalPrepSettings>) => {
     const newSettings = { ...settings, ...updates };
@@ -770,22 +775,20 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                     <Quote className="w-5 h-5 text-blue-500" />
                     Trading Wisdom
                   </CardTitle>
-                  <Button size="sm" variant="ghost" onClick={addTradingQuote} className="text-xs text-muted-foreground">
-                    + Another
+                  <Button size="sm" variant="ghost" onClick={regenTradingQuote} className="text-xs text-muted-foreground">
+                    🔄 New Quote
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {tradingQuotes.map((q, i) => (
-                  <p key={i} className="text-base italic leading-relaxed border-l-2 border-blue-500/30 pl-3">"{q}"</p>
-                ))}
+              <CardContent>
+                <p className="text-base italic leading-relaxed">"{tradingQuote}"</p>
               </CardContent>
             </Card>
           </motion.div>
         )}
 
         {/* General Quote */}
-        {settings.showGeneralQuote && generalQuotes.length > 0 && (
+        {settings.showGeneralQuote && generalQuote && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
             <Card>
               <CardHeader>
@@ -794,15 +797,13 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
                     <Heart className="w-5 h-5 text-pink-500" />
                     Inspiration
                   </CardTitle>
-                  <Button size="sm" variant="ghost" onClick={addGeneralQuote} className="text-xs text-muted-foreground">
-                    + Another
+                  <Button size="sm" variant="ghost" onClick={regenGeneralQuote} className="text-xs text-muted-foreground">
+                    🔄 New Quote
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {generalQuotes.map((q, i) => (
-                  <p key={i} className="text-base italic leading-relaxed border-l-2 border-pink-500/30 pl-3">"{q}"</p>
-                ))}
+              <CardContent>
+                <p className="text-base italic leading-relaxed">"{generalQuote}"</p>
               </CardContent>
             </Card>
           </motion.div>
@@ -857,21 +858,22 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
         )}
 
         {/* Religious Reading */}
-        {settings.showReligious && selectedReligiousText && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.3 }}
-          >
+        {settings.showReligious && religiousQuote && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.3 }}>
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Book className="w-5 h-5 text-amber-500" />
-                  {RELIGION_TO_BOOK[settings.selectedReligion] || settings.selectedReligion} Reading
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Book className="w-5 h-5 text-amber-500" />
+                    {RELIGION_TO_BOOK[settings.selectedReligion] || settings.selectedReligion} Reading
+                  </CardTitle>
+                  <Button size="sm" variant="ghost" onClick={regenReligiousQuote} className="text-xs text-muted-foreground">
+                    🔄 New Verse
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <p className="text-lg leading-relaxed">{selectedReligiousText}</p>
+                <p className="text-base leading-relaxed">{religiousQuote}</p>
               </CardContent>
             </Card>
           </motion.div>

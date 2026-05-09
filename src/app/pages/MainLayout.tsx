@@ -43,6 +43,15 @@ async function syncDataFromSupabase(userId: string) {
         profilePicture: userData.profile_picture || localUser.profilePicture || '',
         achievements: userData.achievements || localUser.achievements || [],
       };
+      // Restore affirmations from Supabase
+      if (userData.affirmations && Array.isArray(userData.affirmations) && userData.affirmations.length > 0) {
+        const affKey = `tradeforge_affirmations_${userId}`;
+        const localAff = JSON.parse(localStorage.getItem(affKey) || '[]');
+        // Use whichever has more affirmations
+        if (userData.affirmations.length >= localAff.length) {
+          localStorage.setItem(affKey, JSON.stringify(userData.affirmations));
+        }
+      }
       localStorage.setItem('tradeforge_current_user', JSON.stringify(merged));
       // Update all_users too
       const allUsers = JSON.parse(localStorage.getItem('tradeforge_all_users') || '[]');
