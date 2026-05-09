@@ -41,6 +41,25 @@ function LeagueBadgeIcon({ tier, size = 36 }: { tier: string; size?: number }) {
   );
 }
 
+const isWeekend = (date: Date): boolean => {
+  const day = date.getDay(); // 0 = Sunday, 6 = Saturday
+  return day === 0 || day === 6;
+};
+
+const getLastWeekday = (): Date => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let day = today.getDay();
+  // If today is Sunday (0), last weekday was Friday (2 days ago)
+  // If today is Monday (1), last weekday was Friday (3 days ago)
+  // If today is Saturday (6), last weekday was Friday (1 day ago)
+  if (day === 0) today.setDate(today.getDate() - 2);
+  else if (day === 1) today.setDate(today.getDate() - 3);
+  else if (day === 6) today.setDate(today.getDate() - 1);
+  else today.setDate(today.getDate() - 1);
+  return today;
+};
+
 const checkAndResetStreak = () => {
   const user = storage.getCurrentUser();
   if (!user || user.currentStreak === 0) return;
@@ -49,10 +68,32 @@ const checkAndResetStreak = () => {
   if (userLogs.length === 0) return;
   const sortedLogs = [...userLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const lastLog = sortedLogs[0];
-  const hoursSinceLastLog = (new Date().getTime() - new Date(lastLog.date).getTime()) / (1000 * 60 * 60);
-  if (hoursSinceLastLog > 24) {
-    storage.updateCurrentUser({ currentStreak: 0 });
+  const lastLogDate = new Date(lastLog.date);
+  lastLogDate.setHours(0, 0, 0, 0);
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // If today is a weekend, don't reset streak
+  if (isWeekend(today)) return;
+
+  // If last log was today, streak is fine
+  if (lastLogDate.getTime() === today.getTime()) return;
+
+  // If last log was yesterday (weekday), streak is fine
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (lastLogDate.getTime() === yesterday.getTime()) return;
+
+  // If today is Monday, check if last log was Friday (weekend gap is ok)
+  if (today.getDay() === 1) {
+    const lastFriday = new Date(today);
+    lastFriday.setDate(today.getDate() - 3);
+    if (lastLogDate.getTime() >= lastFriday.getTime()) return;
   }
+
+  // Missed a weekday — reset streak
+  storage.updateCurrentUser({ currentStreak: 0 });
 };
 
 export function Dashboard() {
