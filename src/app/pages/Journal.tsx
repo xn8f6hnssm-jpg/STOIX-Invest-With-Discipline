@@ -23,6 +23,7 @@ import { Settings } from 'lucide-react';
 import { RevengeTradingAlert } from '../components/RevengeTradingAlert';
 import { PreTradeChecklist } from '../components/PreTradeChecklist';
 import { BehaviorRiskAlert, BehaviorRiskType } from '../components/BehaviorRiskAlert';
+import { VerifiedTrades } from '../components/VerifiedTrades';
 
 // ── User-specific field storage helpers ──────────────────────────────────────
 // Fields are stored per-user so different accounts have independent field sets
@@ -76,7 +77,7 @@ const getRandomJournalPoints = () => Math.floor(Math.random() * 5) + 8;
 
 export function Journal() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'live' | 'backtesting' | 'aplus'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'backtesting' | 'aplus' | 'verified'>('live');
   const [selectedStrategy, setSelectedStrategy] = useState<string>('all'); // NEW: Strategy filter
   const [entries, setEntries] = useState(sortNewest(storage.getJournalEntries().filter(e => e.userId === (storage.getCurrentUser()?.id || ''))));
   const [backtestingEntries, setBacktestingEntries] = useState(sortNewest(storage.getBacktestingEntries()));
@@ -1643,7 +1644,7 @@ export function Journal() {
 
       {/* Tabs for Live Trading and Backtesting */}
       <Tabs defaultValue="live" className="w-full" onValueChange={(value) => {
-        setActiveTab(value as 'live' | 'backtesting' | 'aplus');
+        setActiveTab(value as 'live' | 'backtesting' | 'aplus' | 'verified');
         // Reset custom fields when switching tabs so user starts fresh
         setNewEntry(prev => ({ ...prev, customFields: {}, screenshots: [], description: '', riskReward: 0, pnl: undefined, isNoTradeDay: false, beResolution: undefined }));
         setHiddenFieldsForEntry([]);
@@ -1722,15 +1723,20 @@ export function Journal() {
           />
         </div>
         
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="live">Live Trading</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 mb-6">
+          <TabsTrigger value="live">Live</TabsTrigger>
           <TabsTrigger value="backtesting" disabled={!isPremium}>
-            <div className="flex items-center gap-2">
-              Backtesting
+            <div className="flex items-center gap-1">
               {!isPremium && <Lock className="w-3 h-3" />}
+              Back
             </div>
           </TabsTrigger>
-          <TabsTrigger value="aplus">A+ Trade of Day</TabsTrigger>
+          <TabsTrigger value="aplus">A+</TabsTrigger>
+          <TabsTrigger value="verified">
+            <div className="flex items-center gap-1">
+              <span>🛡️</span>Verified
+            </div>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="live">
@@ -2094,6 +2100,10 @@ export function Journal() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <TabsContent value="verified">
+        <VerifiedTrades />
+      </TabsContent>
 
       {/* Revenge Trading Alert */}
       {showRevengeTradingAlert && (
