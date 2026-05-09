@@ -393,7 +393,7 @@ export function Dashboard() {
               {followModal === 'followers' ? 'Followers' : 'Following'}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-2 max-h-80 overflow-y-auto">
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {(followModal === 'followers' ? followerList : followingList).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 {followModal === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}

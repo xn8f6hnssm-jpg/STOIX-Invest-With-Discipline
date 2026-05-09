@@ -7,6 +7,7 @@ import { signOut, syncUserToSupabase } from '../utils/auth';
 import { PremiumBadge } from '../components/PremiumBadge';
 import { getCurrentUser } from '../utils/supabase';
 import { storage } from '../utils/storage';
+import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../utils/supabase';
 import {
   Sheet,
@@ -177,6 +178,7 @@ export function MainLayout() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isPremium] = useState(false);
+  const { theme } = useTheme();
 
   const [syncing, setSyncing] = useState(true);
   const [notifCount, setNotifCount] = useState(0);
@@ -327,7 +329,7 @@ export function MainLayout() {
         {/* Top bar */}
         <div className="border-b bg-card sticky top-0 z-10" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="px-4 py-3 flex items-center justify-between">
-            <Logo size="sm" />
+            <Logo size="sm" darkMode={theme === "dark"} />
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon">
