@@ -65,11 +65,27 @@ export function Social() {
           });
         }
 
+        // Load current profile pictures from users table
+        const userIds = [...new Set(data.map((p: any) => p.user_id))];
+        let profilePicMap: Record<string, string> = {};
+        if (userIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, profile_picture')
+            .in('id', userIds);
+          if (usersData) {
+            usersData.forEach((u: any) => {
+              if (u.profile_picture) profilePicMap[u.id] = u.profile_picture;
+            });
+          }
+        }
+
         const mapped = data.map((p: any) => ({
           id: p.id,
           userId: p.user_id,
           username: p.username,
-          avatarUrl: p.avatar_url || '',
+          // Use current profile picture from users table, fall back to stored avatar
+          avatarUrl: profilePicMap[p.user_id] || p.avatar_url || '',
           league: p.league || '0',
           isVerified: p.is_verified || false,
           type: p.type || 'general',
