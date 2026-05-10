@@ -1223,14 +1223,10 @@ export const storage = {
     safeSetItem(key, JSON.stringify(affirmations));
     // Sync to Supabase so affirmations persist across devices/logins
     if (user) {
-      fetch(`https://pwgsrikdthttjbnboiua.supabase.co/rest/v1/users?id=eq.${user.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3NyaWtkdGh0dGpibmJvaXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDAzNjksImV4cCI6MjA4OTg3NjM2OX0.Ch2tHyquSUsWaS7-J8CxgmmiBaAmVXCncLfbpy1HyyY',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Z3NyaWtkdGh0dGpibmJvaXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMDAzNjksImV4cCI6MjA4OTg3NjM2OX0.Ch2tHyquSUsWaS7-J8CxgmmiBaAmVXCncLfbpy1HyyY',
-        },
-        body: JSON.stringify({ affirmations }),
+      import('./supabase').then(({ supabase }) => {
+        supabase.from('users').update({ affirmations }).eq('id', user.id).then(({ error }) => {
+          if (error) console.error('Failed to save affirmations to Supabase:', error);
+        });
       }).catch(() => {});
     }
   },
