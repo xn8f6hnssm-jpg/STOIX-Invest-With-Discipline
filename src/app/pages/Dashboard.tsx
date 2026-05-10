@@ -189,13 +189,27 @@ export function Dashboard() {
           .order('timestamp', { ascending: false })
           .limit(20);
         if (data) {
+          // Fetch comment counts for these posts
+          const postIds = data.map((p: any) => p.id);
+          let commentsByPost: Record<string, any[]> = {};
+          if (postIds.length > 0) {
+            const { data: commentsData } = await supabase
+              .from('comments')
+              .select('id, post_id, user_id, username, text, timestamp')
+              .in('post_id', postIds);
+            (commentsData || []).forEach((c: any) => {
+              if (!commentsByPost[c.post_id]) commentsByPost[c.post_id] = [];
+              commentsByPost[c.post_id].push({ id: c.id, userId: c.user_id, username: c.username, text: c.text, timestamp: c.timestamp });
+            });
+          }
           const mapped = data.map((p: any) => ({
             id: p.id, userId: p.user_id, username: p.username,
             avatarUrl: p.avatar_url || '', league: p.league || '0',
             isVerified: p.is_verified || false, type: p.type || 'general',
             photoUrl: p.photo_url || '', images: p.images || [],
             caption: p.caption || '', likes: p.likes || 0,
-            comments: [], timestamp: p.timestamp || Date.now(),
+            comments: commentsByPost[p.id] || [],
+            timestamp: p.timestamp || Date.now(),
             journalData: p.journal_data || null,
           }));
           setPosts(mapped);
