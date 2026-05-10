@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Button } from '../components/ui/button';
-import { Crown, Shield, User, Mail, Users2, FileText, UserPlus } from 'lucide-react';
+import { Crown, Shield, User, Mail, Users2, FileText, UserPlus, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAccessToken } from '../utils/supabase';
 import { projectId, publicAnonKey } from '../../../utils/supabase/info';
@@ -194,6 +194,22 @@ export function Settings() {
               navigate('/login');
             }}>Sign Out</Button>
             <Button variant="destructive" className="w-full">Delete Account</Button>
+          </CardContent>
+        </Card>
+
+        {/* Support */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-muted-foreground" />
+              Support
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" className="w-full justify-start" onClick={() => window.open('mailto:support@stoixtrader.com?subject=STOIX Support Request', '_blank')}>
+              <Mail className="w-4 h-4 mr-2" />
+              Contact Support
+            </Button>
           </CardContent>
         </Card>
 
