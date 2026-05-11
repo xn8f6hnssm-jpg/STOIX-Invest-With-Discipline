@@ -1655,8 +1655,8 @@ export function AIAnalytics() {
           )}
 
           {btResults && btResults.hasMinData && (
-            /* Reuse same analysis cards for backtesting */
             <>
+              {/* Overview */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   {l:'Trades', v:btResults.totalTrades, c:'text-blue-500'},
@@ -1670,11 +1670,13 @@ export function AIAnalytics() {
                   </CardContent></Card>
                 ))}
               </div>
+
+              {/* Strategy Core */}
               {btResults.topCombos.length > 0 && (
                 <Card className="border-2 border-primary/25 bg-primary/5"><CardContent className="pt-5">
-                  <SH icon={Crosshair} title="🔥 Backtesting Strategy Core" sub="Best-performing setups from your backtesting data" color="text-primary"/>
-                  <div className="space-y-3">
-                    {btResults.topCombos.slice(0, 4).map((combo, i) => (
+                  <SH icon={Crosshair} title="🔥 Your Backtested Strategy Core" sub="Highest-performing confluence combinations ranked by win rate — these are your proven setups" color="text-primary"/>
+                  <div className="space-y-3 mb-4">
+                    {btResults.topCombos.slice(0, 5).map((combo, i) => (
                       <div key={i} className={`p-4 rounded-xl border ${i===0?'border-primary/40 bg-primary/10':'border-transparent bg-muted'}`}>
                         <div className="flex items-start justify-between gap-3 mb-2">
                           <div className="flex flex-wrap gap-1.5">
@@ -1682,18 +1684,135 @@ export function AIAnalytics() {
                           </div>
                           <p className={`text-xl font-bold flex-shrink-0 ${combo.winRate>=60?'text-green-500':combo.winRate>=50?'text-yellow-500':'text-red-500'}`}>{combo.winRate}%</p>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                           <span>{combo.count} trades</span>
                           <CP c={combo.conf}/>
+                          {i===0 && <span className="ml-auto font-bold text-primary text-xs">← Primary Setup</span>}
+                          {combo.signals.length===1 && <span>single signal</span>}
+                          {combo.signals.length===2 && <span>pair combo</span>}
+                          {combo.signals.length>=3 && <span>triple combo</span>}
                         </div>
                       </div>
                     ))}
                   </div>
+                  {btResults.strategyCore && (
+                    <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+                      <p className="text-sm font-bold text-primary mb-1">📍 Strategy Core Conclusion</p>
+                      <p className="text-sm">Your backtesting data shows <strong>{btResults.strategyCore.signals.join(' + ')}</strong> as your highest-probability setup at <strong>{btResults.strategyCore.winRate}% win rate</strong> across {btResults.strategyCore.count} trades. This should be your primary entry model when going live.</p>
+                    </div>
+                  )}
                 </CardContent></Card>
               )}
+
+              {/* Session analysis for backtesting */}
+              {btResults.sessions.length > 0 && (
+                <Card><CardContent className="pt-5">
+                  <SH icon={Clock} title="Best Sessions in Backtesting" sub="Which sessions produced the best results — use this to plan your live trading hours" color="text-blue-500"/>
+                  <div className="space-y-2 mb-3">
+                    {[...btResults.sessions].sort((a,b)=>b.winRate-a.winRate).slice(0,4).map((w,i)=>(
+                      <div key={i} className={`p-3 rounded-lg border ${i===0?'border-green-500/30 bg-green-500/5':w.winRate<45?'border-red-500/20 bg-red-500/5':'border-transparent bg-muted'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            {i===0 && <span className="text-xs font-black text-green-600">BEST</span>}
+                            {w.winRate<45 && i>0 && <span className="text-xs font-black text-red-500">AVOID</span>}
+                            <span className="font-medium text-sm">{w.label}</span>
+                          </div>
+                          <span className={`font-bold text-sm ${w.winRate>=55?'text-green-500':w.winRate<45?'text-red-500':'text-yellow-500'}`}>{w.winRate}%</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{w.count} trades{w.pnl!==0?` · ${w.pnl>=0?'+':''}$${w.pnl}`:''}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {btResults.bestSession && <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20"><p className="text-sm font-medium text-blue-700 dark:text-blue-300">📍 Before going live, only trade during your backtested best session: <strong>{btResults.bestSession.label}</strong> ({btResults.bestSession.winRate}% WR)</p></div>}
+                </CardContent></Card>
+              )}
+
+              {/* R:R Analysis */}
+              {btResults.rrAnalysis && (
+                <Card><CardContent className="pt-5">
+                  <SH icon={BarChart3} title="Optimal R:R From Backtesting" sub="Which risk-to-reward ratio produced the best results — set this as your minimum live target" color="text-amber-500"/>
+                  <div className="space-y-2 mb-3">
+                    {btResults.rrAnalysis.brackets.map((b,i)=>(
+                      <div key={i} className={`p-3 rounded-lg border flex items-center justify-between ${b.label===btResults.rrAnalysis!.best?'border-green-500/30 bg-green-500/5':b.winRate<45?'border-red-500/20 bg-red-500/5':'border-transparent bg-muted'}`}>
+                        <div><p className="font-medium text-sm">{b.label}</p><p className="text-xs text-muted-foreground">{b.count} trades{b.pnl!==0?` · ${b.pnl>=0?'+':''}$${b.pnl}`:''}</p></div>
+                        <div className="text-right">
+                          <p className={`font-bold text-sm ${b.winRate>=55?'text-green-500':b.winRate<45?'text-red-500':'text-yellow-500'}`}>{b.winRate}% WR</p>
+                          {b.label===btResults.rrAnalysis!.best&&<p className="text-xs text-green-600 font-semibold">Optimal</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-sm font-medium">📍 Set <strong>{btResults.rrAnalysis.best}</strong> as your minimum R:R when trading live. Your data shows this is where your edge is strongest.</p>
+                  </div>
+                </CardContent></Card>
+              )}
+
+              {/* Behavior leaks in backtesting */}
+              {btResults.behaviorLeaks.length > 0 && (
+                <Card className="border border-orange-500/20"><CardContent className="pt-5">
+                  <SH icon={Flame} title="Backtesting Behavior Leaks" sub="Bad habits showing up even in backtesting — fix these before going live" color="text-orange-500"/>
+                  <div className="space-y-3">
+                    {btResults.behaviorLeaks.map((l,i)=>(
+                      <div key={i} className={`p-4 rounded-xl border ${l.impact==='high'?'border-red-500/20 bg-red-500/5':'border-yellow-500/20 bg-yellow-500/5'}`}>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="font-semibold text-sm">{l.type}</p>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${l.impact==='high'?'bg-red-500/20 text-red-600':'bg-yellow-500/20 text-yellow-600'}`}>{l.impact.toUpperCase()}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{l.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                    <p className="text-sm font-medium text-orange-700 dark:text-orange-300">⚠️ These patterns exist in your backtesting data. They will be amplified with real money and real emotions. Fix them now.</p>
+                  </div>
+                </CardContent></Card>
+              )}
+
+              {/* Strategy Blueprint from backtesting */}
+              {btResults.blueprint && (
+                <Card className="border-2 border-primary/30"><CardContent className="pt-5">
+                  <SH icon={Target} title="🧠 Backtested Strategy Blueprint" sub="Your complete strategy built from backtesting data — ready to deploy live" color="text-primary"/>
+                  <div className="space-y-3 mb-4">
+                    {([
+                      {icon:'🌍', title:'Market Conditions', items:btResults.blueprint.marketConditions},
+                      {icon:'🎯', title:'Entry Model', items:btResults.blueprint.entryModel},
+                      {icon:'🛡️', title:'Risk Model', items:btResults.blueprint.riskModel},
+                      {icon:'⚡', title:'Execution Rules', items:btResults.blueprint.executionRules},
+                    ]).map(s=>(
+                      <div key={s.title} className="p-4 rounded-xl bg-muted border">
+                        <p className="font-bold text-sm mb-2">{s.icon} {s.title}</p>
+                        <ul className="space-y-1.5">
+                          {s.items.map((item,j)=>(
+                            <li key={j} className="flex items-start gap-2 text-sm">
+                              <ChevronRight className="w-4 h-4 text-primary flex-shrink-0 mt-0.5"/><span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+                    <p className="text-sm font-bold text-green-700 dark:text-green-300 mb-2">✅ Ready to Go Live Checklist</p>
+                    <div className="space-y-1.5">
+                      {[
+                        `Min ${btResults.totalTrades >= 30 ? '✅' : '⏳'} 30+ backtesting trades (you have ${btResults.totalTrades})`,
+                        `${btResults.wr >= 50 ? '✅' : '⏳'} Win rate above 50% (yours: ${btResults.wr}%)`,
+                        `${btResults.avgRR >= 1.5 ? '✅' : '⏳'} Avg R:R above 1.5 (yours: ${btResults.avgRR > 0 ? btResults.avgRR : 'not logged'})`,
+                        `${btResults.strategyCore ? '✅' : '⏳'} Clear strategy core identified`,
+                        `${btResults.sessions.length > 0 ? '✅' : '⏳'} Best session identified`,
+                      ].map((item, i) => (
+                        <p key={i} className="text-xs">{item}</p>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent></Card>
+              )}
+
+              {/* Next Steps */}
               {btResults.nextSteps.length > 0 && (
                 <Card><CardContent className="pt-5">
-                  <SH icon={TrendingUp} title="🚀 Backtesting Next Steps" sub="How to improve your backtesting strategy" color="text-blue-500"/>
+                  <SH icon={TrendingUp} title="🚀 Before Going Live" sub="Steps to take based on your backtesting data" color="text-blue-500"/>
                   <div className="space-y-2">
                     {btResults.nextSteps.map((step, i) => (
                       <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted">
@@ -1802,6 +1921,109 @@ export function AIAnalytics() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* A+ Entry Criteria Builder */}
+              {core.length > 0 && (
+                <Card className="border-2 border-green-500/30 bg-green-500/5">
+                  <CardContent className="pt-5">
+                    <SH icon={Target} title="⭐ Your A+ Entry Checklist" sub="Built from your best trades — run through this before every entry" color="text-green-500"/>
+                    <div className="space-y-3 mb-4">
+                      <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+                        <p className="text-xs font-bold uppercase tracking-wider text-green-700 dark:text-green-300 mb-3">✅ REQUIRED — Must have ALL of these</p>
+                        <div className="space-y-2">
+                          {core.map((s: any) => (
+                            <div key={s.sig} className="flex items-center justify-between p-2 bg-background rounded-lg border">
+                              <div className="flex items-center gap-2">
+                                <span className="text-green-500 font-bold">✓</span>
+                                <span className="text-sm font-medium">{s.sig}</span>
+                              </div>
+                              <span className="text-xs text-green-600 font-semibold">{s.pct}% of A+ trades</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {supporting.length > 0 && (
+                        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                          <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-3">🔵 SUPPORTING — Adds confidence when present</p>
+                          <div className="space-y-2">
+                            {supporting.map((s: any) => (
+                              <div key={s.sig} className="flex items-center justify-between p-2 bg-background rounded-lg border">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-blue-500 font-bold">+</span>
+                                  <span className="text-sm font-medium">{s.sig}</span>
+                                </div>
+                                <span className="text-xs text-blue-600 font-semibold">{s.pct}% of A+ trades</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 rounded-lg bg-green-500/20 border border-green-500/30">
+                      <p className="text-sm font-bold text-green-700 dark:text-green-300">
+                        📋 Rule: Before any entry, ask — do I have {core.map((s: any) => s.sig).join(' + ')}? If the answer is no, skip the trade. No exceptions.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* A+ Selectivity Score */}
+              {results && results.totalTrades > 0 && (
+                <Card className="border border-yellow-500/30">
+                  <CardContent className="pt-5">
+                    <SH icon={Activity} title="A+ Selectivity Score" sub="How often are you actually taking A+ quality setups" color="text-yellow-500"/>
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div className="text-center p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                        <p className="text-2xl font-bold text-yellow-600">{total}</p>
+                        <p className="text-xs text-muted-foreground">A+ Trades</p>
+                      </div>
+                      <div className="text-center p-3 bg-muted rounded-lg border">
+                        <p className="text-2xl font-bold">{results.totalTrades}</p>
+                        <p className="text-xs text-muted-foreground">Total Trades</p>
+                      </div>
+                      <div className="text-center p-3 bg-muted rounded-lg border">
+                        <p className={`text-2xl font-bold ${total/results.totalTrades >= 0.4 ? 'text-green-500' : total/results.totalTrades >= 0.2 ? 'text-yellow-500' : 'text-red-500'}`}>
+                          {Math.round(total/results.totalTrades*100)}%
+                        </p>
+                        <p className="text-xs text-muted-foreground">A+ Rate</p>
+                      </div>
+                    </div>
+                    <div className={`p-3 rounded-lg border text-sm font-medium ${
+                      total/results.totalTrades >= 0.4 ? 'bg-green-500/10 border-green-500/20 text-green-700 dark:text-green-300' :
+                      total/results.totalTrades >= 0.2 ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-300' :
+                      'bg-red-500/10 border-red-500/20 text-red-700 dark:text-red-300'
+                    }`}>
+                      {total/results.totalTrades >= 0.4 ? '✅ Good selectivity — you are being disciplined about your setups' :
+                       total/results.totalTrades >= 0.2 ? '🟡 Room to improve — only take trades that meet your A+ criteria' :
+                       '❌ Too many non-A+ trades — you are overtrading. Be more selective and only take A+ setups.'}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Improvement roadmap */}
+              {core.length > 0 && (
+                <Card>
+                  <CardContent className="pt-5">
+                    <SH icon={TrendingUp} title="🚀 How To Use Your A+ Data" sub="Actionable steps to turn your best setups into your only setups" color="text-blue-500"/>
+                    <div className="space-y-2">
+                      {[
+                        `Only enter trades where ${core.map((s: any) => s.sig).join(' + ')} are ALL present — this is your non-negotiable checklist`,
+                        supporting.length > 0 ? `When you also have ${supporting[0].sig}, treat it as extra confirmation — higher conviction, better sizing` : 'Log more A+ trades to identify your supporting confluences',
+                        total < 20 ? `Log ${20-total} more A+ trades to increase pattern confidence to High` : 'Your A+ sample size is strong — trust the pattern and execute it consistently',
+                        results && results.totalTrades > 0 ? `You currently take A+ setups ${Math.round(total/results.totalTrades*100)}% of the time — the goal is 40%+ by eliminating low-quality entries` : 'Run Live Trading analysis alongside A+ to compare quality vs quantity',
+                        'Screenshot every A+ trade at entry AND exit — builds a visual library of your best setups over time',
+                      ].map((step, i) => (
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted">
+                          <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-600 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i+1}</span>
+                          <p className="text-sm">{step}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Recent A+ trades */}
               <Card>
