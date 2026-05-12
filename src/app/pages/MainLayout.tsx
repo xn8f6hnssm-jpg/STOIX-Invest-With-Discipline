@@ -140,6 +140,24 @@ async function syncDataFromSupabase(userId: string) {
       localStorage.setItem('tradeforge_strategies', JSON.stringify(merged));
     }
 
+    // ── 4b. Sync rules ──
+    const { data: rulesData } = await supabase
+      .from('rules')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (rulesData && rulesData.length > 0) {
+      const mapped = rulesData.map((r: any) => ({
+        id: r.id, userId: r.user_id, title: r.title,
+        description: r.description || '', tag: r.tag || '',
+        isCritical: r.is_critical || false,
+      }));
+      const existing = JSON.parse(localStorage.getItem('tradeforge_rules') || '[]');
+      const otherUsersRules = existing.filter((r: any) => r.userId !== userId);
+      localStorage.setItem('tradeforge_rules', JSON.stringify([...otherUsersRules, ...mapped]));
+      console.log(`✅ Synced ${mapped.length} rules`);
+    }
+
     // ── 5. Sync journal fields ──
     const { data: fieldsData } = await supabase
       .from('journal_fields').select('*').eq('user_id', userId);
