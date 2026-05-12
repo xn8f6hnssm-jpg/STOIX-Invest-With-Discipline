@@ -44,20 +44,13 @@ async function syncDataFromSupabase(userId: string) {
         profilePicture: userData.profile_picture || localUser.profilePicture || '',
         achievements: userData.achievements || localUser.achievements || [],
       };
-      // Restore affirmations from Supabase
-      if (userData.affirmations && Array.isArray(userData.affirmations) && userData.affirmations.length > 0) {
-        const affKey = `tradeforge_affirmations_${userId}`;
-        const localAff = JSON.parse(localStorage.getItem(affKey) || '[]');
-        if (userData.affirmations.length >= localAff.length) {
-          localStorage.setItem(affKey, JSON.stringify(userData.affirmations));
-        }
-      }
-      // Restore mental prep settings from Supabase
+      // Restore mental prep settings from Supabase — always use Supabase as source of truth
       if (userData.mental_prep_settings) {
-        const existing = localStorage.getItem('tradeforge_mental_prep_settings');
-        if (!existing) {
-          localStorage.setItem('tradeforge_mental_prep_settings', JSON.stringify(userData.mental_prep_settings));
-        }
+        localStorage.setItem('tradeforge_mental_prep_settings', JSON.stringify(userData.mental_prep_settings));
+      }
+      // Restore affirmations — always use Supabase if it has more
+      if (userData.affirmations && Array.isArray(userData.affirmations) && userData.affirmations.length > 0) {
+        localStorage.setItem(`tradeforge_affirmations_${userId}`, JSON.stringify(userData.affirmations));
       }
       localStorage.setItem('tradeforge_current_user', JSON.stringify(merged));
       // Update all_users too

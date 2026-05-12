@@ -30,7 +30,7 @@ const SESSION_LABELS: Record<string, string> = {
 };
 
 export function VerifiedTrades() {
-  const currentUser = storage.getCurrentUser();
+  const [currentUser, setCurrentUser] = useState<any>(storage.getCurrentUser());
   const [connections, setConnections] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [trades, setTrades] = useState<any[]>([]);
@@ -52,11 +52,34 @@ export function VerifiedTrades() {
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (currentUser) {
-      loadData();
-      const saved = localStorage.getItem(`stoix_trade_screenshots_${currentUser.id}`);
-      if (saved) setScreenshots(JSON.parse(saved));
-    }
+    const initUser = async () => {
+      let user = storage.getCurrentUser();
+      if (!user) {
+        // Fall back to Supabase auth session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: profile } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
+          if (profile) {
+            user = {
+              id: profile.id, email: profile.email, username: profile.username,
+              name: profile.name, totalPoints: profile.total_points || 0,
+              currentStreak: profile.current_streak || 0, isPremium: profile.is_premium || false,
+              profilePicture: profile.profile_picture || '',
+            };
+            storage.setCurrentUser(user as any);
+            setCurrentUser(user);
+          }
+        }
+      } else {
+        setCurrentUser(user);
+      }
+      if (user) {
+        loadData();
+        const saved = localStorage.getItem(`stoix_trade_screenshots_${user.id}`);
+        if (saved) setScreenshots(JSON.parse(saved));
+      }
+    };
+    initUser();
   }, []);
 
   const handleScreenshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
