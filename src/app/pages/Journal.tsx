@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../components/ui/checkbox';
 import { Settings } from 'lucide-react';
 import { RevengeTradingAlert } from '../components/RevengeTradingAlert';
+import { supabase } from '../utils/supabase';
 import { PreTradeChecklist } from '../components/PreTradeChecklist';
 import { BehaviorRiskAlert, BehaviorRiskType } from '../components/BehaviorRiskAlert';
 import { VerifiedTrades } from '../components/VerifiedTrades';
@@ -42,30 +43,27 @@ const getAplusEntries = (userId: string): any[] => {
 };
 const saveAplusEntries = (userId: string, entries: any[]) => {
   localStorage.setItem(getAplusEntriesKey(userId), JSON.stringify(entries));
-  // Sync to Supabase
-  import('./utils/supabase').then(({ supabase }: any) => {
-    // Delete existing A+ entries and re-insert
-    supabase.from('journal_entries')
-      .delete()
-      .eq('user_id', userId)
-      .eq('entry_type', 'aplus')
-      .then(() => {
-        if (entries.length === 0) return;
-        const rows = entries.map((e: any) => ({
-          id: e.id, user_id: userId, date: e.date,
-          result: 'win', description: e.description || '',
-          risk_reward: 0, pnl: null,
-          custom_fields: e.customFields || {},
-          screenshots: e.screenshots || [],
-          is_no_trade_day: false, points_awarded: false,
-          timestamp: e.timestamp || Date.now(),
-          strategy_id: e.strategyId || null,
-          entry_type: 'aplus',
-        }));
-        supabase.from('journal_entries').upsert(rows)
-          .then(({ error }: any) => { if (error) console.error('A+ sync error:', error); });
-      });
-  }).catch(() => {});
+  // Sync to Supabase — delete and re-insert
+  supabase.from('journal_entries')
+    .delete()
+    .eq('user_id', userId)
+    .eq('entry_type', 'aplus')
+    .then(() => {
+      if (entries.length === 0) return;
+      const rows = entries.map((e: any) => ({
+        id: e.id, user_id: userId, date: e.date,
+        result: 'win', description: e.description || '',
+        risk_reward: 0, pnl: null,
+        custom_fields: e.customFields || {},
+        screenshots: e.screenshots || [],
+        is_no_trade_day: false, points_awarded: false,
+        timestamp: e.timestamp || Date.now(),
+        strategy_id: e.strategyId || null,
+        entry_type: 'aplus',
+      }));
+      supabase.from('journal_entries').upsert(rows)
+        .then(({ error }: any) => { if (error) console.error('A+ sync error:', error); });
+    });
 };
 
 const getUserFields = (userId: string): any[] => {

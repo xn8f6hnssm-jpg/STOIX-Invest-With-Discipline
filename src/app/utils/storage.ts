@@ -120,6 +120,7 @@ export interface JournalEntry {
   invalidationCondition?: string; plannedHoldTime?: string; thesisReviewDates?: string[];
   sellReason?: 'thesis_broken' | 'emotional_reaction' | 'planned_exit';
   beResolution?: 'continued_win' | 'continued_loss' | 'stayed_breakeven';
+  entryType?: 'live' | 'backtesting' | 'aplus';
 }
 
 export interface JournalFieldDefinition {
@@ -1221,9 +1222,7 @@ export const storage = {
     // Sync to Supabase
     const user = storage.getCurrentUser();
     if (user) {
-      import('./supabase').then(({ supabase }) => {
-        supabase.from('users').update({ mental_prep_settings: settings }).eq('id', user.id).catch(() => {});
-      }).catch(() => {});
+      supabase.from('users').update({ mental_prep_settings: settings }).eq('id', user.id).catch(() => {});
     }
   },
 
@@ -1241,11 +1240,8 @@ export const storage = {
     safeSetItem(key, JSON.stringify(affirmations));
     // Sync to Supabase so affirmations persist across devices/logins
     if (user) {
-      import('./supabase').then(({ supabase }) => {
-        supabase.from('users').update({ affirmations }).eq('id', user.id).then(({ error }) => {
-          if (error) console.error('Failed to save affirmations to Supabase:', error);
-        });
-      }).catch(() => {});
+      supabase.from('users').update({ affirmations }).eq('id', user.id)
+        .then(({ error }) => { if (error) console.error('Failed to save affirmations:', error); });
     }
   },
 
