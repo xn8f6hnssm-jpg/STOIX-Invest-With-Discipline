@@ -47,6 +47,9 @@ export function VerifiedTrades() {
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const [showShareCard, setShowShareCard] = useState(false);
+  const [importingCSV, setImportingCSV] = useState(false);
+  const [importResult, setImportResult] = useState<{imported: number, skipped: number} | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (currentUser) {
@@ -78,6 +81,169 @@ export function VerifiedTrades() {
     const updated = screenshots.filter((_, i) => i !== idx);
     setScreenshots(updated);
     if (currentUser) localStorage.setItem(`stoix_trade_screenshots_${currentUser.id}`, JSON.stringify(updated));
+  };
+
+  const parseTradovatePnL = (pnlStr: string): number => {
+    // Handles: "$1,565.00", "$(85.00)", "$5.00"
+    const cleaned = pnlStr.replace(/[$,\s]/g, '');
+    if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+      return -parseFloat(cleaned.slice(1, -1));
+    }
+    return parseFloat(cleaned) || 0;
+  };
+
+  const parseTradovateDate = (dateStr: string): string => {
+    // "05/10/2026 15:24:02" -> ISO string
+    const [date, time] = dateStr.trim().split(' ');
+    const [month, day, year] = date.split('/');
+    return new Date(`${year}-${month}-${day}T${time}Z`).toISOString();
+  };
+
+  const parseDurationMinutes = (dur: string): number => {
+    let total = 0;
+    const h = dur.match(/(\d+)hr/);
+    const m = dur.match(/(\d+)min/);
+    const s = dur.match(/(\d+)sec/);
+    if (h) total += parseInt(h[1]) * 60;
+    if (m) total += parseInt(m[1]);
+    if (s) total += parseInt(s[1]) / 60;
+    return Math.round(total);
+  };
+
+  const detectSession = (isoDate: string): string => {
+    const h = new Date(isoDate).getUTCHours();
+    if (h >= 0 && h < 7) return 'asian';
+    if (h >= 7 && h < 12) return 'london';
+    if (h >= 12 && h < 16) return 'london_newyork_overlap';
+    if (h >= 16 && h < 21) return 'newyork';
+    return 'off_hours';
+  };
+
+  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+    setImportingCSV(true);
+    setImportResult(null);
+
+    try {
+      const text = await file.text();
+      const lines = text.trim().split('
+');
+      const headers = lines[0].split(',').map(h => h.trim());
+      
+      let imported = 0;
+      let skipped = 0;
+
+      // First ensure we have a broker connection for CSV imports
+      let connectionId: string | null = null;
+      const { data: existingConn } = await supabase
+        .from('broker_connections')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .eq('broker_name', 'Tradovate (CSV)')
+        .maybeSingle();
+
+      if (existingConn) {
+        connectionId = existingConn.id;
+      } else {
+        const { data: newConn } = await supabase
+          .from('broker_connections')
+          .insert({
+            user_id: currentUser.id,
+            broker_name: 'Tradovate (CSV)',
+            account_number: 'CSV Import',
+            account_type: 'mt4',
+            ea_api_key: `csv_${currentUser.id}_${Date.now()}`,
+            ea_api_key_hash: `csv_${currentUser.id}_${Date.now()}`,
+            is_active: true,
+            sync_status: 'success',
+          })
+          .select('id')
+          .single();
+        connectionId = newConn?.id || null;
+      }
+
+      if (!connectionId) throw new Error('Could not create broker connection');
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Parse CSV handling quoted fields
+        const fields: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (const char of line) {
+          if (char === '"') { inQuotes = !inQuotes; }
+          else if (char === ',' && !inQuotes) { fields.push(current); current = ''; }
+          else { current += char; }
+        }
+        fields.push(current);
+
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => { row[h] = (fields[idx] || '').trim(); });
+
+        const symbol = row['symbol'] || '';
+        const buyPrice = parseFloat(row['buyPrice']) || 0;
+        const sellPrice = parseFloat(row['sellPrice']) || 0;
+        const pnl = parseTradovatePnL(row['pnl'] || '0');
+        const openTime = parseTradovateDate(row['boughtTimestamp'] || '');
+        const closeTime = parseTradovateDate(row['soldTimestamp'] || '');
+        const durationMins = parseDurationMinutes(row['duration'] || '');
+        const qty = parseInt(row['qty']) || 1;
+        const buyFillId = row['buyFillId'] || '';
+
+        if (!symbol || !buyPrice) { skipped++; continue; }
+
+        const isWinner = pnl > 0;
+        const pips = sellPrice - buyPrice;
+        // Simple RR estimate — futures don't have SL in CSV so we skip
+        const ticket = parseInt(buyFillId.replace(/\D/g, '').slice(-9)) || i;
+
+        const tradeRecord = {
+          user_id: currentUser.id,
+          connection_id: connectionId,
+          ticket,
+          symbol,
+          trade_type: 'buy',
+          open_time: openTime,
+          close_time: closeTime,
+          open_price: buyPrice,
+          close_price: sellPrice,
+          lot_size: qty,
+          gross_profit: pnl,
+          commission: 0,
+          swap: 0,
+          net_profit: pnl,
+          risk_reward: null,
+          pips: Math.round(pips * 4) / 4,
+          duration_minutes: durationMins,
+          session: detectSession(openTime),
+          result: isWinner ? 'win' : pnl === 0 ? 'breakeven' : 'loss',
+          is_winner: isWinner,
+          status: 'closed',
+          raw_payload: row,
+        };
+
+        const { error } = await supabase
+          .from('verified_trades')
+          .upsert(tradeRecord, { onConflict: 'connection_id,ticket' });
+
+        if (!error) imported++;
+        else skipped++;
+      }
+
+      // Recalculate stats
+      await loadData();
+      setImportResult({ imported, skipped });
+      toast.success(`Imported ${imported} trades!`);
+    } catch (err) {
+      console.error('CSV import error:', err);
+      toast.error('Import failed — check the file format');
+    } finally {
+      setImportingCSV(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
   };
 
   const loadData = async () => {
@@ -283,6 +449,31 @@ export function VerifiedTrades() {
                 <strong>Coming soon:</strong> Tradovate, NinjaTrader, Rithmic, MT4/MT5, cTrader
               </p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* CSV Import */}
+      <Card>
+        <CardContent className="pt-4 pb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-sm">Import from Tradovate</p>
+              <p className="text-xs text-muted-foreground">Download CSV from Account Reports → Performance and upload here</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => csvInputRef.current?.click()} disabled={importingCSV}>
+              <Plus className="w-4 h-4 mr-1" />{importingCSV ? 'Importing...' : 'Import CSV'}
+            </Button>
+            <input ref={csvInputRef} type="file" accept=".csv" className="hidden" onChange={handleCSVImport} />
+          </div>
+          {importResult && (
+            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm">
+              ✅ Imported <strong>{importResult.imported}</strong> trades{importResult.skipped > 0 ? `, skipped ${importResult.skipped}` : ''}
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>In Tradovate: <strong>Account Reports → Performance → Download CSV</strong></p>
+            <p>Supports: NQ, ES, CL, GC and all futures symbols</p>
           </div>
         </CardContent>
       </Card>
