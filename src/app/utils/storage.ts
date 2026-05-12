@@ -1207,7 +1207,16 @@ export const storage = {
     const str = localStorage.getItem(KEYS.MENTAL_PREP_SETTINGS);
     return str ? JSON.parse(str) : null;
   },
-  saveMentalPrepSettings: (settings: any) => safeSetItem(KEYS.MENTAL_PREP_SETTINGS, JSON.stringify(settings)),
+  saveMentalPrepSettings: (settings: any) => {
+    safeSetItem(KEYS.MENTAL_PREP_SETTINGS, JSON.stringify(settings));
+    // Sync to Supabase
+    const user = storage.getCurrentUser();
+    if (user) {
+      import('./supabase').then(({ supabase }) => {
+        supabase.from('users').update({ mental_prep_settings: settings }).eq('id', user.id).catch(() => {});
+      }).catch(() => {});
+    }
+  },
 
   getAffirmations: (): string[] => {
     const user = storage.getCurrentUser();

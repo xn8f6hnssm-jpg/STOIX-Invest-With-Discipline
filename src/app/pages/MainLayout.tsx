@@ -48,9 +48,15 @@ async function syncDataFromSupabase(userId: string) {
       if (userData.affirmations && Array.isArray(userData.affirmations) && userData.affirmations.length > 0) {
         const affKey = `tradeforge_affirmations_${userId}`;
         const localAff = JSON.parse(localStorage.getItem(affKey) || '[]');
-        // Use whichever has more affirmations
         if (userData.affirmations.length >= localAff.length) {
           localStorage.setItem(affKey, JSON.stringify(userData.affirmations));
+        }
+      }
+      // Restore mental prep settings from Supabase
+      if (userData.mental_prep_settings) {
+        const existing = localStorage.getItem('tradeforge_mental_prep_settings');
+        if (!existing) {
+          localStorage.setItem('tradeforge_mental_prep_settings', JSON.stringify(userData.mental_prep_settings));
         }
       }
       localStorage.setItem('tradeforge_current_user', JSON.stringify(merged));
