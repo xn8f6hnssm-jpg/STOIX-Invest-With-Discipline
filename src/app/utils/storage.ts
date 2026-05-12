@@ -736,6 +736,15 @@ export const storage = {
     const newEntry = { ...entry, id: Date.now().toString() };
     entries.push(newEntry);
     safeSetItem(KEYS.BACKTESTING_ENTRIES, JSON.stringify(entries));
+    // Sync to Supabase
+    supabase.from('journal_entries').upsert({
+      id: newEntry.id, user_id: newEntry.userId, date: newEntry.date,
+      result: newEntry.result, description: newEntry.description || '',
+      risk_reward: newEntry.riskReward || 0, pnl: newEntry.pnl || null,
+      custom_fields: newEntry.customFields || {}, screenshots: newEntry.screenshots || [],
+      is_no_trade_day: newEntry.isNoTradeDay || false, points_awarded: false,
+      timestamp: newEntry.timestamp || Date.now(), entry_type: 'backtesting',
+    }).then(({ error }) => { if (error) console.error('Backtesting sync error:', error); });
     return newEntry;
   },
 

@@ -75,10 +75,10 @@ async function syncDataFromSupabase(userId: string) {
       .select('*')
       .eq('user_id', userId)
       .order('timestamp', { ascending: false })
-      .limit(200);
+      .limit(500);
 
     if (journalData && journalData.length > 0) {
-      const mapped = journalData.map((e: any) => ({
+      const mapEntry = (e: any) => ({
         id: e.id, userId: e.user_id, date: e.date, result: e.result,
         description: e.description || '', screenshots: e.screenshots || [],
         customFields: e.custom_fields || {}, riskReward: e.risk_reward || 0,
@@ -88,9 +88,25 @@ async function syncDataFromSupabase(userId: string) {
         strategyId: e.strategy_id || null, assetName: e.asset_name || null,
         action: e.action || null, investmentThesis: e.investment_thesis || null,
         sellReason: e.sell_reason || null, beResolution: e.be_resolution || null,
-      }));
-      localStorage.setItem('tradeforge_journal_entries', JSON.stringify(mapped));
-      console.log(`✅ Synced ${mapped.length} journal entries`);
+      });
+
+      // Split by entry type
+      const liveEntries = journalData.filter((e: any) => !e.entry_type || e.entry_type === 'live').map(mapEntry);
+      const btEntries = journalData.filter((e: any) => e.entry_type === 'backtesting').map(mapEntry);
+      const aplusEntries = journalData.filter((e: any) => e.entry_type === 'aplus').map(mapEntry);
+
+      if (liveEntries.length > 0) {
+        localStorage.setItem('tradeforge_journal_entries', JSON.stringify(liveEntries));
+        console.log(`✅ Synced ${liveEntries.length} live journal entries`);
+      }
+      if (btEntries.length > 0) {
+        localStorage.setItem('tradeforge_backtesting_entries', JSON.stringify(btEntries));
+        console.log(`✅ Synced ${btEntries.length} backtesting entries`);
+      }
+      if (aplusEntries.length > 0) {
+        localStorage.setItem(`tradeforge_aplus_entries_${userId}`, JSON.stringify(aplusEntries));
+        console.log(`✅ Synced ${aplusEntries.length} A+ entries`);
+      }
     }
 
     // ── 3. Sync day logs ──
