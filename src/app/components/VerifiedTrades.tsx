@@ -164,6 +164,8 @@ export function VerifiedTrades() {
 
       if (!connectionId) throw new Error('Could not create broker connection');
 
+      console.log('CSV lines found:', lines.length, '| Headers:', headers);
+
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
@@ -180,7 +182,7 @@ export function VerifiedTrades() {
         fields.push(current);
 
         const row: Record<string, string> = {};
-        headers.forEach((h, idx) => { row[h] = (fields[idx] || '').trim(); });
+        headers.forEach((h, idx) => { row[h] = (fields[idx] || '').trim().replace(/\r/g, ''); });
 
         const symbol = row['symbol'] || '';
         const buyPrice = parseFloat(row['buyPrice']) || 0;
@@ -192,7 +194,8 @@ export function VerifiedTrades() {
         const qty = parseInt(row['qty']) || 1;
         const buyFillId = row['buyFillId'] || '';
 
-        if (!symbol || !buyPrice) { skipped++; continue; }
+        if (!symbol) { skipped++; continue; }
+        if (!buyPrice) { skipped++; continue; }
 
         const isWinner = pnl > 0;
         const pips = sellPrice - buyPrice;
