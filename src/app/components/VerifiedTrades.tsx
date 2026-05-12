@@ -127,8 +127,7 @@ export function VerifiedTrades() {
 
     try {
       const text = await file.text();
-      const lines = text.trim().split('
-');
+      const lines = text.trim().split('\n');
       const headers = lines[0].split(',').map(h => h.trim());
       
       let imported = 0;
