@@ -214,10 +214,48 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
   const [enabledAffirmations, setEnabledAffirmations] = useState<Set<number>>(() => {
     const saved = localStorage.getItem('stoix_enabled_affirmations');
     if (saved) return new Set(JSON.parse(saved));
-    // All enabled by default
     const all = storage.getAffirmations();
     return new Set(all.map((_, i) => i));
   });
+
+  // Load affirmations and mental prep settings from Supabase on mount
+  useEffect(() => {
+    const loadFromSupabase = async () => {
+      const user = storage.getCurrentUser();
+      if (!user) return;
+      try {
+        const { supabase } = await import('../utils/supabase');
+        const { data } = await supabase
+          .from('users')
+          .select('affirmations, mental_prep_settings')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (data) {
+          // Sync affirmations
+          if (data.affirmations && Array.isArray(data.affirmations) && data.affirmations.length > 0) {
+            const localAff = storage.getAffirmations();
+            if (data.affirmations.length >= localAff.length) {
+              storage.saveAffirmations(data.affirmations);
+              setAffirmations(data.affirmations);
+              setEnabledAffirmations(new Set(data.affirmations.map((_: any, i: number) => i)));
+            }
+          }
+          // Sync mental prep settings
+          if (data.mental_prep_settings) {
+            const newSettings = { ...settings, ...data.mental_prep_settings,
+              quoteSources: data.mental_prep_settings.quoteSources || settings.quoteSources,
+              selectedReligions: data.mental_prep_settings.selectedReligions || settings.selectedReligions,
+            };
+            setSettings(newSettings);
+            storage.saveMentalPrepSettings(newSettings);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load from Supabase:', err);
+      }
+    };
+    loadFromSupabase();
+  }, []);
   const [newAffirmation, setNewAffirmation] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
@@ -331,11 +369,11 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     updateSettings({ quoteSources: newSources });
   };
 
-  const addAffirmation = () => {
+  const addAffirmation = async () => {
     if (!newAffirmation.trim()) return;
     const updated = [...affirmations, newAffirmation.trim()];
     setAffirmations(updated);
-    storage.saveAffirmations(updated);
+    storage.saveAffirmations(updated); // saves to localStorage + Supabase
     // Enable new affirmation by default
     const updatedEnabled = new Set(enabledAffirmations);
     updatedEnabled.add(updated.length - 1);
