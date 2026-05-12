@@ -130,7 +130,8 @@ interface MentalPrepSettings {
   showAffirmation: boolean;
   showBreathing: boolean;
   showReligious: boolean;
-  selectedReligion: string;
+  selectedReligion: string; // kept for backwards compat
+  selectedReligions: string[]; // multi-select
   requireBeforeTrade: boolean;
 }
 
@@ -193,6 +194,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
       showBreathing: true,
       showReligious: false,
       selectedReligion: 'Islam',
+      selectedReligions: ['Islam'],
       requireBeforeTrade: false,
     };
 
@@ -201,6 +203,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
         ...defaultSettings,
         ...saved,
         quoteSources: saved.quoteSources || defaultSettings.quoteSources,
+        selectedReligions: saved.selectedReligions || (saved.selectedReligion ? [saved.selectedReligion] : ['Islam']),
       };
     }
 
@@ -261,9 +264,14 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     const enabledQuotes = quoteSources.flatMap(source => CATEGORIZED_QUOTES[source as keyof typeof CATEGORIZED_QUOTES] || []);
     return enabledQuotes.length > 0 ? enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)] : '';
   });
-  const [religiousQuote, setReligiousQuote] = useState(() => {
-    const texts = RELIGIOUS_TEXTS[settings.selectedReligion as keyof typeof RELIGIOUS_TEXTS] || [];
-    return texts.length > 0 ? texts[Math.floor(Math.random() * texts.length)] : '';
+  const [religiousQuotes, setReligiousQuotes] = useState<Record<string, string>>(() => {
+    const quotes: Record<string, string> = {};
+    const religions = settings.selectedReligions || [settings.selectedReligion];
+    religions.forEach(religion => {
+      const texts = RELIGIOUS_TEXTS[religion as keyof typeof RELIGIOUS_TEXTS] || [];
+      if (texts.length > 0) quotes[religion] = texts[Math.floor(Math.random() * texts.length)];
+    });
+    return quotes;
   });
 
   const regenTradingQuote = () => {
@@ -278,10 +286,29 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     if (others.length > 0) setGeneralQuote(others[Math.floor(Math.random() * others.length)]);
   };
 
-  const regenReligiousQuote = () => {
-    const texts = RELIGIOUS_TEXTS[settings.selectedReligion as keyof typeof RELIGIOUS_TEXTS] || [];
-    const others = texts.filter(t => t !== religiousQuote);
-    if (others.length > 0) setReligiousQuote(others[Math.floor(Math.random() * others.length)]);
+  const regenReligiousQuote = (religion: string) => {
+    const texts = RELIGIOUS_TEXTS[religion as keyof typeof RELIGIOUS_TEXTS] || [];
+    const current = religiousQuotes[religion] || '';
+    const others = texts.filter(t => t !== current);
+    if (others.length > 0) {
+      setReligiousQuotes(prev => ({ ...prev, [religion]: others[Math.floor(Math.random() * others.length)] }));
+    }
+  };
+
+  const toggleReligion = (religion: string) => {
+    const current = settings.selectedReligions || [settings.selectedReligion];
+    const updated = current.includes(religion)
+      ? current.filter(r => r !== religion)
+      : [...current, religion];
+    if (updated.length === 0) return; // must keep at least one
+    updateSettings({ selectedReligions: updated, selectedReligion: updated[0] });
+    // Init quote for newly added religion
+    if (!current.includes(religion)) {
+      const texts = RELIGIOUS_TEXTS[religion as keyof typeof RELIGIOUS_TEXTS] || [];
+      if (texts.length > 0) {
+        setReligiousQuotes(prev => ({ ...prev, [religion]: texts[Math.floor(Math.random() * texts.length)] }));
+      }
+    }
   };
 
   // Show only enabled affirmations
@@ -601,21 +628,27 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
               </div>
 
               {settings.showReligious && (
-                <div className="ml-6 pt-2">
-                  <Label htmlFor="religion-select" className="text-sm mb-2 block">Select Text</Label>
-                  <Select value={settings.selectedReligion} onValueChange={(value) => updateSettings({ selectedReligion: value })}>
-                    <SelectTrigger id="religion-select">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Christianity">Bible</SelectItem>
-                      <SelectItem value="Islam">Quran</SelectItem>
-                      <SelectItem value="Judaism">Torah</SelectItem>
-                      <SelectItem value="Buddhism">Dhammapada (Buddhism)</SelectItem>
-                      <SelectItem value="Hinduism">Bhagavad Gita (Hinduism)</SelectItem>
-                      <SelectItem value="Sikhism">Guru Granth Sahib (Sikhism)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="ml-6 pt-2 space-y-2">
+                  <Label className="text-sm block">Select Books (choose any)</Label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {[
+                      { value: 'Christianity', label: 'Bible (Christianity)' },
+                      { value: 'Islam', label: 'Quran (Islam)' },
+                      { value: 'Judaism', label: 'Torah (Judaism)' },
+                      { value: 'Buddhism', label: 'Dhammapada (Buddhism)' },
+                      { value: 'Hinduism', label: 'Bhagavad Gita (Hinduism)' },
+                      { value: 'Sikhism', label: 'Guru Granth Sahib (Sikhism)' },
+                    ].map(({ value, label }) => (
+                      <div key={value} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`religion-${value}`}
+                          checked={(settings.selectedReligions || [settings.selectedReligion]).includes(value)}
+                          onCheckedChange={() => toggleReligion(value)}
+                        />
+                        <Label htmlFor={`religion-${value}`} className="text-sm cursor-pointer">{label}</Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -858,25 +891,33 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
         )}
 
         {/* Religious Reading */}
-        {settings.showReligious && religiousQuote && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.3 }}>
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Book className="w-5 h-5 text-amber-500" />
-                    {RELIGION_TO_BOOK[settings.selectedReligion] || settings.selectedReligion} Reading
-                  </CardTitle>
-                  <Button size="sm" variant="ghost" onClick={regenReligiousQuote} className="text-xs text-muted-foreground">
-                    🔄 New Verse
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-base leading-relaxed">{religiousQuote}</p>
-              </CardContent>
-            </Card>
-          </motion.div>
+        {settings.showReligious && Object.keys(religiousQuotes).length > 0 && (
+          <>
+            {(settings.selectedReligions || [settings.selectedReligion]).map((religion, idx) => {
+              const quote = religiousQuotes[religion];
+              if (!quote) return null;
+              return (
+                <motion.div key={religion} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.3 + idx * 0.1 }}>
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Book className="w-5 h-5 text-amber-500" />
+                          {RELIGION_TO_BOOK[religion] || religion} Reading
+                        </CardTitle>
+                        <Button size="sm" variant="ghost" onClick={() => regenReligiousQuote(religion)} className="text-xs text-muted-foreground">
+                          🔄 New Verse
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-base leading-relaxed">{quote}</p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </>
         )}
 
         {/* Breathing Exercise */}
