@@ -154,8 +154,8 @@ export function VerifiedTrades() {
         reader.onerror = reject;
         reader.readAsText(file);
       });
-      const lines = text.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      const lines = text.trim().split(String.fromCharCode(13,10)).length > 1 ? text.trim().split(String.fromCharCode(13,10)) : text.trim().split(String.fromCharCode(10));
+      const headers = lines[0].split(',').map((h: string) => h.trim().replace(/^"|"$/g, ''));
       console.log('CSV parsed — lines:', lines.length, 'headers:', headers);
       
       let imported = 0;
