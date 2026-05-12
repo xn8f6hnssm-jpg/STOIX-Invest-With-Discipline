@@ -120,7 +120,6 @@ export function VerifiedTrades() {
   };
 
   const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     console.log("CSV import triggered, file:", file?.name, "user:", currentUser?.id);
     if (!file) { console.log("No file selected"); return; }
