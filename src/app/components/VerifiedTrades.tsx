@@ -8,7 +8,7 @@ import { Badge } from '../components/ui/badge';
 import { supabase } from '../utils/supabase';
 import { storage } from '../utils/storage';
 import { 
-  Shield, Plus, Trash2, RefreshCw, TrendingUp, TrendingDown, Upload, Share2, Download, Crown, 
+  Shield, Plus, Trash2, RefreshCw, TrendingUp, Upload, Share2, Download,
   Award, Target, Clock, BarChart2, Zap, CheckCircle, AlertCircle,
   Copy, Check
 } from 'lucide-react';
@@ -43,10 +43,8 @@ export function VerifiedTrades() {
   const [connecting, setConnecting] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [screenshots, setScreenshots] = useState<string[]>([]);
-  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
-  const screenshotInputRef = useRef<HTMLInputElement>(null);
   const [showShareCard, setShowShareCard] = useState(false);
+  const [shareCardPeriod, setShareCardPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'overall'>('overall');
   const [importingCSV, setImportingCSV] = useState(false);
   const [importResult, setImportResult] = useState<{imported: number, skipped: number} | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -74,36 +72,11 @@ export function VerifiedTrades() {
       }
       if (user) {
         loadData();
-        const saved = localStorage.getItem(`stoix_trade_screenshots_${user.id}`);
-        if (saved) setScreenshots(JSON.parse(saved));
+
       }
     };
     initUser();
   }, []);
-
-  const handleScreenshotUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length || !currentUser) return;
-    setUploadingScreenshot(true);
-    const readers = files.map(file => new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
-    }));
-    Promise.all(readers).then(newScreenshots => {
-      const updated = [...screenshots, ...newScreenshots];
-      setScreenshots(updated);
-      localStorage.setItem(`stoix_trade_screenshots_${currentUser.id}`, JSON.stringify(updated));
-      setUploadingScreenshot(false);
-      toast.success('Screenshot added!');
-    });
-  };
-
-  const handleDeleteScreenshot = (idx: number) => {
-    const updated = screenshots.filter((_, i) => i !== idx);
-    setScreenshots(updated);
-    if (currentUser) localStorage.setItem(`stoix_trade_screenshots_${currentUser.id}`, JSON.stringify(updated));
-  };
 
   const parseTradovatePnL = (pnlStr: string): number => {
     const cleaned = pnlStr.replace(/[$,\s]/g, '');
@@ -406,27 +379,43 @@ export function VerifiedTrades() {
             <DialogTitle>Verified Trading Card</DialogTitle>
           </DialogHeader>
           <div className="p-4 space-y-3">
+
+            {/* Timeframe selector */}
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
+              {(['daily', 'weekly', 'monthly', 'yearly', 'overall'] as const).map(p => (
+                <button key={p} onClick={() => setShareCardPeriod(p)}
+                  className={`flex-1 py-1 rounded-md text-xs font-medium transition-colors capitalize ${shareCardPeriod === p ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  {p === 'daily' ? 'Day' : p === 'weekly' ? 'Wk' : p === 'monthly' ? 'Mo' : p === 'yearly' ? 'Yr' : 'All'}
+                </button>
+              ))}
+            </div>
+
+            {/* Coming soon notice */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center gap-2">
               <span className="text-lg">🔧</span>
               <div>
                 <p className="text-xs font-bold text-amber-500">Coming Soon</p>
-                <p className="text-xs text-muted-foreground">Full verified share card with broker-synced data</p>
+                <p className="text-xs text-muted-foreground">Timeframe filtering launches with full broker sync</p>
               </div>
             </div>
+
+            {/* Card preview */}
             <div className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-5 flex flex-col justify-between">
               <div className="text-center space-y-1">
-                <div className="flex justify-center items-center gap-2">
-                  <span className="text-white font-bold text-base tracking-widest">STOIX</span>
-                </div>
+                <span className="text-white font-bold text-base tracking-widest">STOIX</span>
                 <p className="text-xs text-slate-400 uppercase tracking-widest">Verified Performance</p>
-                {isVerified && (
-                  <div className="flex justify-center">
+                <div className="flex justify-center gap-2">
+                  {isVerified && (
                     <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" />Verified
                     </span>
-                  </div>
-                )}
+                  )}
+                  <span className="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-full capitalize">
+                    {shareCardPeriod === 'daily' ? 'Today' : shareCardPeriod === 'weekly' ? 'This Week' : shareCardPeriod === 'monthly' ? 'This Month' : shareCardPeriod === 'yearly' ? 'This Year' : 'All Time'}
+                  </span>
+                </div>
               </div>
+
               {stats ? (
                 <div className="space-y-3">
                   <div className="text-center">
@@ -434,17 +423,17 @@ export function VerifiedTrades() {
                     <p className="text-sm text-slate-300 font-semibold">Win Rate</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-center">
-                    <div><p className="text-xl font-bold text-white">{stats.avg_rr?.toFixed(2)}</p><p className="text-xs text-slate-400">Avg R:R</p></div>
+                    <div><p className="text-xl font-bold text-white">{stats.avg_rr?.toFixed(2) || '—'}</p><p className="text-xs text-slate-400">Avg R:R</p></div>
                     <div><p className={`text-xl font-bold ${stats.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{stats.total_pnl >= 0 ? '+' : ''}${Math.abs(stats.total_pnl).toFixed(0)}</p><p className="text-xs text-slate-400">Net P&L</p></div>
                     <div><p className="text-xl font-bold text-white">{stats.total_trades}</p><p className="text-xs text-slate-400">Trades</p></div>
-                    <div><p className="text-xl font-bold text-white">{stats.consistency_score?.toFixed(0)}%</p><p className="text-xs text-slate-400">Consistency</p></div>
+                    <div><p className="text-xl font-bold text-white">{stats.profit_factor?.toFixed(2) || '—'}</p><p className="text-xs text-slate-400">Profit Factor</p></div>
                   </div>
                 </div>
               ) : (
                 <div className="text-center space-y-2">
-                  <p className="text-slate-400 text-sm">Connect your broker to see verified stats</p>
+                  <p className="text-slate-400 text-sm">Import trades to see verified stats</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {['Win Rate', 'Avg R:R', 'Net P&L', 'Trades'].map(label => (
+                    {['Win Rate', 'Avg R:R', 'Net P&L', 'Profit Factor'].map(label => (
                       <div key={label} className="bg-slate-800 rounded-lg p-2 text-center">
                         <p className="text-slate-600 text-lg font-bold">—</p>
                         <p className="text-slate-500 text-xs">{label}</p>
@@ -453,15 +442,17 @@ export function VerifiedTrades() {
                   </div>
                 </div>
               )}
+
               <div className="text-center">
                 <p className="text-xs text-slate-500">stoixtrader.com · Trade With Discipline</p>
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-2">
               <Button size="sm" className="w-full" disabled><Share2 className="w-3.5 h-3.5 mr-1.5" />Share</Button>
               <Button size="sm" variant="outline" className="w-full" disabled><Download className="w-3.5 h-3.5 mr-1.5" />Download</Button>
             </div>
-            <p className="text-xs text-center text-muted-foreground">Full functionality coming when broker sync launches</p>
+            <p className="text-xs text-center text-muted-foreground">Full share & download coming when broker sync launches</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -509,43 +500,6 @@ export function VerifiedTrades() {
         </CardContent>
       </Card>
 
-      {/* Screenshot Upload */}
-      <Card>
-        <CardContent className="pt-4 pb-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-sm">Trade Screenshots</p>
-              <p className="text-xs text-muted-foreground">Upload screenshots of your trades while broker sync is being built</p>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => screenshotInputRef.current?.click()} disabled={uploadingScreenshot}>
-              <Plus className="w-4 h-4 mr-1" />{uploadingScreenshot ? 'Uploading...' : 'Add'}
-            </Button>
-            <input ref={screenshotInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleScreenshotUpload} />
-          </div>
-          {screenshots.length === 0 ? (
-            <div className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => screenshotInputRef.current?.click()}>
-              <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-40" />
-              <p className="text-sm text-muted-foreground">Tap to upload trade screenshots</p>
-              <p className="text-xs text-muted-foreground mt-1">PnL screenshots, trade confirmations, broker statements</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {screenshots.map((src, i) => (
-                <div key={i} className="relative group rounded-xl overflow-hidden border">
-                  <img src={src} alt={`Trade ${i + 1}`} className="w-full h-36 object-cover" />
-                  <button onClick={() => handleDeleteScreenshot(i)}
-                    className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-              <div className="border-2 border-dashed rounded-xl h-36 flex items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => screenshotInputRef.current?.click()}>
-                <Plus className="w-6 h-6 text-muted-foreground" />
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* No connection state */}
       {!hasConnection && !showConnect && (
