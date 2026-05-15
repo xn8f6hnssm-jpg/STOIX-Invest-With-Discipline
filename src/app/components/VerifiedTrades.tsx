@@ -379,23 +379,9 @@ export function VerifiedTrades() {
             <DialogTitle>Verified Trading Card</DialogTitle>
           </DialogHeader>
           <div className="p-4 space-y-3">
-            {/* Timeframe selector — only show periods that have trades */}
+            {/* Timeframe selector — always show all 5 tabs */}
             <div className="flex gap-1 bg-muted rounded-lg p-1">
-              {(['daily', 'weekly', 'monthly', 'yearly', 'overall'] as const).filter(p => {
-                if (p === 'overall') return true;
-                const now = new Date();
-                return trades.some(t => {
-                  const d = new Date(t.open_time);
-                  if (p === 'daily') return d.toDateString() === now.toDateString();
-                  if (p === 'weekly') {
-                    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)); startOfWeek.setHours(0,0,0,0);
-                    return d >= startOfWeek;
-                  }
-                  if (p === 'monthly') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                  if (p === 'yearly') return d.getFullYear() === now.getFullYear();
-                  return false;
-                });
-              }).map(p => (
+              {(['daily', 'weekly', 'monthly', 'yearly', 'overall'] as const).map(p => (
                 <button key={p} onClick={() => setShareCardPeriod(p)}
                   className={`flex-1 py-1 rounded-md text-xs font-medium transition-colors ${shareCardPeriod === p ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
                   {p === 'daily' ? 'Today' : p === 'weekly' ? 'Week' : p === 'monthly' ? 'Month' : p === 'yearly' ? 'Year' : 'All'}
@@ -480,18 +466,31 @@ export function VerifiedTrades() {
                 <>
                   {/* Card */}
                   <div id={cardId} className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-5 flex flex-col justify-between">
-                    <div className="text-center space-y-1">
-                      <span className="text-white font-bold text-base tracking-widest">STOIX</span>
-                      <p className="text-xs text-slate-400 uppercase tracking-widest">Verified Performance</p>
-                      <div className="flex justify-center gap-2 flex-wrap">
-                        {isVerified && (
-                          <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" />Verified
-                          </span>
-                        )}
-                        <span className="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-full">{periodLabel}</span>
-                      </div>
+                  {/* Card header — matches discipline share card style */}
+                  <div className="text-center space-y-1">
+                    {/* Logo / profile picture */}
+                    <div className="flex justify-center mb-1">
+                      {currentUser?.profilePicture ? (
+                        <img src={currentUser.profilePicture} alt="avatar" className="w-10 h-10 rounded-full object-cover border-2 border-slate-600" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border-2 border-slate-600">
+                          <Shield className="w-5 h-5 text-slate-400" />
+                        </div>
+                      )}
                     </div>
+                    {/* Name + premium emoji */}
+                    <p className="text-white font-bold text-sm">{currentUser?.name || currentUser?.username || 'Trader'}{currentUser?.isPremium ? ' 👑' : ''}</p>
+                    {/* Period label */}
+                    <p className="text-xs text-slate-400 uppercase tracking-widest">{periodLabel}</p>
+                    {/* Verified badge */}
+                    {isVerified && (
+                      <div className="flex justify-center">
+                        <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />Verified
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
                     {total > 0 ? (
                       <div className="space-y-3">
@@ -521,7 +520,8 @@ export function VerifiedTrades() {
                     )}
 
                     <div className="text-center">
-                      <p className="text-xs text-slate-500">stoixtrader.com · Trade With Discipline</p>
+                      <p className="text-xs font-bold text-slate-300 tracking-widest">STOIX</p>
+                      <p className="text-xs text-slate-500">Trade With Discipline</p>
                     </div>
                   </div>
 
