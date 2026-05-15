@@ -20,7 +20,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return 'dark';
     }
     
-    return 'light';
+    // Default to dark mode
+    return 'dark';
   });
 
   useEffect(() => {
