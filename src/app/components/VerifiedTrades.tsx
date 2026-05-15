@@ -7,6 +7,9 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { supabase } from '../utils/supabase';
 import { storage } from '../utils/storage';
+import { Logo } from '../components/Logo';
+import html2canvas from 'html2canvas';
+import { Crown } from 'lucide-react';
 import { 
   Shield, Plus, Trash2, RefreshCw, TrendingUp, Upload, Share2, Download,
   Award, Target, Clock, BarChart2, Zap, CheckCircle, AlertCircle,
@@ -417,72 +420,56 @@ export function VerifiedTrades() {
               const handleDownload = async () => {
                 const el = document.getElementById(cardId);
                 if (!el) return;
-                try {
-                  const script = document.createElement('script');
-                  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-                  document.head.appendChild(script);
-                  await new Promise(r => { script.onload = r; });
-                  const canvas = await (window as any).html2canvas(el, { backgroundColor: '#0f172a', scale: 2, useCORS: true });
-                  const link = document.createElement('a');
-                  link.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
-                  link.href = canvas.toDataURL('image/png');
-                  link.click();
-                  toast.success('Card downloaded!');
-                } catch {
-                  toast.error('Download failed — try again');
-                }
+                const canvas = await html2canvas(el, { backgroundColor: '#000000', scale: 2 });
+                canvas.toBlob(blob => {
+                  if (!blob) return;
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
+                  a.click();
+                });
               };
 
               const handleShare = async () => {
                 const el = document.getElementById(cardId);
                 if (!el) return;
-                try {
-                  if (!(window as any).html2canvas) {
-                    const script = document.createElement('script');
-                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-                    document.head.appendChild(script);
-                    await new Promise(r => { script.onload = r; });
+                const canvas = await html2canvas(el, { backgroundColor: '#000000', scale: 2 });
+                canvas.toBlob(blob => {
+                  if (!blob) return;
+                  const file = new File([blob], `stoix-verified-${shareCardPeriod}.png`, { type: 'image/png' });
+                  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                      title: 'STOIX',
+                      text: `${winRate}% Win Rate — ${periodLabel} 📈`,
+                      files: [file],
+                    }).catch(() => {});
+                  } else {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `stoix-verified-${shareCardPeriod}.png`;
+                    a.click();
                   }
-                  const canvas = await (window as any).html2canvas(el, { backgroundColor: '#0f172a', scale: 2, useCORS: true });
-                  canvas.toBlob(async (blob: Blob | null) => {
-                    if (!blob) return;
-                    const file = new File([blob], `stoix-${shareCardPeriod}.png`, { type: 'image/png' });
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                      await navigator.share({ files: [file], title: 'My STOIX Verified Stats', text: `${periodLabel}: ${winRate}% Win Rate · ${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toFixed(0)} P&L · stoixtrader.com` });
-                    } else {
-                      const link = document.createElement('a');
-                      link.download = `stoix-verified-${shareCardPeriod}.png`;
-                      link.href = canvas.toDataURL('image/png');
-                      link.click();
-                      toast.success('Card saved — share from your photos!');
-                    }
-                  });
-                } catch {
-                  toast.error('Share failed — try downloading instead');
-                }
+                });
               };
 
               return (
                 <>
                   {/* Card */}
                   <div id={cardId} className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-5 flex flex-col justify-between">
-                  {/* Card header — matches discipline share card style */}
-                  <div className="text-center space-y-1">
-                    {/* Logo / profile picture */}
-                    <div className="flex justify-center mb-1">
-                      {currentUser?.profilePicture ? (
-                        <img src={currentUser.profilePicture} alt="avatar" className="w-10 h-10 rounded-full object-cover border-2 border-slate-600" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border-2 border-slate-600">
-                          <Shield className="w-5 h-5 text-slate-400" />
+                  {/* Card header — matches discipline share card exactly */}
+                  <div className="text-center space-y-1.5">
+                    <div className="flex justify-center">
+                      <Logo size="sm" showText={false} darkMode={true} />
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-base font-semibold text-white">{currentUser?.name || currentUser?.username || 'Trader'}</span>
+                      {currentUser?.isPremium && (
+                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center">
+                          <Crown className="w-2.5 h-2.5 text-white" />
                         </div>
                       )}
                     </div>
-                    {/* Name + premium emoji */}
-                    <p className="text-white font-bold text-sm">{currentUser?.name || currentUser?.username || 'Trader'}{currentUser?.isPremium ? ' 👑' : ''}</p>
-                    {/* Period label */}
                     <p className="text-xs text-slate-400 uppercase tracking-widest">{periodLabel}</p>
-                    {/* Verified badge */}
                     {isVerified && (
                       <div className="flex justify-center">
                         <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
