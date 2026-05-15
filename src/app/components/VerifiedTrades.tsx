@@ -154,7 +154,13 @@ export function VerifiedTrades() {
         reader.onerror = reject;
         reader.readAsText(file);
       });
-      const lines = text.trim().split(String.fromCharCode(13,10)).length > 1 ? text.trim().split(String.fromCharCode(13,10)) : text.trim().split(String.fromCharCode(10));
+            console.log('RAW TEXT first 200 chars:', JSON.stringify(text.substring(0, 200)));
+      console.log('RAW TEXT length:', text.length);
+      const crlf = text.indexOf('\r\n');
+      const lf = text.indexOf('\n');
+      const cr = text.indexOf('\r');
+      console.log('CRLF pos:', crlf, 'LF pos:', lf, 'CR pos:', cr);
+      const lines = text.length > 0 ? text.trim().split(/[\r\n]+/) : [];
       const headers = lines[0].split(',').map((h: string) => h.trim().replace(/^"|"$/g, ''));
       console.log('CSV parsed — lines:', lines.length, 'headers:', headers);
       
