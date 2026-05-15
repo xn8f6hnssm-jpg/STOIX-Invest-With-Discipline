@@ -379,80 +379,165 @@ export function VerifiedTrades() {
             <DialogTitle>Verified Trading Card</DialogTitle>
           </DialogHeader>
           <div className="p-4 space-y-3">
-
-            {/* Timeframe selector */}
+            {/* Timeframe selector — only show periods that have trades */}
             <div className="flex gap-1 bg-muted rounded-lg p-1">
-              {(['daily', 'weekly', 'monthly', 'yearly', 'overall'] as const).map(p => (
+              {(['daily', 'weekly', 'monthly', 'yearly', 'overall'] as const).filter(p => {
+                if (p === 'overall') return true;
+                const now = new Date();
+                return trades.some(t => {
+                  const d = new Date(t.open_time);
+                  if (p === 'daily') return d.toDateString() === now.toDateString();
+                  if (p === 'weekly') {
+                    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)); startOfWeek.setHours(0,0,0,0);
+                    return d >= startOfWeek;
+                  }
+                  if (p === 'monthly') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                  if (p === 'yearly') return d.getFullYear() === now.getFullYear();
+                  return false;
+                });
+              }).map(p => (
                 <button key={p} onClick={() => setShareCardPeriod(p)}
-                  className={`flex-1 py-1 rounded-md text-xs font-medium transition-colors capitalize ${shareCardPeriod === p ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                  {p === 'daily' ? 'Day' : p === 'weekly' ? 'Wk' : p === 'monthly' ? 'Mo' : p === 'yearly' ? 'Yr' : 'All'}
+                  className={`flex-1 py-1 rounded-md text-xs font-medium transition-colors ${shareCardPeriod === p ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  {p === 'daily' ? 'Today' : p === 'weekly' ? 'Week' : p === 'monthly' ? 'Month' : p === 'yearly' ? 'Year' : 'All'}
                 </button>
               ))}
             </div>
 
-            {/* Coming soon notice */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center gap-2">
-              <span className="text-lg">🔧</span>
-              <div>
-                <p className="text-xs font-bold text-amber-500">Coming Soon</p>
-                <p className="text-xs text-muted-foreground">Timeframe filtering launches with full broker sync</p>
-              </div>
-            </div>
+            {/* Computed stats for selected period */}
+            {(() => {
+              const now = new Date();
+              const filtered = trades.filter(t => {
+                const d = new Date(t.open_time);
+                if (shareCardPeriod === 'daily') return d.toDateString() === now.toDateString();
+                if (shareCardPeriod === 'weekly') {
+                  const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)); startOfWeek.setHours(0,0,0,0);
+                  return d >= startOfWeek;
+                }
+                if (shareCardPeriod === 'monthly') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                if (shareCardPeriod === 'yearly') return d.getFullYear() === now.getFullYear();
+                return true;
+              });
+              const total = filtered.length;
+              const wins = filtered.filter(t => t.result === 'win').length;
+              const losses = filtered.filter(t => t.result === 'loss').length;
+              const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+              const totalPnl = filtered.reduce((s, t) => s + (t.net_profit || 0), 0);
+              const grossWins = filtered.filter(t => t.result === 'win').reduce((s, t) => s + (t.net_profit || 0), 0);
+              const grossLosses = Math.abs(filtered.filter(t => t.result === 'loss').reduce((s, t) => s + (t.net_profit || 0), 0));
+              const profitFactor = grossLosses > 0 ? (grossWins / grossLosses).toFixed(2) : wins > 0 ? '∞' : '—';
+              const periodLabel = shareCardPeriod === 'daily' ? 'Today' : shareCardPeriod === 'weekly' ? 'This Week' : shareCardPeriod === 'monthly' ? 'This Month' : shareCardPeriod === 'yearly' ? 'This Year' : 'All Time';
+              const cardId = 'share-card-canvas';
 
-            {/* Card preview */}
-            <div className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-5 flex flex-col justify-between">
-              <div className="text-center space-y-1">
-                <span className="text-white font-bold text-base tracking-widest">STOIX</span>
-                <p className="text-xs text-slate-400 uppercase tracking-widest">Verified Performance</p>
-                <div className="flex justify-center gap-2">
-                  {isVerified && (
-                    <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3" />Verified
-                    </span>
-                  )}
-                  <span className="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-full capitalize">
-                    {shareCardPeriod === 'daily' ? 'Today' : shareCardPeriod === 'weekly' ? 'This Week' : shareCardPeriod === 'monthly' ? 'This Month' : shareCardPeriod === 'yearly' ? 'This Year' : 'All Time'}
-                  </span>
-                </div>
-              </div>
+              const handleDownload = async () => {
+                const el = document.getElementById(cardId);
+                if (!el) return;
+                try {
+                  const script = document.createElement('script');
+                  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                  document.head.appendChild(script);
+                  await new Promise(r => { script.onload = r; });
+                  const canvas = await (window as any).html2canvas(el, { backgroundColor: '#0f172a', scale: 2, useCORS: true });
+                  const link = document.createElement('a');
+                  link.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
+                  link.href = canvas.toDataURL('image/png');
+                  link.click();
+                  toast.success('Card downloaded!');
+                } catch {
+                  toast.error('Download failed — try again');
+                }
+              };
 
-              {stats ? (
-                <div className="space-y-3">
-                  <div className="text-center">
-                    <p className="text-5xl font-bold text-white">{stats.win_rate}%</p>
-                    <p className="text-sm text-slate-300 font-semibold">Win Rate</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div><p className="text-xl font-bold text-white">{stats.avg_rr?.toFixed(2) || '—'}</p><p className="text-xs text-slate-400">Avg R:R</p></div>
-                    <div><p className={`text-xl font-bold ${stats.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{stats.total_pnl >= 0 ? '+' : ''}${Math.abs(stats.total_pnl).toFixed(0)}</p><p className="text-xs text-slate-400">Net P&L</p></div>
-                    <div><p className="text-xl font-bold text-white">{stats.total_trades}</p><p className="text-xs text-slate-400">Trades</p></div>
-                    <div><p className="text-xl font-bold text-white">{stats.profit_factor?.toFixed(2) || '—'}</p><p className="text-xs text-slate-400">Profit Factor</p></div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center space-y-2">
-                  <p className="text-slate-400 text-sm">Import trades to see verified stats</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {['Win Rate', 'Avg R:R', 'Net P&L', 'Profit Factor'].map(label => (
-                      <div key={label} className="bg-slate-800 rounded-lg p-2 text-center">
-                        <p className="text-slate-600 text-lg font-bold">—</p>
-                        <p className="text-slate-500 text-xs">{label}</p>
+              const handleShare = async () => {
+                const el = document.getElementById(cardId);
+                if (!el) return;
+                try {
+                  if (!(window as any).html2canvas) {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                    document.head.appendChild(script);
+                    await new Promise(r => { script.onload = r; });
+                  }
+                  const canvas = await (window as any).html2canvas(el, { backgroundColor: '#0f172a', scale: 2, useCORS: true });
+                  canvas.toBlob(async (blob: Blob | null) => {
+                    if (!blob) return;
+                    const file = new File([blob], `stoix-${shareCardPeriod}.png`, { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                      await navigator.share({ files: [file], title: 'My STOIX Verified Stats', text: `${periodLabel}: ${winRate}% Win Rate · ${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toFixed(0)} P&L · stoixtrader.com` });
+                    } else {
+                      const link = document.createElement('a');
+                      link.download = `stoix-verified-${shareCardPeriod}.png`;
+                      link.href = canvas.toDataURL('image/png');
+                      link.click();
+                      toast.success('Card saved — share from your photos!');
+                    }
+                  });
+                } catch {
+                  toast.error('Share failed — try downloading instead');
+                }
+              };
+
+              return (
+                <>
+                  {/* Card */}
+                  <div id={cardId} className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="text-center space-y-1">
+                      <span className="text-white font-bold text-base tracking-widest">STOIX</span>
+                      <p className="text-xs text-slate-400 uppercase tracking-widest">Verified Performance</p>
+                      <div className="flex justify-center gap-2 flex-wrap">
+                        {isVerified && (
+                          <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />Verified
+                          </span>
+                        )}
+                        <span className="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-full">{periodLabel}</span>
                       </div>
-                    ))}
+                    </div>
+
+                    {total > 0 ? (
+                      <div className="space-y-3">
+                        <div className="text-center">
+                          <p className="text-5xl font-bold text-white">{winRate}%</p>
+                          <p className="text-sm text-slate-300 font-semibold">Win Rate</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-center">
+                          <div><p className="text-xl font-bold text-white">{total}</p><p className="text-xs text-slate-400">Trades</p></div>
+                          <div><p className={`text-xl font-bold ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{totalPnl >= 0 ? '+' : ''}${Math.abs(totalPnl).toFixed(0)}</p><p className="text-xs text-slate-400">Net P&L</p></div>
+                          <div><p className="text-xl font-bold text-green-400">{wins}W</p><p className="text-xs text-slate-400">Wins</p></div>
+                          <div><p className="text-xl font-bold text-white">{profitFactor}</p><p className="text-xs text-slate-400">Profit Factor</p></div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center space-y-2">
+                        <p className="text-slate-400 text-sm">No trades for this period</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {['Win Rate', 'Trades', 'Net P&L', 'Profit Factor'].map(label => (
+                            <div key={label} className="bg-slate-800 rounded-lg p-2 text-center">
+                              <p className="text-slate-600 text-lg font-bold">—</p>
+                              <p className="text-slate-500 text-xs">{label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="text-center">
+                      <p className="text-xs text-slate-500">stoixtrader.com · Trade With Discipline</p>
+                    </div>
                   </div>
-                </div>
-              )}
 
-              <div className="text-center">
-                <p className="text-xs text-slate-500">stoixtrader.com · Trade With Discipline</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" className="w-full" disabled><Share2 className="w-3.5 h-3.5 mr-1.5" />Share</Button>
-              <Button size="sm" variant="outline" className="w-full" disabled><Download className="w-3.5 h-3.5 mr-1.5" />Download</Button>
-            </div>
-            <p className="text-xs text-center text-muted-foreground">Full share & download coming when broker sync launches</p>
+                  {/* Actions */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button size="sm" className="w-full" onClick={handleShare} disabled={total === 0}>
+                      <Share2 className="w-3.5 h-3.5 mr-1.5" />Share
+                    </Button>
+                    <Button size="sm" variant="outline" className="w-full" onClick={handleDownload} disabled={total === 0}>
+                      <Download className="w-3.5 h-3.5 mr-1.5" />Download
+                    </Button>
+                  </div>
+                  {total === 0 && <p className="text-xs text-center text-muted-foreground">No trades in this period to share</p>}
+                </>
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>
