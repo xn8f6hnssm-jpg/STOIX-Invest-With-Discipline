@@ -142,11 +142,17 @@ export function VerifiedTrades() {
     return 'off_hours';
   };
 
-  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Extract file immediately before React nullifies the event
+    const files = e.target.files;
+    const file = files && files.length > 0 ? files[0] : null;
     console.log("CSV import triggered, file:", file?.name, "user:", currentUser?.id);
     if (!file) { console.log("No file selected"); return; }
     if (!currentUser) { console.log("No current user"); return; }
+    processCSVFile(file);
+  };
+
+  const processCSVFile = async (file: File) => {
     try {
       const text = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
