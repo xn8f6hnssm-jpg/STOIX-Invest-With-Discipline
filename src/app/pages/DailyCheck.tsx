@@ -10,7 +10,8 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { storage } from '../utils/storage';
 
-const COOLDOWN_HOURS = 5;
+// FIX 4: 6 hours instead of 5
+const COOLDOWN_HOURS = 6;
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
 // Daily Check-In Component
@@ -80,6 +81,7 @@ function SummaryScreen({
   onNavigate,
   onStartNew,
   userId,
+  submittedAt,
 }: {
   isClean: boolean;
   pointsEarned: number;
@@ -90,6 +92,7 @@ function SummaryScreen({
   onNavigate: () => void;
   onStartNew: () => void;
   userId?: string;
+  submittedAt?: number;
 }) {
   const [countdown, setCountdown] = useState<string>('');
   const [available, setAvailable] = useState(false);
@@ -97,9 +100,11 @@ function SummaryScreen({
   useEffect(() => {
     const update = () => {
       if (!userId) return;
-      const last = localStorage.getItem(`daily_check_last_${userId}`);
-      if (!last) { setAvailable(true); setCountdown('Available now'); return; }
-      const elapsed = Date.now() - parseInt(last);
+      const lastRaw = localStorage.getItem(`daily_check_last_${userId}`);
+      // FIX 4: Use submittedAt so clock starts exactly when user posts
+      const lastMs = submittedAt || (lastRaw ? parseInt(lastRaw) : null);
+      if (!lastMs) { setAvailable(true); setCountdown('Available now'); return; }
+      const elapsed = Date.now() - lastMs;
       const remaining = COOLDOWN_MS - elapsed;
       if (remaining <= 0) { setAvailable(true); setCountdown('Available now'); return; }
       setAvailable(false);
@@ -110,7 +115,7 @@ function SummaryScreen({
     update();
     const interval = setInterval(update, 10000);
     return () => clearInterval(interval);
-  }, [userId]);
+  }, [userId, submittedAt]);
 
   const dayType = isNoTradeDay ? 'No Trade Day' : isClean ? 'Trade Day ✓' : 'Forfeit Day ⚡';
 
@@ -215,6 +220,11 @@ export function DailyCheck() {
   const [respinsUsed, setRespinsUsed] = useState(0);
   const [isNoTradeDay, setIsNoTradeDay] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
+  // FIX 4: Track exact submission timestamp
+  const [submittedAt, setSubmittedAt] = useState<number | undefined>(undefined);
+  // FIX 1: Drag state for both upload zones
+  const [isDraggingClean, setIsDraggingClean] = useState(false);
+  const [isDraggingForfeit, setIsDraggingForfeit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const forfeitFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -239,49 +249,41 @@ export function DailyCheck() {
     const cooldown = getCooldownRemaining();
 
     if (todayLog) {
-      // Restore today's log data
       setPointsEarned(todayLog.pointsEarned ?? 0);
       setIsClean(todayLog.isClean ?? true);
       setNote(todayLog.note || '');
       setPhotoPreview(todayLog.photoUrl || '');
       setSelectedForfeit(todayLog.forfeitCompleted || '');
       setIsNoTradeDay(!!todayLog.isNoTradeDay);
-      // Always show summary if today's log exists — regardless of cooldown timer
-      setStep('summary');
+      // FIX 2: Only show summary if cooldown is still active
+      if (cooldown) setStep('summary');
     }
 
     setCooldownRemaining(cooldown);
     const interval = setInterval(() => {
       const remaining = getCooldownRemaining();
       setCooldownRemaining(remaining);
-      if (remaining === null && step === 'summary') {
-        setStep('question');
-      }
+      // FIX 2: Removed the kick-to-question line that was causing summary to revert
     }, 30000);
 
-    // Reload when tab becomes visible — catches cross-device sync
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        const freshLog = storage.getTodayLog();
-        if (freshLog) {
-          setPointsEarned(freshLog.pointsEarned ?? 0);
-          setIsClean(freshLog.isClean ?? true);
-          setNote(freshLog.note || '');
-          setPhotoPreview(freshLog.photoUrl || '');
-          setSelectedForfeit(freshLog.forfeitCompleted || '');
-          setIsNoTradeDay(!!freshLog.isNoTradeDay);
-          const remaining = getCooldownRemaining();
-          if (remaining) setStep('summary');
-          setCooldownRemaining(remaining);
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
+    // FIX 2: Removed visibilitychange handler that was resetting state
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
+
+  // FIX 1: Shared photo file handler for both click and drag
+  const handlePhotoFile = (file: File) => {
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handlePhotoFile(file);
+  };
 
   const handleAnswer = (clean: boolean) => {
     // Hard backend block — check cooldown before allowing any submission path
@@ -294,18 +296,6 @@ export function DailyCheck() {
       setStep('clean-proof');
     } else {
       setStep('forfeit-wheel');
-    }
-  };
-
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -388,8 +378,11 @@ export function DailyCheck() {
       });
     }
 
+    // FIX 4: Store exact timestamp and pass to summary
+    const now = Date.now();
+    localStorage.setItem(`daily_check_last_${user.id}`, now.toString());
+    setSubmittedAt(now);
     setPointsEarned(points);
-    if (user) localStorage.setItem(`daily_check_last_${user.id}`, Date.now().toString());
     setStep('summary');
   };
 
@@ -467,13 +460,18 @@ export function DailyCheck() {
       });
     }
 
+    // FIX 4: Store exact timestamp and pass to summary
+    const now = Date.now();
+    localStorage.setItem(`daily_check_last_${user.id}`, now.toString());
+    setSubmittedAt(now);
     setPointsEarned(points);
-    if (user) localStorage.setItem(`daily_check_last_${user.id}`, Date.now().toString());
     setStep('summary');
   };
 
   // Photo is recommended but not required for any day type
   const canSubmitCleanDay = note.length >= 20;
+  // FIX 3: Forfeit photo is optional — only note required
+  const canSubmitForfeit = note.length >= 20;
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -585,7 +583,6 @@ export function DailyCheck() {
 
             <div className="space-y-2">
               <Label>
-                {/* FIX: Image is optional for No Trade Day and Long Term Hold */}
                 {isNoTradeDay
                   ? 'Upload proof photo (Optional for No Trade Day)'
                   : isLongTermHold
@@ -593,7 +590,6 @@ export function DailyCheck() {
                     : 'Upload proof photo or screenshot of trade (Recommended)'
                 }
               </Label>
-              {/* Helper text showing what to upload */}
               <p className="text-xs text-muted-foreground">
                 You can upload: • Trade proof &nbsp;• Discipline proof &nbsp;• Rule break / forfeit proof
               </p>
@@ -602,9 +598,18 @@ export function DailyCheck() {
                   Examples: Portfolio screenshot, research notes, position update, broker screenshot, or short discipline note.
                 </p>
               )}
+              {/* FIX 1: Drag & drop upload zone */}
               <div
-                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isDraggingClean ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDraggingClean(true); }}
+                onDragLeave={(e) => { e.preventDefault(); setIsDraggingClean(false); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingClean(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith('image/')) handlePhotoFile(file);
+                }}
               >
                 {photoPreview ? (
                   <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded" />
@@ -612,8 +617,9 @@ export function DailyCheck() {
                   <div className="space-y-2 pointer-events-none">
                     <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
-                      {isNoTradeDay ? 'Click to upload (optional)' : 'Click to upload'}
+                      {isNoTradeDay ? 'Click or drag & drop to upload (optional)' : 'Click or drag & drop to upload'}
                     </p>
+                    <p className="text-xs text-muted-foreground">PNG, JPG, JPEG supported</p>
                   </div>
                 )}
                 <input
@@ -746,17 +752,28 @@ export function DailyCheck() {
             <Badge className="text-sm">{selectedForfeit}</Badge>
 
             <div className="space-y-2">
-              <Label>Upload proof photo or screenshot of trade <span className="text-muted-foreground font-normal">(Recommended)</span></Label>
+              {/* FIX 3: Optional label */}
+              <Label>Upload proof photo <span className="text-muted-foreground font-normal">(Optional)</span></Label>
+              {/* FIX 1: Drag & drop on forfeit zone */}
               <div
-                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isDraggingForfeit ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
                 onClick={() => forfeitFileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDraggingForfeit(true); }}
+                onDragLeave={(e) => { e.preventDefault(); setIsDraggingForfeit(false); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingForfeit(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith('image/')) handlePhotoFile(file);
+                }}
               >
                 {photoPreview ? (
                   <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded" />
                 ) : (
                   <div className="space-y-2 pointer-events-none">
                     <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Click to upload</p>
+                    <p className="text-sm text-muted-foreground">Click or drag & drop to upload</p>
+                    <p className="text-xs text-muted-foreground">PNG, JPG, JPEG supported</p>
                   </div>
                 )}
                 <input
@@ -777,6 +794,11 @@ export function DailyCheck() {
                 placeholder="Reflect on what you learned from this experience..."
                 rows={4}
               />
+              {note.length > 0 && note.length < 20 && (
+                <p className="text-xs text-red-500">
+                  {20 - note.length} more characters needed
+                </p>
+              )}
             </div>
 
             <div className="space-y-3 p-4 bg-muted rounded-lg">
@@ -797,9 +819,10 @@ export function DailyCheck() {
                 Back
               </Button>
               <div className="flex-1 flex flex-col gap-1">
+                {/* FIX 3: Removed !photoPreview — only note required now */}
                 <Button
                   onClick={submitForfeit}
-                  disabled={!photoPreview || note.length < 20}
+                  disabled={!canSubmitForfeit}
                   className="w-full h-12 text-base font-semibold"
                 >
                   Complete Daily Check
@@ -821,6 +844,7 @@ export function DailyCheck() {
           note={note}
           isNoTradeDay={isNoTradeDay}
           selectedForfeit={selectedForfeit}
+          submittedAt={submittedAt}
           onNavigate={() => navigate('/app')}
           onStartNew={() => {
             // Reset all state and go back to question step
@@ -832,6 +856,7 @@ export function DailyCheck() {
             setSelectedForfeit('');
             setIsNoTradeDay(false);
             setPointsEarned(0);
+            setSubmittedAt(undefined);
           }}
           userId={user?.id}
         />
