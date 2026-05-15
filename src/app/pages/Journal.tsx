@@ -1749,15 +1749,20 @@ export function Journal() {
         
         <TabsList className="grid w-full grid-cols-2 gap-1 mb-6 h-auto">
           <TabsTrigger value="live" className="text-xs py-2">Live Trading</TabsTrigger>
-          <TabsTrigger value="backtesting" disabled={!isPremium} className="text-xs py-2">
+          <TabsTrigger value="backtesting" className="text-xs py-2">
             <div className="flex items-center gap-1">
-              {!isPremium && <Lock className="w-3 h-3" />}
               Backtesting
             </div>
           </TabsTrigger>
-          <TabsTrigger value="aplus" className="text-xs py-2">A+ Trade of Day</TabsTrigger>
+          <TabsTrigger value="aplus" className="text-xs py-2">
+            <div className="flex items-center gap-1">
+              {!isPremium && <Lock className="w-3 h-3" />}
+              A+ Trade of Day
+            </div>
+          </TabsTrigger>
           <TabsTrigger value="verified" className="text-xs py-2">
             <div className="flex items-center gap-1">
+              {!isPremium && <Lock className="w-3 h-3" />}
               <span>🛡️</span>Verified Trades
             </div>
           </TabsTrigger>
@@ -1778,18 +1783,30 @@ export function Journal() {
         </TabsContent>
 
         <TabsContent value="backtesting">
-          {!isPremium ? (
-            <Card>
-              <CardContent className="py-12">
-                <PremiumGate 
-                  isPremium={false}
-                  featureName="Backtesting Journal"
-                  description="Track and analyze your backtesting results separately from live trading. Upgrade to Premium to unlock this feature."
-                  variant="card"
-                  onUpgrade={() => setShowUpgradeModal(true)}
-                />
-              </CardContent>
-            </Card>
+          {!isPremium && filteredBacktestingEntries.length >= 3 ? (
+            <div className="space-y-4">
+              <JournalList 
+                entries={filteredBacktestingEntries.slice(0, 3)}
+                customFields={customFields}
+                onShareJournal={() => {}}
+                onAddEntry={() => setShowUpgradeModal(true)}
+                onEditEntry={handleEditEntry}
+                onReviewTrade={(entryId) => navigate(`/app/trade-replay/${entryId}`)}
+                onCreateSellEntry={handleCreateSellEntry}
+                isBacktesting={true}
+              />
+              <Card>
+                <CardContent className="py-8">
+                  <PremiumGate
+                    isPremium={false}
+                    featureName="Unlimited Backtesting"
+                    description="Free users can store 3 backtesting entries. Upgrade to Premium for unlimited entries."
+                    variant="card"
+                    onUpgrade={() => setShowUpgradeModal(true)}
+                  />
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <JournalList 
               entries={filteredBacktestingEntries}
@@ -1804,6 +1821,19 @@ export function Journal() {
           )}
         </TabsContent>
         <TabsContent value="aplus">
+          {!isPremium ? (
+            <Card>
+              <CardContent className="py-12">
+                <PremiumGate
+                  isPremium={false}
+                  featureName="A+ Trade of Day"
+                  description="Log your best setups and let AI find your highest-probability patterns. Upgrade to Premium to unlock."
+                  variant="card"
+                  onUpgrade={() => setShowUpgradeModal(true)}
+                />
+              </CardContent>
+            </Card>
+          ) : (
           <div className="space-y-4">
             {/* A+ Header */}
             <div className="flex items-center justify-between">
@@ -2122,9 +2152,24 @@ export function Journal() {
               </div>
             )}
           </div>
+        )}
         </TabsContent>
         <TabsContent value="verified">
-          <VerifiedTrades />
+          {!isPremium ? (
+            <Card>
+              <CardContent className="py-12">
+                <PremiumGate
+                  isPremium={false}
+                  featureName="Verified Trades"
+                  description="Import real broker data and verify your trading results. No manual input, no faking — premium only."
+                  variant="card"
+                  onUpgrade={() => setShowUpgradeModal(true)}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <VerifiedTrades />
+          )}
         </TabsContent>
       </Tabs>
 

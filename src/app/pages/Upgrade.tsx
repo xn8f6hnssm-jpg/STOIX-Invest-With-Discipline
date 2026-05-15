@@ -22,11 +22,14 @@ export function Upgrade() {
     const user = storage.getCurrentUser();
     if (!user) { toast.error('Please log in first'); return; }
     setLoading(plan);
-    // Redirect to Stripe Payment Link
     window.location.href = STRIPE_LINKS[plan];
   };
 
   const premiumFeatures = [
+    { icon: Shield, title: 'Verified Trades', desc: 'Import & verify real broker data — no faking results' },
+    { icon: TrendingUp, title: 'A+ Trade of Day', desc: 'Log your best setups and let AI find your patterns' },
+    { icon: BarChart3, title: 'Unlimited Backtesting', desc: 'Unlimited backtesting entries (free gets 3)' },
+    { icon: Sparkles, title: 'Unlimited Journal Entries', desc: 'Unlimited live journal entries (free gets 10)' },
     { icon: Shield, title: 'Account Rules Monitor', desc: 'Track prop firm limits & prevent violations' },
     { icon: CheckSquare, title: 'Pre-Trade Checklist', desc: 'Ensure discipline before every trade' },
     { icon: AlertTriangle, title: 'Behavior Risk Alerts', desc: 'Detect revenge trading & emotional patterns' },
@@ -43,8 +46,11 @@ export function Upgrade() {
 
   const comparisonFeatures = [
     { feature: 'Daily Check-In', free: true, premium: true },
-    { feature: 'Basic Journal Entries', free: true, premium: true },
     { feature: 'Social Feed', free: true, premium: true },
+    { feature: 'Live Journal Entries', free: '10 entries', premium: 'Unlimited' },
+    { feature: 'Backtesting Entries', free: '3 entries', premium: 'Unlimited' },
+    { feature: 'A+ Trade of Day', free: false, premium: true },
+    { feature: 'Verified Trades', free: false, premium: true },
     { feature: 'Custom Journal Fields', free: '3 fields', premium: 'Unlimited' },
     { feature: 'Forfeit Respins', free: '1/day', premium: 'Unlimited' },
     { feature: 'Create Groups', free: false, premium: true },
@@ -119,11 +125,7 @@ export function Upgrade() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              onClick={() => handleUpgrade('monthly')}
-              size="lg" className="w-full" variant="outline"
-              disabled={!!loading}
-            >
+            <Button onClick={() => handleUpgrade('monthly')} size="lg" className="w-full" variant="outline" disabled={!!loading}>
               {loading === 'monthly' ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Redirecting...</> : 'Start Monthly Plan'}
             </Button>
             <p className="text-xs text-center text-muted-foreground">Cancel anytime</p>
@@ -149,11 +151,7 @@ export function Upgrade() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              size="lg" className="w-full"
-              onClick={() => handleUpgrade('annual')}
-              disabled={!!loading}
-            >
+            <Button size="lg" className="w-full" onClick={() => handleUpgrade('annual')} disabled={!!loading}>
               {loading === 'annual' ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Redirecting...</> : <><Crown className="w-5 h-5 mr-2" />Start Annual Plan</>}
             </Button>
             <p className="text-xs text-center text-muted-foreground">30-day money-back guarantee</p>
