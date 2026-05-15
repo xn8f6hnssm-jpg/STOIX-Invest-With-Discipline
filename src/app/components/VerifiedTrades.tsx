@@ -10,7 +10,7 @@ import { storage } from '../utils/storage';
 import { 
   Shield, Plus, Trash2, RefreshCw, TrendingUp, TrendingDown, Upload, Share2, Download, Crown, 
   Award, Target, Clock, BarChart2, Zap, CheckCircle, AlertCircle,
-  Copy, Check, Download
+  Copy, Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -55,7 +55,6 @@ export function VerifiedTrades() {
     const initUser = async () => {
       let user = storage.getCurrentUser();
       if (!user) {
-        // Fall back to Supabase auth session
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           const { data: profile } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
@@ -107,7 +106,6 @@ export function VerifiedTrades() {
   };
 
   const parseTradovatePnL = (pnlStr: string): number => {
-    // Handles: "$1,565.00", "$(85.00)", "$5.00"
     const cleaned = pnlStr.replace(/[$,\s]/g, '');
     if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
       return -parseFloat(cleaned.slice(1, -1));
@@ -116,7 +114,6 @@ export function VerifiedTrades() {
   };
 
   const parseTradovateDate = (dateStr: string): string => {
-    // "05/10/2026 15:24:02" -> ISO string
     const [date, time] = dateStr.trim().split(' ');
     const [month, day, year] = date.split('/');
     return new Date(`${year}-${month}-${day}T${time}Z`).toISOString();
@@ -143,12 +140,12 @@ export function VerifiedTrades() {
   };
 
   const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Extract file immediately before React nullifies the event
     const files = e.target.files;
     const file = files && files.length > 0 ? files[0] : null;
     console.log("CSV import triggered, file:", file?.name, "user:", currentUser?.id);
     if (!file) { console.log("No file selected"); return; }
     if (!currentUser) { console.log("No current user"); return; }
+    setImportingCSV(true);
     processCSVFile(file);
   };
 
@@ -160,32 +157,35 @@ export function VerifiedTrades() {
         reader.onerror = reject;
         reader.readAsText(file);
       });
-            console.log('RAW TEXT first 200 chars:', JSON.stringify(text.substring(0, 200)));
+
+      console.log('RAW TEXT first 200 chars:', JSON.stringify(text.substring(0, 200)));
       console.log('RAW TEXT length:', text.length);
-      const crlf = text.indexOf('\r\n');
-      const lf = text.indexOf('\n');
-      const cr = text.indexOf('\r');
-      console.log('CRLF pos:', crlf, 'LF pos:', lf, 'CR pos:', cr);
+
       const lines = text.length > 0 ? text.trim().split(/[\r\n]+/) : [];
       const headers = lines[0].split(',').map((h: string) => h.trim().replace(/^"|"$/g, ''));
       console.log('CSV parsed — lines:', lines.length, 'headers:', headers);
-      
+
       let imported = 0;
       let skipped = 0;
 
-      // First ensure we have a broker connection for CSV imports
+      // Get or create broker connection
       let connectionId: string | null = null;
-      const { data: existingConn } = await supabase
+      console.log('Looking up broker connection for user:', currentUser.id);
+
+      const { data: existingConn, error: connLookupErr } = await supabase
         .from('broker_connections')
         .select('id')
         .eq('user_id', currentUser.id)
         .eq('broker_name', 'Tradovate (CSV)')
         .maybeSingle();
 
+      console.log('Existing connection lookup:', existingConn, 'error:', connLookupErr);
+
       if (existingConn) {
         connectionId = existingConn.id;
+        console.log('Using existing connection:', connectionId);
       } else {
-        const { data: newConn } = await supabase
+        const { data: newConn, error: connInsertErr } = await supabase
           .from('broker_connections')
           .insert({
             user_id: currentUser.id,
@@ -199,18 +199,23 @@ export function VerifiedTrades() {
           })
           .select('id')
           .single();
+
+        console.log('New connection insert:', newConn, 'error:', connInsertErr);
         connectionId = newConn?.id || null;
       }
 
-      if (!connectionId) throw new Error('Could not create broker connection');
+      if (!connectionId) {
+        console.error('FAILED to get connectionId — broker_connections insert likely blocked by RLS');
+        toast.error('Connection setup failed — check Supabase RLS policies');
+        return;
+      }
 
-      console.log('CSV lines found:', lines.length, '| Headers:', headers);
+      console.log('Processing', lines.length - 1, 'trade rows...');
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
-        if (!line) continue;
+        if (!line) { console.log(`Row ${i}: empty, skipping`); continue; }
 
-        // Parse CSV handling quoted fields
         const fields: string[] = [];
         let current = '';
         let inQuotes = false;
@@ -224,23 +229,29 @@ export function VerifiedTrades() {
         const row: Record<string, string> = {};
         headers.forEach((h, idx) => { row[h] = (fields[idx] || '').trim().replace(/\r/g, ''); });
 
+        console.log(`Row ${i} raw:`, row);
+
         const symbol = row['symbol'] || '';
-        const buyPrice = parseFloat(row['buyPrice']) || 0;
-        const sellPrice = parseFloat(row['sellPrice']) || 0;
+        const buyPriceRaw = row['buyPrice'] || '';
+        const sellPriceRaw = row['sellPrice'] || '';
+        const buyPrice = parseFloat(buyPriceRaw) || 0;
+        const sellPrice = parseFloat(sellPriceRaw) || 0;
         const pnl = parseTradovatePnL(row['pnl'] || '0');
-        const openTime = parseTradovateDate(row['boughtTimestamp'] || '');
-        const closeTime = parseTradovateDate(row['soldTimestamp'] || '');
+        const boughtTs = row['boughtTimestamp'] || '';
+        const soldTs = row['soldTimestamp'] || '';
+
+        if (!symbol) { console.log(`Row ${i}: no symbol, skipping`); skipped++; continue; }
+        if (!buyPrice) { console.log(`Row ${i}: no buyPrice (raw="${buyPriceRaw}"), skipping`); skipped++; continue; }
+        if (!boughtTs) { console.log(`Row ${i}: no boughtTimestamp, skipping`); skipped++; continue; }
+
+        const openTime = parseTradovateDate(boughtTs);
+        const closeTime = soldTs ? parseTradovateDate(soldTs) : openTime;
         const durationMins = parseDurationMinutes(row['duration'] || '');
         const qty = parseInt(row['qty']) || 1;
         const buyFillId = row['buyFillId'] || '';
-
-        if (!symbol) { skipped++; continue; }
-        if (!buyPrice) { skipped++; continue; }
-
         const isWinner = pnl > 0;
         const pips = sellPrice - buyPrice;
-        // Simple RR estimate — futures don't have SL in CSV so we skip
-        const ticket = parseInt(buyFillId.replace(/\D/g, '').slice(-9)) || i;
+        const ticket = Math.abs(parseInt(buyFillId.replace(/\D/g, '')) || 0) || (Date.now() + i);
 
         const tradeRecord = {
           user_id: currentUser.id,
@@ -267,21 +278,27 @@ export function VerifiedTrades() {
           raw_payload: row,
         };
 
-        const { error } = await supabase
+        console.log(`Row ${i}: inserting trade`, symbol, pnl, ticket);
+
+        const { error: upsertErr } = await supabase
           .from('verified_trades')
           .upsert(tradeRecord, { onConflict: 'connection_id,ticket' });
 
-        if (!error) imported++;
-        else skipped++;
+        if (upsertErr) {
+          console.error(`Row ${i}: upsert error:`, upsertErr.message, upsertErr.details, upsertErr.hint);
+          skipped++;
+        } else {
+          console.log(`Row ${i}: ✅ imported`);
+          imported++;
+        }
       }
 
-      // Recalculate stats
       await loadData();
       setImportResult({ imported, skipped });
       toast.success(`Imported ${imported} trades!`);
-    } catch (err) {
-      console.error('CSV import error:', err);
-      toast.error('Import failed — check the file format');
+    } catch (err: any) {
+      console.error('CSV import error:', err?.message || err);
+      toast.error('Import failed — check console for details');
     } finally {
       setImportingCSV(false);
       if (csvInputRef.current) csvInputRef.current.value = '';
@@ -318,7 +335,7 @@ export function VerifiedTrades() {
         account_number: accountNumber.trim(),
         account_type: accountType,
         ea_api_key: apiKey,
-        ea_api_key_hash: apiKey, // simplified for MVP
+        ea_api_key_hash: apiKey,
         is_active: true,
         sync_status: 'pending',
       });
@@ -389,7 +406,6 @@ export function VerifiedTrades() {
             <DialogTitle>Verified Trading Card</DialogTitle>
           </DialogHeader>
           <div className="p-4 space-y-3">
-            {/* Coming soon banner */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center gap-2">
               <span className="text-lg">🔧</span>
               <div>
@@ -397,10 +413,7 @@ export function VerifiedTrades() {
                 <p className="text-xs text-muted-foreground">Full verified share card with broker-synced data</p>
               </div>
             </div>
-
-            {/* Preview card */}
             <div className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-5 flex flex-col justify-between">
-              {/* Header */}
               <div className="text-center space-y-1">
                 <div className="flex justify-center items-center gap-2">
                   <span className="text-white font-bold text-base tracking-widest">STOIX</span>
@@ -414,8 +427,6 @@ export function VerifiedTrades() {
                   </div>
                 )}
               </div>
-
-              {/* Stats */}
               {stats ? (
                 <div className="space-y-3">
                   <div className="text-center">
@@ -423,24 +434,10 @@ export function VerifiedTrades() {
                     <p className="text-sm text-slate-300 font-semibold">Win Rate</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-center">
-                    <div>
-                      <p className="text-xl font-bold text-white">{stats.avg_rr?.toFixed(2)}</p>
-                      <p className="text-xs text-slate-400">Avg R:R</p>
-                    </div>
-                    <div>
-                      <p className={`text-xl font-bold ${stats.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {stats.total_pnl >= 0 ? '+' : ''}${Math.abs(stats.total_pnl).toFixed(0)}
-                      </p>
-                      <p className="text-xs text-slate-400">Net P&L</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold text-white">{stats.total_trades}</p>
-                      <p className="text-xs text-slate-400">Trades</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold text-white">{stats.consistency_score?.toFixed(0)}%</p>
-                      <p className="text-xs text-slate-400">Consistency</p>
-                    </div>
+                    <div><p className="text-xl font-bold text-white">{stats.avg_rr?.toFixed(2)}</p><p className="text-xs text-slate-400">Avg R:R</p></div>
+                    <div><p className={`text-xl font-bold ${stats.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{stats.total_pnl >= 0 ? '+' : ''}${Math.abs(stats.total_pnl).toFixed(0)}</p><p className="text-xs text-slate-400">Net P&L</p></div>
+                    <div><p className="text-xl font-bold text-white">{stats.total_trades}</p><p className="text-xs text-slate-400">Trades</p></div>
+                    <div><p className="text-xl font-bold text-white">{stats.consistency_score?.toFixed(0)}%</p><p className="text-xs text-slate-400">Consistency</p></div>
                   </div>
                 </div>
               ) : (
@@ -456,21 +453,13 @@ export function VerifiedTrades() {
                   </div>
                 </div>
               )}
-
-              {/* Footer */}
               <div className="text-center">
                 <p className="text-xs text-slate-500">stoixtrader.com · Trade With Discipline</p>
               </div>
             </div>
-
-            {/* Actions */}
             <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" className="w-full" disabled>
-                <Share2 className="w-3.5 h-3.5 mr-1.5" />Share
-              </Button>
-              <Button size="sm" variant="outline" className="w-full" disabled>
-                <Download className="w-3.5 h-3.5 mr-1.5" />Download
-              </Button>
+              <Button size="sm" className="w-full" disabled><Share2 className="w-3.5 h-3.5 mr-1.5" />Share</Button>
+              <Button size="sm" variant="outline" className="w-full" disabled><Download className="w-3.5 h-3.5 mr-1.5" />Download</Button>
             </div>
             <p className="text-xs text-center text-muted-foreground">Full functionality coming when broker sync launches</p>
           </div>
@@ -533,7 +522,6 @@ export function VerifiedTrades() {
             </Button>
             <input ref={screenshotInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleScreenshotUpload} />
           </div>
-
           {screenshots.length === 0 ? (
             <div className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => screenshotInputRef.current?.click()}>
               <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-40" />
@@ -708,7 +696,6 @@ export function VerifiedTrades() {
       {/* Stats dashboard */}
       {stats && trades.length > 0 && (
         <>
-          {/* Tabs */}
           <div className="flex border-b">
             {(['dashboard', 'trades'] as const).map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
@@ -720,7 +707,6 @@ export function VerifiedTrades() {
 
           {activeTab === 'dashboard' && (
             <div className="space-y-4">
-              {/* Key metrics */}
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { label: 'Win Rate', value: `${stats.win_rate}%`, color: stats.win_rate >= 50 ? 'text-green-500' : 'text-red-500', icon: Target },
@@ -738,8 +724,6 @@ export function VerifiedTrades() {
                   </Card>
                 ))}
               </div>
-
-              {/* Trade breakdown */}
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <p className="text-sm font-semibold mb-3">Trade Breakdown</p>
@@ -754,30 +738,22 @@ export function VerifiedTrades() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Best performers */}
               <div className="grid grid-cols-2 gap-3">
                 {stats.best_session && (
-                  <Card>
-                    <CardContent className="pt-4 pb-4 text-center">
-                      <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />
-                      <p className="font-semibold text-sm">{SESSION_LABELS[stats.best_session] || stats.best_session}</p>
-                      <p className="text-xs text-muted-foreground">Best Session</p>
-                    </CardContent>
-                  </Card>
+                  <Card><CardContent className="pt-4 pb-4 text-center">
+                    <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />
+                    <p className="font-semibold text-sm">{SESSION_LABELS[stats.best_session] || stats.best_session}</p>
+                    <p className="text-xs text-muted-foreground">Best Session</p>
+                  </CardContent></Card>
                 )}
                 {stats.best_symbol && (
-                  <Card>
-                    <CardContent className="pt-4 pb-4 text-center">
-                      <TrendingUp className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                      <p className="font-semibold text-sm">{stats.best_symbol}</p>
-                      <p className="text-xs text-muted-foreground">Best Symbol</p>
-                    </CardContent>
-                  </Card>
+                  <Card><CardContent className="pt-4 pb-4 text-center">
+                    <TrendingUp className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                    <p className="font-semibold text-sm">{stats.best_symbol}</p>
+                    <p className="text-xs text-muted-foreground">Best Symbol</p>
+                  </CardContent></Card>
                 )}
               </div>
-
-              {/* Streaks */}
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <p className="text-sm font-semibold mb-3">Streaks</p>
@@ -787,8 +763,6 @@ export function VerifiedTrades() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Max drawdown */}
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <div className="flex items-center justify-between">
@@ -797,8 +771,6 @@ export function VerifiedTrades() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Not verified yet */}
               {!isVerified && (
                 <Card className="border-yellow-500/30 bg-yellow-500/5">
                   <CardContent className="pt-4 pb-4">
@@ -848,14 +820,13 @@ export function VerifiedTrades() {
                 </Card>
               ))}
               {trades.length === 0 && (
-                <p className="text-center text-sm text-muted-foreground py-8">No verified trades yet. Install the EA to start syncing.</p>
+                <p className="text-center text-sm text-muted-foreground py-8">No verified trades yet.</p>
               )}
             </div>
           )}
         </>
       )}
 
-      {/* Waiting for first sync */}
       {hasConnection && trades.length === 0 && !showConnect && !newKey && (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
