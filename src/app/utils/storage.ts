@@ -557,7 +557,7 @@ export const storage = {
     if (!user) return false;
     const last = localStorage.getItem(`daily_check_last_${user.id}`);
     if (!last) return false;
-    return Date.now() - parseInt(last) < 5 * 3600000;
+    return Date.now() - parseInt(last) < 6 * 3600000;
   },
 
   getDailyCheckCooldown: (): string | null => {
@@ -566,8 +566,8 @@ export const storage = {
     const last = localStorage.getItem(`daily_check_last_${user.id}`);
     if (!last) return null;
     const elapsed = Date.now() - parseInt(last);
-    if (elapsed >= 5 * 3600000) return null;
-    const remaining = 5 * 3600000 - elapsed;
+    if (elapsed >= 6 * 3600000) return null;
+    const remaining = 6 * 3600000 - elapsed;
     return `${Math.floor(remaining / 3600000)}h ${Math.floor((remaining % 3600000) / 60000)}m`;
   },
 
