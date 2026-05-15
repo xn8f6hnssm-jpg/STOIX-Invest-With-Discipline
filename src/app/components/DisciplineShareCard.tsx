@@ -106,7 +106,21 @@ export function DisciplineShareCard() {
   const isPremium = storage.isPremium();
 
   const capture = () => cardRef.current
-    ? html2canvas(cardRef.current, { backgroundColor: '#000000', scale: 2 })
+    ? html2canvas(cardRef.current, {
+        backgroundColor: '#000000',
+        scale: 2,
+        useCORS: true,
+        onclone: (doc: Document) => {
+          doc.querySelectorAll('*').forEach((node: any) => {
+            if (node.style) {
+              const s = node.style;
+              ['color','backgroundColor','borderColor','outlineColor','fill','stroke'].forEach(prop => {
+                if (s[prop] && s[prop].includes('oklch')) s[prop] = '';
+              });
+            }
+          });
+        },
+      })
     : Promise.resolve(null);
 
   const handleShare = async () => {

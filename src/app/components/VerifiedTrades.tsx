@@ -420,7 +420,21 @@ export function VerifiedTrades() {
               const handleDownload = async () => {
                 const el = document.getElementById(cardId);
                 if (!el) return;
-                const canvas = await html2canvas(el, { backgroundColor: '#000000', scale: 2 });
+                const canvas = await html2canvas(el, {
+                  backgroundColor: '#0f172a',
+                  scale: 2,
+                  useCORS: true,
+                  onclone: (doc) => {
+                    doc.querySelectorAll('*').forEach((node: any) => {
+                      if (node.style) {
+                        const s = node.style;
+                        ['color','backgroundColor','borderColor','outlineColor','fill','stroke'].forEach(prop => {
+                          if (s[prop] && s[prop].includes('oklch')) s[prop] = '';
+                        });
+                      }
+                    });
+                  },
+                });
                 canvas.toBlob(blob => {
                   if (!blob) return;
                   const a = document.createElement('a');
@@ -433,7 +447,21 @@ export function VerifiedTrades() {
               const handleShare = async () => {
                 const el = document.getElementById(cardId);
                 if (!el) return;
-                const canvas = await html2canvas(el, { backgroundColor: '#000000', scale: 2 });
+                const canvas = await html2canvas(el, {
+                  backgroundColor: '#0f172a',
+                  scale: 2,
+                  useCORS: true,
+                  onclone: (doc) => {
+                    doc.querySelectorAll('*').forEach((node: any) => {
+                      if (node.style) {
+                        const s = node.style;
+                        ['color','backgroundColor','borderColor','outlineColor','fill','stroke'].forEach(prop => {
+                          if (s[prop] && s[prop].includes('oklch')) s[prop] = '';
+                        });
+                      }
+                    });
+                  },
+                });
                 canvas.toBlob(blob => {
                   if (!blob) return;
                   const file = new File([blob], `stoix-verified-${shareCardPeriod}.png`, { type: 'image/png' });
