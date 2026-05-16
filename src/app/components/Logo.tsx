@@ -1,7 +1,6 @@
-// STOIX Logo — gold strike mark + wordmark
-// Design: Dark rectangular mass with a single gold diagonal strike
-// All colors hardcoded hex — works in all environments
-
+// STOIX Logo — Fehu rune mark + wordmark
+// Fehu: vertical staff with two thin diagonal branches sweeping upward
+// Dark mass background, gold Fehu mark, text auto-adapts to light/dark mode
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showText?: boolean;
@@ -16,27 +15,27 @@ export function Logo({ size = 'md', showText = true, className = '', darkMode = 
     lg: { ms: 62, fs: 30, gap: 15, sub: true,  ls: '-0.05em' },
     xl: { ms: 82, fs: 42, gap: 20, sub: true,  ls: '-0.05em' },
   }[size];
-
   const { ms, fs, gap, sub } = cfg;
 
-  // The mark scales proportionally from the 680x680 original
-  // Original: mass x=148 y=186 w=384 h=308, strike polygon proportional
-  const scale = ms / 48; // base unit
+  // Scale all coords from 80x92 base design (Option B)
+  const B = 92; // base height
+  const s = (n: number) => (n / B) * ms;
 
-  const massX = ms * (148/680);
-  const massY = ms * (186/680);
-  const massW = ms * (384/680);
-  const massH = ms * (308/680);
+  const massFill  = '#1e1e1e';
+  const goldColor = '#c9a84c';
 
-  // Strike polygon — scaled from original coords
-  const s = (n: number) => (n / 680) * ms;
-  const strikePoints = `${s(376)},${s(186)} ${s(440)},${s(186)} ${s(256)},${s(494)} ${s(192)},${s(494)}`;
+  // Auto-detect dark mode from html class, or use explicit darkMode prop
+  const isDark = darkMode || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
+  const textColor = isDark ? '#ffffff' : '#0f172a';
+  const subColor  = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(15,23,42,0.4)';
 
-  const massFill   = darkMode ? '#2a2a2a' : '#1e1e1e';
-  const bgFill     = darkMode ? 'transparent' : 'transparent';
-  const textColor  = darkMode ? '#ffffff' : '#0f172a';
-  const subColor   = darkMode ? 'rgba(255,255,255,0.7)' : 'rgba(15,23,42,0.4)';
-  const goldColor  = '#c9a84c';
+  // All polygon points scaled from base 80x92 design
+  // Base: mass x=4 y=4 w=72 h=84
+  //       staff x=18 y=10 w=9 h=70
+  //       upper branch: 27,28 → 66,8 → 70,8 → 70,13 → 66,13 → 27,33
+  //       lower branch: 27,50 → 66,30 → 70,30 → 70,35 → 66,35 → 27,55
+
+  const p = (pts: [number,number][]) => pts.map(([x,y]) => `${s(x)},${s(y)}`).join(' ');
 
   return (
     <div
@@ -53,9 +52,13 @@ export function Logo({ size = 'md', showText = true, className = '', darkMode = 
         aria-hidden="true"
       >
         {/* Dark mass */}
-        <rect x={massX} y={massY} width={massW} height={massH} fill={massFill} />
-        {/* Gold strike */}
-        <polygon points={strikePoints} fill={goldColor} />
+        <rect x={s(4)} y={s(4)} width={s(72)} height={s(84)} rx={s(2)} fill={massFill} />
+        {/* Fehu staff */}
+        <rect x={s(18)} y={s(10)} width={s(9)} height={s(70)} fill={goldColor} />
+        {/* Upper branch — thin, steep upward sweep */}
+        <polygon points={p([[27,28],[66,8],[70,8],[70,13],[66,13],[27,33]])} fill={goldColor} />
+        {/* Lower branch — same angle, lower position */}
+        <polygon points={p([[27,50],[66,30],[70,30],[70,35],[66,35],[27,55]])} fill={goldColor} />
       </svg>
 
       {showText && (
