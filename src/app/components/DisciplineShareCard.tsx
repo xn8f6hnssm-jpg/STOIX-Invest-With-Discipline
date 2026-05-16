@@ -59,11 +59,9 @@ export function DisciplineShareCard() {
 
   const { from, todayStr } = getDateBounds(range);
 
-  // Get ALL day logs for this user - this is the source of truth for discipline
   const allDayLogs = (storage.getDayLogs ? storage.getDayLogs() : [])
     .filter((l: any) => l.userId === currentUser.id);
 
-  // Discipline Rate — always computed from day_logs (daily check-in source of truth)
   let disciplineRate: number;
   if (range === 'today') {
     const todayLog = allDayLogs.find((l: any) => l.date === todayStr);
@@ -73,7 +71,6 @@ export function DisciplineShareCard() {
       ? allDayLogs
       : allDayLogs.filter((l: any) => inRange(l.date, from));
     if (periodLogs.length === 0) {
-      // Fall back to stored cleanDays/forfeitDays for overall if no logs
       if (range === 'overall') {
         const clean = currentUser.cleanDays ?? 0;
         const total = clean + (currentUser.forfeitDays ?? 0);
@@ -87,12 +84,11 @@ export function DisciplineShareCard() {
     }
   }
 
-  // Trades & Wins — from journal entries (not no-trade days, not open positions)
   const allEntries = storage.getJournalEntries()
-    .filter((e: any) => 
-      e.userId === currentUser.id && 
-      !e.isNoTradeDay && 
-      e.result && // must have a result (closed trade)
+    .filter((e: any) =>
+      e.userId === currentUser.id &&
+      !e.isNoTradeDay &&
+      e.result &&
       e.result !== 'open'
     );
   const periodEntries = range === 'overall'
@@ -105,23 +101,21 @@ export function DisciplineShareCard() {
   const league  = getLeague(currentUser.totalPoints || 0);
   const isPremium = storage.isPremium();
 
-  const capture = () => cardRef.current
-    ? html2canvas(cardRef.current, {
-        backgroundColor: '#000000',
-        scale: 2,
-        useCORS: true,
-        onclone: (doc: Document) => {
-          doc.querySelectorAll('*').forEach((node: any) => {
-            if (node.style) {
-              const s = node.style;
-              ['color','backgroundColor','borderColor','outlineColor','fill','stroke'].forEach(prop => {
-                if (s[prop] && s[prop].includes('oklch')) s[prop] = '';
-              });
-            }
-          });
-        },
-      })
-    : Promise.resolve(null);
+  // FIX: Use ignoreElements to skip stylesheets that contain oklch colors
+  const capture = () => {
+    if (!cardRef.current) return Promise.resolve(null);
+    return html2canvas(cardRef.current, {
+      backgroundColor: '#000000',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      ignoreElements: (element) => {
+        const tag = element.tagName;
+        if (tag === 'LINK' || tag === 'STYLE') return true;
+        return false;
+      },
+    });
+  };
 
   const handleShare = async () => {
     const canvas = await capture();
@@ -157,7 +151,7 @@ export function DisciplineShareCard() {
 
   return (
     <div className="space-y-3">
-      {/* Range pills — inside the component, own state */}
+      {/* Range pills */}
       <div className="flex gap-1.5 flex-wrap">
         {PILLS.map(p => (
           <button
