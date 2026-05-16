@@ -1763,7 +1763,7 @@ export function Journal() {
           <TabsTrigger value="verified" className="text-xs py-2">
             <div className="flex items-center gap-1">
               {!isPremium && <Lock className="w-3 h-3" />}
-              <span>🛡️</span>Verified Trades
+              Verified Trades*
             </div>
           </TabsTrigger>
         </TabsList>
