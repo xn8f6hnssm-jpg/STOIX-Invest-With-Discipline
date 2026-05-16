@@ -126,10 +126,14 @@ export function DisciplineShareCard() {
         files: [new File([blob], 'stoix-card.png', { type: 'image/png' })],
       }).catch((e) => console.error('Share error:', e));
     } else {
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = url;
       a.download = 'stoix-card.png';
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
   };
 
@@ -138,10 +142,14 @@ export function DisciplineShareCard() {
     const blob = await capture();
     console.log('blob from capture:', blob);
     if (!blob) return;
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = 'stoix-card.png';
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (

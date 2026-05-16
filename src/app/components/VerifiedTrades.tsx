@@ -422,10 +422,14 @@ export function VerifiedTrades() {
                 if (!el) return;
                 try {
                   const blob = await domtoimage.toBlob(el, { scale: 2 });
+                  const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
-                  a.href = URL.createObjectURL(blob);
+                  a.href = url;
                   a.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
+                  document.body.appendChild(a);
                   a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
                 } catch (err) {
                   console.error('Download error:', err);
                   toast.error('Download failed — try again');
@@ -445,10 +449,14 @@ export function VerifiedTrades() {
                       files: [file],
                     }).catch(() => {});
                   } else {
+                    const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
+                    a.href = url;
                     a.download = `stoix-verified-${shareCardPeriod}.png`;
+                    document.body.appendChild(a);
                     a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
                   }
                 } catch (err) {
                   console.error('Share error:', err);
