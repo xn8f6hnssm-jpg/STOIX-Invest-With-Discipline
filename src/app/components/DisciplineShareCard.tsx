@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
-import { Share2, Download, Crown } from 'lucide-react';
+import { Share2, Download } from 'lucide-react';
 import domtoimage from 'dom-to-image-more';
 import { storage, getLeague } from '../utils/storage';
 import { useRef } from 'react';
-import { Logo } from './Logo';
 
 type Range = 'today' | 'week' | 'month' | 'year' | 'overall';
 
@@ -157,61 +156,61 @@ export function DisciplineShareCard() {
         ))}
       </div>
 
-      {/* Card */}
+      {/* Card — fully inline styled so dom-to-image captures correctly */}
       <div
         ref={cardRef}
-        className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-6 flex flex-col justify-between"
+        style={{
+          width: '100%',
+          aspectRatio: '1/1',
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+          borderRadius: '16px',
+          padding: '28px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          boxSizing: 'border-box',
+        }}
       >
         {/* Header */}
-        <div className="text-center space-y-1.5">
-          <div className="flex justify-center">
-            <Logo size="sm" showText={false} darkMode={true} />
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '4px', marginBottom: '4px' }}>STOIX</div>
+          <div style={{ fontSize: '15px', fontWeight: '600', color: '#ffffff', marginBottom: '2px' }}>
+            {currentUser.name}{isPremium && ' 👑'}
           </div>
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-base font-semibold text-white">{currentUser.name}</span>
-            {isPremium && (
-              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center">
-                <Crown className="w-2.5 h-2.5 text-white" />
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-slate-400 uppercase tracking-widest">{LABELS[range]}</p>
+          <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px' }}>{LABELS[range]}</div>
         </div>
 
-        {/* Discipline */}
-        <div className="text-center space-y-1">
-          <div className="text-6xl font-bold text-white">{disciplineRate}%</div>
-          <p className="text-base text-slate-300 font-semibold">Discipline Rate</p>
+        {/* Main stat */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '72px', fontWeight: '800', color: '#ffffff', lineHeight: 1 }}>{disciplineRate}%</div>
+          <div style={{ fontSize: '15px', color: '#cbd5e1', fontWeight: '600', marginTop: '4px' }}>Discipline Rate</div>
         </div>
 
-        {/* Stats */}
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2 text-center">
-            <div>
-              <div className="text-xl font-bold text-white">{trades}</div>
-              <p className="text-xs text-slate-400">Trades</p>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-white">{wins}</div>
-              <p className="text-xs text-slate-400">Wins</p>
-            </div>
+        {/* Stats grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{trades}</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades</div>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-center">
-            <div>
-              <div className="text-xl font-bold text-white">🔥 {streak}</div>
-              <p className="text-xs text-slate-400">Streak</p>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-white">{league.tier} {league.roman}</div>
-              <p className="text-xs text-slate-400">League</p>
-            </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{wins}</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Wins</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>🔥 {streak}</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Streak</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{league.tier} {league.roman}</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8' }}>League</div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="text-center space-y-0.5">
-          <p className="text-xs font-semibold text-white">STOIX</p>
-          <p className="text-xs text-slate-500">Trade With Discipline</p>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#cbd5e1', letterSpacing: '3px' }}>STOIX</div>
+          <div style={{ fontSize: '10px', color: '#64748b' }}>Trade With Discipline</div>
         </div>
       </div>
 

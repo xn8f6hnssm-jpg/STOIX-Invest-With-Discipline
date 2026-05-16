@@ -458,61 +458,68 @@ export function VerifiedTrades() {
 
               return (
                 <>
-                  {/* Card */}
-                  <div id={cardId} className="w-full aspect-square bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-5 flex flex-col justify-between">
-                  {/* Card header — matches discipline share card exactly */}
-                  <div className="text-center space-y-1.5">
-                    <div className="flex justify-center">
-                      <Logo size="sm" showText={false} darkMode={true} />
-                    </div>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-base font-semibold text-white">{currentUser?.name || currentUser?.username || 'Trader'}</span>
-                      {currentUser?.isPremium && (
-                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center">
-                          <Crown className="w-2.5 h-2.5 text-white" />
+                  {/* Card — fully inline styled so dom-to-image captures correctly */}
+                  <div id={cardId} style={{
+                    width: '100%',
+                    aspectRatio: '1/1',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+                    borderRadius: '16px',
+                    padding: '28px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                    boxSizing: 'border-box',
+                  }}>
+                    {/* Header */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '4px', marginBottom: '4px' }}>STOIX</div>
+                      <div style={{ fontSize: '15px', fontWeight: '600', color: '#ffffff', marginBottom: '2px' }}>
+                        {currentUser?.name || currentUser?.username || 'Trader'}
+                        {currentUser?.isPremium && ' 👑'}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '4px' }}>{periodLabel}</div>
+                      {isVerified && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '20px', padding: '2px 10px', fontSize: '10px', color: '#60a5fa' }}>
+                          ✓ Verified
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 uppercase tracking-widest">{periodLabel}</p>
-                    {isVerified && (
-                      <div className="flex justify-center">
-                        <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />Verified
-                        </span>
-                      </div>
-                    )}
-                  </div>
 
+                    {/* Main stat */}
                     {total > 0 ? (
-                      <div className="space-y-3">
-                        <div className="text-center">
-                          <p className="text-5xl font-bold text-white">{winRate}%</p>
-                          <p className="text-sm text-slate-300 font-semibold">Win Rate</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-center">
-                          <div><p className="text-xl font-bold text-white">{total}</p><p className="text-xs text-slate-400">Trades</p></div>
-                          <div><p className={`text-xl font-bold ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{totalPnl >= 0 ? '+' : ''}${Math.abs(totalPnl).toFixed(0)}</p><p className="text-xs text-slate-400">Net P&L</p></div>
-                          <div><p className="text-xl font-bold text-green-400">{wins}W</p><p className="text-xs text-slate-400">Wins</p></div>
-                          <div><p className="text-xl font-bold text-white">{profitFactor}</p><p className="text-xs text-slate-400">Profit Factor</p></div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '64px', fontWeight: '800', color: '#ffffff', lineHeight: 1 }}>{winRate}%</div>
+                        <div style={{ fontSize: '14px', color: '#cbd5e1', fontWeight: '600', marginTop: '4px' }}>Win Rate</div>
+
+                        {/* Stats grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '20px' }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{total}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: totalPnl >= 0 ? '#4ade80' : '#f87171' }}>{totalPnl >= 0 ? '+' : ''}${Math.abs(totalPnl).toFixed(0)}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Net P&L</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#4ade80' }}>{wins}W</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Wins</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{profitFactor}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Profit Factor</div>
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-center space-y-2">
-                        <p className="text-slate-400 text-sm">No trades for this period</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {['Win Rate', 'Trades', 'Net P&L', 'Profit Factor'].map(label => (
-                            <div key={label} className="bg-slate-800 rounded-lg p-2 text-center">
-                              <p className="text-slate-600 text-lg font-bold">—</p>
-                              <p className="text-slate-500 text-xs">{label}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>No trades for this period</div>
                     )}
 
-                    <div className="text-center">
-                      <p className="text-xs font-bold text-slate-300 tracking-widest">STOIX</p>
-                      <p className="text-xs text-slate-500">Trade With Discipline</p>
+                    {/* Footer */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#cbd5e1', letterSpacing: '3px' }}>STOIX</div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>Trade With Discipline</div>
                     </div>
                   </div>
 
