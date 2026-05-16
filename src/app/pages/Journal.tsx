@@ -1822,17 +1822,26 @@ export function Journal() {
         </TabsContent>
         <TabsContent value="aplus">
           {!isPremium ? (
-            <Card>
-              <CardContent className="py-12">
-                <PremiumGate
+            <PremiumGate
                   isPremium={false}
                   featureName="A+ Trade of Day"
-                  description="Log your best setups and let AI find your highest-probability patterns. Upgrade to Premium to unlock."
+                  description="Log your best setups and let AI find your highest-probability patterns."
                   variant="card"
                   onUpgrade={() => setShowUpgradeModal(true)}
-                />
-              </CardContent>
-            </Card>
+                >
+                  <div className="space-y-3 p-2">
+                    {[
+                      { date: 'Today', desc: 'Perfect OTE + CISD confluence on NQ' },
+                      { date: 'Yesterday', desc: 'A+ setup — London session breakout' },
+                      { date: '2 days ago', desc: 'Clean FVG fill with market structure shift' },
+                    ].map((item, i) => (
+                      <div key={i} className="p-3 rounded-lg border bg-yellow-500/5 border-yellow-500/20">
+                        <p className="text-xs text-muted-foreground">{item.date}</p>
+                        <p className="text-sm font-medium">⭐ {item.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </PremiumGate>
           ) : (
           <div className="space-y-4">
             {/* A+ Header */}
@@ -2156,17 +2165,29 @@ export function Journal() {
         </TabsContent>
         <TabsContent value="verified">
           {!isPremium ? (
-            <Card>
-              <CardContent className="py-12">
-                <PremiumGate
+            <PremiumGate
                   isPremium={false}
-                  featureName="Verified Trades"
-                  description="Import real broker data and verify your trading results. No manual input, no faking — premium only."
+                  featureName="Verified Trades*"
+                  description="Import real broker data and verify your trading results. No manual input, no faking."
                   variant="card"
                   onUpgrade={() => setShowUpgradeModal(true)}
-                />
-              </CardContent>
-            </Card>
+                >
+                  <div className="space-y-3 p-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { label: 'Win Rate', value: '68%', color: 'text-green-500' },
+                        { label: 'Net P&L', value: '+$4,230', color: 'text-green-500' },
+                        { label: 'Profit Factor', value: '3.2', color: 'text-green-500' },
+                        { label: 'Avg Duration', value: '14m', color: 'text-blue-500' },
+                      ].map(m => (
+                        <div key={m.label} className="p-3 rounded-lg border text-center bg-muted/50">
+                          <p className={`text-lg font-bold ${m.color}`}>{m.value}</p>
+                          <p className="text-xs text-muted-foreground">{m.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PremiumGate>
           ) : (
             <VerifiedTrades />
           )}
