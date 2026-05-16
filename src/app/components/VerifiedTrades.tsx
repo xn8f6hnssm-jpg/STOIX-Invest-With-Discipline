@@ -443,14 +443,6 @@ export function VerifiedTrades() {
                   toast.error('Download failed — try again');
                 }
               };
-                canvas.toBlob(blob => {
-                  if (!blob) return;
-                  const a = document.createElement('a');
-                  a.href = URL.createObjectURL(blob);
-                  a.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
-                  a.click();
-                });
-              };
 
               const handleShare = async () => {
                 const el = document.getElementById(cardId);
