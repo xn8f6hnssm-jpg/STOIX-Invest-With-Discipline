@@ -475,15 +475,17 @@ export function VerifiedTrades() {
                     justifyContent: 'space-between',
                     fontFamily: 'system-ui, -apple-system, sans-serif',
                     boxSizing: 'border-box',
+                    border: 'none',
+                    boxShadow: 'none',
                   }}>
                     {/* Header */}
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '4px', marginBottom: '4px' }}>STOIX</div>
-                      <div style={{ fontSize: '15px', fontWeight: '600', color: '#ffffff', marginBottom: '2px' }}>
+                    <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0, margin: 0 }}>
+                      <div style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '4px', marginBottom: '4px', border: 'none', background: 'transparent' }}>STOIX</div>
+                      <div style={{ fontSize: '15px', fontWeight: '600', color: '#ffffff', marginBottom: '2px', border: 'none', background: 'transparent' }}>
                         {currentUser?.name || currentUser?.username || 'Trader'}
                         {currentUser?.isPremium && ' 👑'}
                       </div>
-                      <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '4px' }}>{periodLabel}</div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '4px', border: 'none', background: 'transparent' }}>{periodLabel}</div>
                       {isVerified && (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '20px', padding: '2px 10px', fontSize: '10px', color: '#60a5fa' }}>
                           ✓ Verified
@@ -493,38 +495,37 @@ export function VerifiedTrades() {
 
                     {/* Main stat */}
                     {total > 0 ? (
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '64px', fontWeight: '800', color: '#ffffff', lineHeight: 1 }}>{winRate}%</div>
-                        <div style={{ fontSize: '14px', color: '#cbd5e1', fontWeight: '600', marginTop: '4px' }}>Win Rate</div>
-
+                      <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+                        <div style={{ fontSize: '64px', fontWeight: '800', color: '#ffffff', lineHeight: 1, border: 'none', background: 'transparent' }}>{winRate}%</div>
+                        <div style={{ fontSize: '14px', color: '#cbd5e1', fontWeight: '600', marginTop: '4px', border: 'none', background: 'transparent' }}>Win Rate</div>
                         {/* Stats grid */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '20px' }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{total}</div>
-                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '20px', border: 'none', background: 'transparent' }}>
+                          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{total}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Trades</div>
                           </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '22px', fontWeight: '700', color: totalPnl >= 0 ? '#4ade80' : '#f87171' }}>{totalPnl >= 0 ? '+' : ''}${Math.abs(totalPnl).toFixed(0)}</div>
-                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Net P&L</div>
+                          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: totalPnl >= 0 ? '#4ade80' : '#f87171', border: 'none', background: 'transparent' }}>{totalPnl >= 0 ? '+' : ''}${Math.abs(totalPnl).toFixed(0)}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Net P&L</div>
                           </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#4ade80' }}>{wins}W</div>
-                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Wins</div>
+                          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#4ade80', border: 'none', background: 'transparent' }}>{wins}W</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Wins</div>
                           </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{profitFactor}</div>
-                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Profit Factor</div>
+                          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{profitFactor}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Profit Factor</div>
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>No trades for this period</div>
+                      <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '14px', border: 'none', background: 'transparent' }}>No trades for this period</div>
                     )}
 
                     {/* Footer */}
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#cbd5e1', letterSpacing: '3px' }}>STOIX</div>
-                      <div style={{ fontSize: '10px', color: '#64748b' }}>Trade With Discipline</div>
+                    <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#cbd5e1', letterSpacing: '3px', border: 'none', background: 'transparent' }}>STOIX</div>
+                      <div style={{ fontSize: '10px', color: '#64748b', border: 'none', background: 'transparent' }}>Trade With Discipline</div>
                     </div>
                   </div>
 

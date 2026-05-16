@@ -173,47 +173,49 @@ export function DisciplineShareCard() {
           justifyContent: 'space-between',
           fontFamily: 'system-ui, -apple-system, sans-serif',
           boxSizing: 'border-box',
+          border: 'none',
+          boxShadow: 'none',
         }}
       >
         {/* Header */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '4px', marginBottom: '4px' }}>STOIX</div>
-          <div style={{ fontSize: '15px', fontWeight: '600', color: '#ffffff', marginBottom: '2px' }}>
+        <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0, margin: 0 }}>
+          <div style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', letterSpacing: '4px', marginBottom: '4px', border: 'none', background: 'transparent' }}>STOIX</div>
+          <div style={{ fontSize: '15px', fontWeight: '600', color: '#ffffff', marginBottom: '2px', border: 'none', background: 'transparent' }}>
             {currentUser.name}{isPremium && ' 👑'}
           </div>
-          <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px' }}>{LABELS[range]}</div>
+          <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px', border: 'none', background: 'transparent' }}>{LABELS[range]}</div>
         </div>
 
         {/* Main stat */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '72px', fontWeight: '800', color: '#ffffff', lineHeight: 1 }}>{disciplineRate}%</div>
-          <div style={{ fontSize: '15px', color: '#cbd5e1', fontWeight: '600', marginTop: '4px' }}>Discipline Rate</div>
+        <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+          <div style={{ fontSize: '72px', fontWeight: '800', color: '#ffffff', lineHeight: 1, border: 'none', background: 'transparent' }}>{disciplineRate}%</div>
+          <div style={{ fontSize: '15px', color: '#cbd5e1', fontWeight: '600', marginTop: '4px', border: 'none', background: 'transparent' }}>Discipline Rate</div>
         </div>
 
         {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{trades}</div>
-            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Trades</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', border: 'none', background: 'transparent' }}>
+          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{trades}</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Trades</div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{wins}</div>
-            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Wins</div>
+          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{wins}</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Wins</div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>🔥 {streak}</div>
-            <div style={{ fontSize: '10px', color: '#94a3b8' }}>Streak</div>
+          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>🔥 {streak}</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Streak</div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff' }}>{league.tier} {league.roman}</div>
-            <div style={{ fontSize: '10px', color: '#94a3b8' }}>League</div>
+          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{league.tier} {league.roman}</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>League</div>
           </div>
         </div>
 
         {/* Footer */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: '#cbd5e1', letterSpacing: '3px' }}>STOIX</div>
-          <div style={{ fontSize: '10px', color: '#64748b' }}>Trade With Discipline</div>
+        <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#cbd5e1', letterSpacing: '3px', border: 'none', background: 'transparent' }}>STOIX</div>
+          <div style={{ fontSize: '10px', color: '#64748b', border: 'none', background: 'transparent' }}>Trade With Discipline</div>
         </div>
       </div>
 
