@@ -774,7 +774,7 @@ export function Social() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDeletePost(post.id)}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -784,7 +784,7 @@ export function Social() {
                             size="sm"
                             variant="ghost"
                             onClick={() => navigate(`/app/messages/${post.userId}`)}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-blue-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                             title="Send DM"
                           >
                             <MessageCircle className="w-4 h-4" />
@@ -927,7 +927,7 @@ export function Social() {
                               {currentUser && comment.userId === currentUser.id && (
                                 <button
                                   onClick={() => handleDeleteComment(post.id, comment.id)}
-                                  className="opacity-0 group-hover/comment:opacity-100 transition-opacity text-muted-foreground hover:text-destructive flex-shrink-0 ml-1"
+                                  className="opacity-100 md:opacity-0 md:group-hover/comment:opacity-100 transition-opacity text-muted-foreground hover:text-destructive flex-shrink-0 ml-1"
                                   title="Delete comment"
                                 >
                                   <Trash2 className="w-3 h-3" />

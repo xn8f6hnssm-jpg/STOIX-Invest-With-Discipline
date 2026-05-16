@@ -21,11 +21,14 @@ export function DirectMessages() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isPremium = storage.isPremium();
+  const isInitialLoad = useRef(true);
+  const prevMessageCount = useRef(0);
 
   const activePartnerIdRef = useRef<string | null>(null);
-  
+
   useEffect(() => {
     activePartnerIdRef.current = activePartnerId;
   }, [activePartnerId]);
@@ -33,7 +36,6 @@ export function DirectMessages() {
   useEffect(() => {
     if (currentUser) {
       loadConversations();
-      // Poll every 4 seconds for new messages
       const interval = setInterval(() => {
         loadConversations();
       }, 4000);
@@ -41,39 +43,58 @@ export function DirectMessages() {
     }
   }, []);
 
-  // Reload messages when active conversation changes
   useEffect(() => {
     if (activePartnerId && currentUser) {
+      isInitialLoad.current = true;
+      prevMessageCount.current = 0;
       loadConversations();
     }
   }, [activePartnerId]);
-  useEffect(() => { if (paramUserId && paramUserId !== activePartnerId) setActivePartnerId(paramUserId); }, [paramUserId]);
+
+  useEffect(() => {
+    if (paramUserId && paramUserId !== activePartnerId) setActivePartnerId(paramUserId);
+  }, [paramUserId]);
+
   useEffect(() => {
     if (!activePartnerId || !currentUser) return;
     const loadPartner = async () => {
-    // Load partner from Supabase
-    const { data: partnerData } = await supabase
-      .from('users')
-      .select('id, username, name, profile_picture')
-      .eq('id', activePartnerId)
-      .maybeSingle();
-    if (partnerData) {
-      setActivePartner({
-        id: partnerData.id,
-        username: partnerData.username,
-        name: partnerData.name,
-        profilePicture: partnerData.profile_picture || '',
-      });
-    } else {
-      const allUsers = storage.getAllUsers();
-      setActivePartner(allUsers.find(u => u.id === activePartnerId) || null);
-    }
-    storage.markDMsAsRead(currentUser.id, activePartnerId);
-    loadConversations();
+      const { data: partnerData } = await supabase
+        .from('users')
+        .select('id, username, name, profile_picture')
+        .eq('id', activePartnerId)
+        .maybeSingle();
+      if (partnerData) {
+        setActivePartner({
+          id: partnerData.id,
+          username: partnerData.username,
+          name: partnerData.name,
+          profilePicture: partnerData.profile_picture || '',
+        });
+      } else {
+        const allUsers = storage.getAllUsers();
+        setActivePartner(allUsers.find(u => u.id === activePartnerId) || null);
+      }
+      storage.markDMsAsRead(currentUser.id, activePartnerId);
+      loadConversations();
     };
     loadPartner();
   }, [activePartnerId]);
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  // Scroll messages container — only when new messages arrive or on first load of a chat
+  useEffect(() => {
+    if (!messagesContainerRef.current || messages.length === 0) return;
+
+    if (isInitialLoad.current) {
+      // On initial load: instantly jump to bottom without smooth scroll (no page jump)
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      isInitialLoad.current = false;
+      prevMessageCount.current = messages.length;
+    } else if (messages.length > prevMessageCount.current) {
+      // New message arrived: smooth scroll within container only
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      prevMessageCount.current = messages.length;
+    }
+  }, [messages]);
 
   const loadConversations = async () => {
     if (!currentUser) return;
@@ -85,7 +106,6 @@ export function DirectMessages() {
         .order('timestamp', { ascending: true });
 
       if (data && !error) {
-        // Map to local format
         const mapped = data.map((msg: any) => ({
           id: msg.id,
           fromId: msg.from_id,
@@ -96,7 +116,6 @@ export function DirectMessages() {
           read: msg.read || false,
         }));
 
-        // Group into conversations
         const convMap: Record<string, any[]> = {};
         mapped.forEach((msg: any) => {
           const partnerId = msg.fromId === currentUser.id ? msg.toId : msg.fromId;
@@ -104,7 +123,6 @@ export function DirectMessages() {
           convMap[partnerId].push(msg);
         });
 
-        // Load all partner users from Supabase
         const partnerIds = Object.keys(convMap);
         let supabaseUsers: any[] = [];
         if (partnerIds.length > 0) {
@@ -134,7 +152,6 @@ export function DirectMessages() {
 
         setConversations(convList);
 
-        // Update active conversation messages if open
         const currentPartnerId = activePartnerIdRef.current;
         if (currentPartnerId && convMap[currentPartnerId]) {
           setMessages(convMap[currentPartnerId].sort((a: any, b: any) => a.timestamp - b.timestamp));
@@ -176,7 +193,6 @@ export function DirectMessages() {
       timestamp: Date.now(),
       read: false,
     };
-    // Save to Supabase only — no localStorage
     supabase.from('direct_messages').insert({
       id: msgId,
       from_id: currentUser.id,
@@ -187,28 +203,19 @@ export function DirectMessages() {
       read: false,
     }).then(({ error }) => { if (error) console.error('DM sync error:', error); });
     setNewMessage(''); setImagePreview(null);
-    // Add to local messages state immediately — don't reload yet
-    const sentMsg = {
-      id: msgId, fromId: currentUser.id, toId: activePartnerId,
-      text: newMessage.trim(), imageUrl: uploadedUrl, timestamp: msg.timestamp, read: false
-    };
-    setMessages(prev => [...prev, sentMsg]);
-    // Reload conversations after Supabase confirms (1 second delay)
+    setMessages(prev => [...prev, msg]);
     setTimeout(() => loadConversations(), 1000);
   };
 
   const handleDeleteMessage = (msgId: string) => {
     if (!currentUser || !activePartnerId) return;
-    // Delete from storage
     if (storage.deleteDMMessage) {
       storage.deleteDMMessage(msgId, currentUser.id, activePartnerId);
     } else {
-      // Fallback: filter from localStorage directly
       const key = `dm_${[currentUser.id, activePartnerId].sort().join('_')}`;
       try {
         const msgs = JSON.parse(localStorage.getItem(key) || '[]');
-        const updated = msgs.filter((m: any) => m.id !== msgId);
-        localStorage.setItem(key, JSON.stringify(updated));
+        localStorage.setItem(key, JSON.stringify(msgs.filter((m: any) => m.id !== msgId)));
       } catch {}
     }
     setMessages(storage.getDMConversation(currentUser.id, activePartnerId));
@@ -243,7 +250,7 @@ export function DirectMessages() {
   if (!currentUser) return null;
 
   return (
-    <div className="container mx-auto px-0 py-0 max-w-4xl" style={{ height: 'calc(100dvh - 64px)' }}>
+    <div className="container mx-auto px-0 py-0 max-w-4xl" style={{ height: 'calc(100dvh - 64px)', overflow: 'hidden' }}>
       <div className="flex h-full border rounded-xl overflow-hidden">
 
         {/* Sidebar */}
@@ -298,7 +305,6 @@ export function DirectMessages() {
                     )}
                   </div>
                 </button>
-                {/* Delete conversation button */}
                 <button onClick={() => handleDeleteConversation(conv.partnerId)} className="px-2 py-3 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all" title="Delete conversation">
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -308,7 +314,7 @@ export function DirectMessages() {
         </div>
 
         {/* Chat Area */}
-        <div className={`flex-1 flex flex-col ${!activePartnerId ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`flex-1 flex flex-col min-h-0 ${!activePartnerId ? 'hidden md:flex' : 'flex'}`}>
           {!activePartnerId ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
               <MessageCircle className="w-16 h-16 text-muted-foreground mb-4" />
@@ -318,7 +324,7 @@ export function DirectMessages() {
           ) : (
             <>
               {/* Chat Header */}
-              <div className="flex items-center gap-3 p-4 border-b">
+              <div className="flex items-center gap-3 p-4 border-b flex-shrink-0">
                 <Button variant="ghost" size="icon" className="md:hidden" onClick={() => { setActivePartnerId(null); navigate('/app/messages', { replace: true }); }}>
                   <ArrowLeft className="w-5 h-5" />
                 </Button>
@@ -330,8 +336,11 @@ export function DirectMessages() {
                 <Button variant="ghost" size="sm" className="ml-auto" onClick={() => navigate(`/app/profile/${activePartnerId}`)}>View Profile</Button>
               </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {/* Messages — scrolls inside container, not the page */}
+              <div
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
+              >
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <p className="text-muted-foreground text-sm">No messages yet. Say hello! 👋</p>
@@ -355,7 +364,6 @@ export function DirectMessages() {
                           {msg.imageUrl && <img src={msg.imageUrl} alt="Shared image" className="max-w-[240px] max-h-[240px] object-cover rounded-2xl" loading="lazy" />}
                           {msg.text && <p className={msg.imageUrl ? 'px-3 py-2 text-sm' : ''}>{msg.text}</p>}
                         </div>
-                        {/* Delete button — only for sender's messages */}
                         {isMe && hoveredMsgId === msg.id && (
                           <button
                             onClick={() => handleDeleteMessage(msg.id)}
@@ -373,7 +381,7 @@ export function DirectMessages() {
               </div>
 
               {/* Input */}
-              <div className="p-4 border-t">
+              <div className="p-4 border-t flex-shrink-0">
                 {imagePreview && (
                   <div className="relative inline-block mb-2">
                     <img src={imagePreview} alt="Preview" className="h-20 rounded-lg border object-cover" />

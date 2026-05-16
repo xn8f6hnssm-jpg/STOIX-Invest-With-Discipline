@@ -10,6 +10,11 @@ interface PremiumUpgradeModalProps {
   onUpgrade: () => void;
 }
 
+const STRIPE_LINKS = {
+  monthly: 'https://buy.stripe.com/14A3co2Q0aasf6k1t26kg00',
+  annual:  'https://buy.stripe.com/eVq9AM3U42I06zOefO6kg01',
+};
+
 export function PremiumUpgradeModal({ isOpen, onClose, feature, onUpgrade }: PremiumUpgradeModalProps) {
   const premiumFeatures = [
     { icon: TrendingUp, text: 'AI-Powered Trade Replay & Pattern Detection' },
@@ -17,12 +22,12 @@ export function PremiumUpgradeModal({ isOpen, onClose, feature, onUpgrade }: Pre
     { icon: Shield, text: 'Streak Savers & Double XP Days' },
     { icon: Star, text: 'Advanced Analytics & Predictive Insights' },
     { icon: Crown, text: 'Create Private Groups & Upload Files' },
+    { icon: Check, text: 'Verified Trades & A+ Trade of Day' },
     { icon: Check, text: 'Unlimited Forfeit Respins' },
     { icon: Check, text: 'Ad-Free Experience' },
     { icon: Check, text: 'Premium Verification Badge' },
     { icon: Check, text: 'Send Images & Files in DMs' },
     { icon: Check, text: 'Priority Support' },
-    { icon: Check, text: 'Exclusive Leaderboards & Challenges' },
     { icon: Check, text: 'AI Journal Analysis & Recommendations' },
   ];
 
@@ -35,7 +40,7 @@ export function PremiumUpgradeModal({ isOpen, onClose, feature, onUpgrade }: Pre
             Upgrade to Premium
           </DialogTitle>
           <DialogDescription>
-            {feature 
+            {feature
               ? `Unlock "${feature}" and all premium features to take your trading discipline to the next level.`
               : 'Unlock all premium features to take your trading discipline to the next level.'
             }
@@ -50,11 +55,11 @@ export function PremiumUpgradeModal({ isOpen, onClose, feature, onUpgrade }: Pre
                 <div className="text-center mb-4">
                   <h3 className="text-lg font-semibold mb-2">Monthly</h3>
                   <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-4xl font-bold">$14.99</span>
+                    <span className="text-4xl font-bold">$12.99</span>
                     <span className="text-muted-foreground">/month</span>
                   </div>
                 </div>
-                <Button onClick={onUpgrade} className="w-full" variant="outline">
+                <Button onClick={() => { window.location.href = STRIPE_LINKS.monthly; }} className="w-full" variant="outline">
                   Choose Monthly
                 </Button>
               </CardContent>
@@ -62,18 +67,18 @@ export function PremiumUpgradeModal({ isOpen, onClose, feature, onUpgrade }: Pre
 
             <Card className="border-2 border-yellow-500 relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-3 py-1 rounded-full text-xs font-bold">
-                BEST VALUE
+                BEST VALUE — SAVE $36.89
               </div>
               <CardContent className="p-6">
                 <div className="text-center mb-4">
                   <h3 className="text-lg font-semibold mb-2">Annual</h3>
                   <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-4xl font-bold">$149</span>
+                    <span className="text-4xl font-bold">$119</span>
                     <span className="text-muted-foreground">/year</span>
                   </div>
-                  <p className="text-sm text-green-600 mt-1 font-medium">Save $30.89 per year!</p>
+                  <p className="text-sm text-green-600 mt-1 font-medium">Save 23% — just $9.92/month</p>
                 </div>
-                <Button onClick={onUpgrade} className="w-full bg-yellow-500 hover:bg-yellow-600 text-black">
+                <Button onClick={() => { window.location.href = STRIPE_LINKS.annual; }} className="w-full bg-yellow-500 hover:bg-yellow-600 text-black">
                   <Crown className="w-4 h-4 mr-2" />
                   Choose Annual
                 </Button>

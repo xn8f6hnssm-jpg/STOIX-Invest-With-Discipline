@@ -601,7 +601,7 @@ export function DailyCheck() {
               {/* FIX 1: Drag & drop upload zone */}
               <div
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isDraggingClean ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => { if (!photoPreview) fileInputRef.current?.click(); }}
                 onDragOver={(e) => { e.preventDefault(); setIsDraggingClean(true); }}
                 onDragLeave={(e) => { e.preventDefault(); setIsDraggingClean(false); }}
                 onDrop={(e) => {
@@ -612,7 +612,16 @@ export function DailyCheck() {
                 }}
               >
                 {photoPreview ? (
-                  <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded" />
+                  <div className="relative inline-block">
+                    <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded" />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPhotoPreview(''); setPhotoFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                      className="absolute top-1 right-1 w-7 h-7 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center transition-colors"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  </div>
                 ) : (
                   <div className="space-y-2 pointer-events-none">
                     <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
@@ -757,7 +766,7 @@ export function DailyCheck() {
               {/* FIX 1: Drag & drop on forfeit zone */}
               <div
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isDraggingForfeit ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
-                onClick={() => forfeitFileInputRef.current?.click()}
+                onClick={() => { if (!photoPreview) forfeitFileInputRef.current?.click(); }}
                 onDragOver={(e) => { e.preventDefault(); setIsDraggingForfeit(true); }}
                 onDragLeave={(e) => { e.preventDefault(); setIsDraggingForfeit(false); }}
                 onDrop={(e) => {
@@ -768,7 +777,16 @@ export function DailyCheck() {
                 }}
               >
                 {photoPreview ? (
-                  <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded" />
+                  <div className="relative inline-block">
+                    <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded" />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPhotoPreview(''); setPhotoFile(null); if (forfeitFileInputRef.current) forfeitFileInputRef.current.value = ''; }}
+                      className="absolute top-1 right-1 w-7 h-7 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center transition-colors"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  </div>
                 ) : (
                   <div className="space-y-2 pointer-events-none">
                     <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
