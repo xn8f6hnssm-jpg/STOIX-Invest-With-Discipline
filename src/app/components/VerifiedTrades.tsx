@@ -479,23 +479,6 @@ export function VerifiedTrades() {
                   toast.error('Share failed — try downloading instead');
                 }
               };
-                canvas.toBlob(blob => {
-                  if (!blob) return;
-                  const file = new File([blob], `stoix-verified-${shareCardPeriod}.png`, { type: 'image/png' });
-                  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({
-                      title: 'STOIX',
-                      text: `${winRate}% Win Rate — ${periodLabel} 📈`,
-                      files: [file],
-                    }).catch(() => {});
-                  } else {
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `stoix-verified-${shareCardPeriod}.png`;
-                    a.click();
-                  }
-                });
-              };
 
               return (
                 <>
