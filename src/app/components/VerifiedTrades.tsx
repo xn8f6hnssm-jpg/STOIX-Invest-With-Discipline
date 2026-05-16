@@ -793,7 +793,154 @@ export function VerifiedTrades() {
             ))}
           </div>
 
-          {activeTab === 'dashboard' && (\n            <div className="space-y-4">\n\n              {/* ── Computed advanced metrics from trades array ── */}\n              {(() => {\n                const closedTrades = trades.filter(t => t.status === 'closed');\n                const winRate = stats.win_rate / 100;\n                const lossRate = 1 - winRate;\n                const expectedValue = (winRate * (stats.avg_winner || 0)) - (lossRate * (stats.avg_loser || 0));\n                const largestWin = Math.max(...closedTrades.filter(t => t.result === 'win').map(t => t.net_profit || 0), 0);\n                const largestLoss = Math.min(...closedTrades.filter(t => t.result === 'loss').map(t => t.net_profit || 0), 0);\n                const avgDuration = closedTrades.length > 0\n                  ? Math.round(closedTrades.reduce((s, t) => s + (t.duration_minutes || 0), 0) / closedTrades.length)\n                  : 0;\n                const fmtDuration = avgDuration >= 60\n                  ? `${Math.floor(avgDuration / 60)}h ${avgDuration % 60}m`\n                  : `${avgDuration}m`;\n                // Best day of week\n                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];\n                const dayPnl: Record<number, number> = {};\n                closedTrades.forEach(t => {\n                  const day = new Date(t.open_time).getDay();\n                  dayPnl[day] = (dayPnl[day] || 0) + (t.net_profit || 0);\n                });\n                const bestDayNum = Object.entries(dayPnl).sort((a, b) => Number(b[1]) - Number(a[1]))[0];\n                const bestDay = bestDayNum ? dayNames[Number(bestDayNum[0])] : '—';\n                // Max consecutive losses\n                let maxConsecLosses = 0, currentConsec = 0;\n                [...closedTrades].sort((a, b) => new Date(a.open_time).getTime() - new Date(b.open_time).getTime()).forEach(t => {\n                  if (t.result === 'loss') { currentConsec++; maxConsecLosses = Math.max(maxConsecLosses, currentConsec); }\n                  else currentConsec = 0;\n                });\n\n                return (\n                  <>\n                    {/* Key metrics */}\n                    <div className="grid grid-cols-2 gap-3">\n                      {[\n                        { label: 'Win Rate', value: `${stats.win_rate}%`, color: stats.win_rate >= 50 ? 'text-green-500' : 'text-red-500', icon: Target },\n                        { label: 'Avg R:R', value: stats.avg_rr?.toFixed(2) || '—', color: (stats.avg_rr || 0) >= 1 ? 'text-green-500' : 'text-red-500', icon: BarChart2 },\n                        { label: 'Net P&L', value: fmtPnl(stats.total_pnl), color: stats.total_pnl >= 0 ? 'text-green-500' : 'text-red-500', icon: TrendingUp },\n                        { label: 'Profit Factor', value: stats.profit_factor?.toFixed(2) || '—', color: (stats.profit_factor || 0) >= 1 ? 'text-green-500' : 'text-red-500', icon: Zap },\n                        { label: 'Expectancy (EV)', value: `$${expectedValue.toFixed(2)}`, color: expectedValue >= 0 ? 'text-green-500' : 'text-red-500', icon: Award },\n                        { label: 'Consistency', value: `${stats.consistency_score?.toFixed(0) || 0}%`, color: (stats.consistency_score || 0) >= 70 ? 'text-green-500' : 'text-yellow-500', icon: Shield },\n                      ].map(m => (\n                        <Card key={m.label}>\n                          <CardContent className="pt-4 pb-4 text-center">\n                            <p className={`text-xl font-bold ${m.color}`}>{m.value}</p>\n                            <p className="text-xs text-muted-foreground mt-0.5">{m.label}</p>\n                          </CardContent>\n                        </Card>\n                      ))}\n                    </div>\n\n                    {/* Trade Breakdown */}\n                    <Card>\n                      <CardContent className="pt-4 pb-4">\n                        <p className="text-sm font-semibold mb-3">Trade Breakdown</p>\n                        <div className="grid grid-cols-3 gap-3 text-center">\n                          <div><p className="text-lg font-bold">{stats.total_trades}</p><p className="text-xs text-muted-foreground">Total</p></div>\n                          <div><p className="text-lg font-bold text-green-500">{stats.winning_trades}</p><p className="text-xs text-muted-foreground">Wins</p></div>\n                          <div><p className="text-lg font-bold text-red-500">{stats.losing_trades}</p><p className="text-xs text-muted-foreground">Losses</p></div>\n                        </div>\n                        <div className="grid grid-cols-2 gap-3 text-center mt-3 pt-3 border-t">\n                          <div><p className="text-lg font-bold text-green-500">+${stats.avg_winner?.toFixed(2)}</p><p className="text-xs text-muted-foreground">Avg Winner</p></div>\n                          <div><p className="text-lg font-bold text-red-500">-${stats.avg_loser?.toFixed(2)}</p><p className="text-xs text-muted-foreground">Avg Loser</p></div>\n                        </div>\n                      </CardContent>\n                    </Card>\n\n                    {/* New: Best & Worst Trade */}\n                    <Card>\n                      <CardContent className="pt-4 pb-4">\n                        <p className="text-sm font-semibold mb-3">Best & Worst Trade</p>\n                        <div className="grid grid-cols-2 gap-3 text-center">\n                          <div><p className="text-lg font-bold text-green-500">+${largestWin.toFixed(2)}</p><p className="text-xs text-muted-foreground">Largest Win</p></div>\n                          <div><p className="text-lg font-bold text-red-500">${largestLoss.toFixed(2)}</p><p className="text-xs text-muted-foreground">Largest Loss</p></div>\n                        </div>\n                      </CardContent>\n                    </Card>\n\n                    {/* New: Time & Day analysis */}\n                    <div className="grid grid-cols-2 gap-3">\n                      <Card><CardContent className="pt-4 pb-4 text-center">\n                        <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />\n                        <p className="font-semibold text-sm">{fmtDuration}</p>\n                        <p className="text-xs text-muted-foreground">Avg Duration</p>\n                      </CardContent></Card>\n                      <Card><CardContent className="pt-4 pb-4 text-center">\n                        <BarChart2 className="w-5 h-5 mx-auto mb-1 text-purple-500" />\n                        <p className="font-semibold text-sm">{bestDay}</p>\n                        <p className="text-xs text-muted-foreground">Best Day of Week</p>\n                      </CardContent></Card>\n                    </div>\n\n                    {/* Best session & symbol */}\n                    <div className="grid grid-cols-2 gap-3">\n                      {stats.best_session && (\n                        <Card><CardContent className="pt-4 pb-4 text-center">\n                          <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />\n                          <p className="font-semibold text-sm">{SESSION_LABELS[stats.best_session] || stats.best_session}</p>\n                          <p className="text-xs text-muted-foreground">Best Session</p>\n                        </CardContent></Card>\n                      )}\n                      {stats.best_symbol && (\n                        <Card><CardContent className="pt-4 pb-4 text-center">\n                          <TrendingUp className="w-5 h-5 mx-auto mb-1 text-green-500" />\n                          <p className="font-semibold text-sm">{stats.best_symbol}</p>\n                          <p className="text-xs text-muted-foreground">Best Symbol</p>\n                        </CardContent></Card>\n                      )}\n                    </div>\n\n                    {/* Streaks + Max Consec Losses */}\n                    <Card>\n                      <CardContent className="pt-4 pb-4">\n                        <p className="text-sm font-semibold mb-3">Streaks</p>\n                        <div className="grid grid-cols-3 gap-3 text-center">\n                          <div><p className="text-lg font-bold">🔥 {stats.current_streak}</p><p className="text-xs text-muted-foreground">Current</p></div>\n                          <div><p className="text-lg font-bold">⚡ {stats.longest_streak}</p><p className="text-xs text-muted-foreground">Longest</p></div>\n                          <div><p className="text-lg font-bold text-red-500">{maxConsecLosses}</p><p className="text-xs text-muted-foreground">Max Losses</p></div>\n                        </div>\n                      </CardContent>\n                    </Card>\n\n                    {/* Max Drawdown */}\n                    <Card>\n                      <CardContent className="pt-4 pb-4">\n                        <div className="flex items-center justify-between">\n                          <p className="text-sm font-semibold">Max Drawdown</p>\n                          <p className="text-sm font-bold text-red-500">-${stats.max_drawdown?.toFixed(2)}</p>\n                        </div>\n                      </CardContent>\n                    </Card>\n\n                    {/* Not verified */}\n                    {!isVerified && (\n                      <Card className="border-yellow-500/30 bg-yellow-500/5">\n                        <CardContent className="pt-4 pb-4">\n                          <div className="flex items-center gap-2 mb-1">\n                            <AlertCircle className="w-4 h-4 text-yellow-500" />\n                            <p className="text-sm font-semibold text-yellow-500">Not Verified Yet</p>\n                          </div>\n                          <p className="text-xs text-muted-foreground">\n                            Complete {10 - (stats.total_trades || 0)} more verified trades to earn your Verified badge.\n                          </p>\n                          <div className="mt-2 w-full bg-muted rounded-full h-1.5">\n                            <div className="h-1.5 rounded-full bg-yellow-500" style={{ width: `${Math.min(100, ((stats.total_trades || 0) / 10) * 100)}%` }} />\n                          </div>\n                        </CardContent>\n                      </Card>\n                    )}\n                  </>\n                );\n              })()}\n            </div>\n          )}\n\n          {activeTab === 'trades' && (
+          {activeTab === 'dashboard' && (
+            <div className="space-y-4">
+
+              {(() => {
+                const closedTrades = trades.filter(t => t.status === 'closed');
+                const winRate = stats.win_rate / 100;
+                const lossRate = 1 - winRate;
+                const expectedValue = (winRate * (stats.avg_winner || 0)) - (lossRate * (stats.avg_loser || 0));
+                const largestWin = Math.max(...closedTrades.filter(t => t.result === 'win').map(t => t.net_profit || 0), 0);
+                const largestLoss = Math.min(...closedTrades.filter(t => t.result === 'loss').map(t => t.net_profit || 0), 0);
+                const avgDuration = closedTrades.length > 0
+                  ? Math.round(closedTrades.reduce((s, t) => s + (t.duration_minutes || 0), 0) / closedTrades.length)
+                  : 0;
+                const fmtDuration = avgDuration >= 60
+                  ? `${Math.floor(avgDuration / 60)}h ${avgDuration % 60}m`
+                  : `${avgDuration}m`;
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const dayPnl: Record<number, number> = {};
+                closedTrades.forEach(t => {
+                  const day = new Date(t.open_time).getDay();
+                  dayPnl[day] = (dayPnl[day] || 0) + (t.net_profit || 0);
+                });
+                const bestDayNum = Object.entries(dayPnl).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
+                const bestDay = bestDayNum ? dayNames[Number(bestDayNum[0])] : '—';
+                let maxConsecLosses = 0, currentConsec = 0;
+                [...closedTrades].sort((a, b) => new Date(a.open_time).getTime() - new Date(b.open_time).getTime()).forEach(t => {
+                  if (t.result === 'loss') { currentConsec++; maxConsecLosses = Math.max(maxConsecLosses, currentConsec); }
+                  else currentConsec = 0;
+                });
+
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { label: 'Win Rate', value: `${stats.win_rate}%`, color: stats.win_rate >= 50 ? 'text-green-500' : 'text-red-500', icon: Target },
+                        { label: 'Avg R:R', value: stats.avg_rr?.toFixed(2) || '—', color: (stats.avg_rr || 0) >= 1 ? 'text-green-500' : 'text-red-500', icon: BarChart2 },
+                        { label: 'Net P&L', value: fmtPnl(stats.total_pnl), color: stats.total_pnl >= 0 ? 'text-green-500' : 'text-red-500', icon: TrendingUp },
+                        { label: 'Profit Factor', value: stats.profit_factor?.toFixed(2) || '—', color: (stats.profit_factor || 0) >= 1 ? 'text-green-500' : 'text-red-500', icon: Zap },
+                        { label: 'Expectancy (EV)', value: `$${expectedValue.toFixed(2)}`, color: expectedValue >= 0 ? 'text-green-500' : 'text-red-500', icon: Award },
+                        { label: 'Consistency', value: `${stats.consistency_score?.toFixed(0) || 0}%`, color: (stats.consistency_score || 0) >= 70 ? 'text-green-500' : 'text-yellow-500', icon: Shield },
+                      ].map(m => (
+                        <Card key={m.label}>
+                          <CardContent className="pt-4 pb-4 text-center">
+                            <p className={`text-xl font-bold ${m.color}`}>{m.value}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{m.label}</p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+
+                    <Card>
+                      <CardContent className="pt-4 pb-4">
+                        <p className="text-sm font-semibold mb-3">Trade Breakdown</p>
+                        <div className="grid grid-cols-3 gap-3 text-center">
+                          <div><p className="text-lg font-bold">{stats.total_trades}</p><p className="text-xs text-muted-foreground">Total</p></div>
+                          <div><p className="text-lg font-bold text-green-500">{stats.winning_trades}</p><p className="text-xs text-muted-foreground">Wins</p></div>
+                          <div><p className="text-lg font-bold text-red-500">{stats.losing_trades}</p><p className="text-xs text-muted-foreground">Losses</p></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-center mt-3 pt-3 border-t">
+                          <div><p className="text-lg font-bold text-green-500">+${stats.avg_winner?.toFixed(2)}</p><p className="text-xs text-muted-foreground">Avg Winner</p></div>
+                          <div><p className="text-lg font-bold text-red-500">-${stats.avg_loser?.toFixed(2)}</p><p className="text-xs text-muted-foreground">Avg Loser</p></div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="pt-4 pb-4">
+                        <p className="text-sm font-semibold mb-3">Best & Worst Trade</p>
+                        <div className="grid grid-cols-2 gap-3 text-center">
+                          <div><p className="text-lg font-bold text-green-500">+${largestWin.toFixed(2)}</p><p className="text-xs text-muted-foreground">Largest Win</p></div>
+                          <div><p className="text-lg font-bold text-red-500">${largestLoss.toFixed(2)}</p><p className="text-xs text-muted-foreground">Largest Loss</p></div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Card><CardContent className="pt-4 pb-4 text-center">
+                        <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />
+                        <p className="font-semibold text-sm">{fmtDuration}</p>
+                        <p className="text-xs text-muted-foreground">Avg Duration</p>
+                      </CardContent></Card>
+                      <Card><CardContent className="pt-4 pb-4 text-center">
+                        <BarChart2 className="w-5 h-5 mx-auto mb-1 text-purple-500" />
+                        <p className="font-semibold text-sm">{bestDay}</p>
+                        <p className="text-xs text-muted-foreground">Best Day of Week</p>
+                      </CardContent></Card>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {stats.best_session && (
+                        <Card><CardContent className="pt-4 pb-4 text-center">
+                          <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />
+                          <p className="font-semibold text-sm">{SESSION_LABELS[stats.best_session] || stats.best_session}</p>
+                          <p className="text-xs text-muted-foreground">Best Session</p>
+                        </CardContent></Card>
+                      )}
+                      {stats.best_symbol && (
+                        <Card><CardContent className="pt-4 pb-4 text-center">
+                          <TrendingUp className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                          <p className="font-semibold text-sm">{stats.best_symbol}</p>
+                          <p className="text-xs text-muted-foreground">Best Symbol</p>
+                        </CardContent></Card>
+                      )}
+                    </div>
+
+                    <Card>
+                      <CardContent className="pt-4 pb-4">
+                        <p className="text-sm font-semibold mb-3">Streaks</p>
+                        <div className="grid grid-cols-3 gap-3 text-center">
+                          <div><p className="text-lg font-bold">🔥 {stats.current_streak}</p><p className="text-xs text-muted-foreground">Current</p></div>
+                          <div><p className="text-lg font-bold">⚡ {stats.longest_streak}</p><p className="text-xs text-muted-foreground">Longest</p></div>
+                          <div><p className="text-lg font-bold text-red-500">{maxConsecLosses}</p><p className="text-xs text-muted-foreground">Max Losses</p></div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="pt-4 pb-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold">Max Drawdown</p>
+                          <p className="text-sm font-bold text-red-500">-${stats.max_drawdown?.toFixed(2)}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {!isVerified && (
+                      <Card className="border-yellow-500/30 bg-yellow-500/5">
+                        <CardContent className="pt-4 pb-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            <AlertCircle className="w-4 h-4 text-yellow-500" />
+                            <p className="text-sm font-semibold text-yellow-500">Not Verified Yet</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Complete {10 - (stats.total_trades || 0)} more verified trades to earn your Verified badge.
+                          </p>
+                          <div className="mt-2 w-full bg-muted rounded-full h-1.5">
+                            <div className="h-1.5 rounded-full bg-yellow-500" style={{ width: `${Math.min(100, ((stats.total_trades || 0) / 10) * 100)}%` }} />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+                    {activeTab === 'trades' && (
             <div className="space-y-2">
               {trades.map(trade => (
                 <Card key={trade.id}>
