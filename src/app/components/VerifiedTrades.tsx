@@ -50,6 +50,9 @@ export function VerifiedTrades() {
   const [shareCardPeriod, setShareCardPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'overall'>('overall');
   const [importingCSV, setImportingCSV] = useState(false);
   const [importResult, setImportResult] = useState<{imported: number, skipped: number} | null>(null);
+  const [showInstructions, setShowInstructions] = useState(() => {
+    return localStorage.getItem('stoix_verified_instructions_seen') !== 'true';
+  });
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -354,6 +357,48 @@ export function VerifiedTrades() {
 
   return (
     <div className="space-y-4 pb-6">
+
+      {/* One-time instructions popup */}
+      <Dialog open={showInstructions} onOpenChange={(open) => {
+        if (!open) {
+          localStorage.setItem('stoix_verified_instructions_seen', 'true');
+          setShowInstructions(false);
+        }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary" /> How Verified Trades Works
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">Import your real broker data to verify your trading results. No manual input, no faking.</p>
+            <div className="space-y-3">
+              {[
+                { step: '1', text: 'Open Tradovate and go to Account Reports → Performance' },
+                { step: '2', text: 'Set your date range, hit Go to load data, then click Download CSV' },
+                { step: '3', text: 'Come back here and tap Import CSV' },
+                { step: '4', text: 'Your stats calculate automatically — win rate, P&L, profit factor and more' },
+              ].map(({ step, text }) => (
+                <div key={step} className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>
+                  <p className="text-sm">{text}</p>
+                </div>
+              ))}
+            </div>
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">💡 Tip: Make sure to hit <strong>Go</strong> in Tradovate before downloading — otherwise the file will be empty.</p>
+            </div>
+            <Button className="w-full" onClick={() => {
+              localStorage.setItem('stoix_verified_instructions_seen', 'true');
+              setShowInstructions(false);
+            }}>
+              Got it, let's go!
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
