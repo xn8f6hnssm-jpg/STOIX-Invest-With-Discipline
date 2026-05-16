@@ -101,9 +101,12 @@ export function DisciplineShareCard() {
   const isPremium = storage.isPremium();
 
   const capture = async (): Promise<Blob | null> => {
-    if (!cardRef.current) return null;
+    console.log('capture called, cardRef:', cardRef.current);
+    if (!cardRef.current) { console.log('NO REF — returning null'); return null; }
+    console.log('domtoimage:', domtoimage);
     try {
       const blob = await domtoimage.toBlob(cardRef.current, { scale: 2 });
+      console.log('blob result:', blob, 'size:', blob?.size);
       return blob;
     } catch (err) {
       console.error('Capture error:', err);
@@ -112,14 +115,16 @@ export function DisciplineShareCard() {
   };
 
   const handleShare = async () => {
+    console.log('handleShare clicked');
     const blob = await capture();
+    console.log('blob from capture:', blob);
     if (!blob) return;
     if (navigator.share && navigator.canShare) {
       navigator.share({
         title: 'STOIX',
         text: `${disciplineRate}% discipline — ${LABELS[range]} 🚀`,
         files: [new File([blob], 'stoix-card.png', { type: 'image/png' })],
-      }).catch(() => {});
+      }).catch((e) => console.error('Share error:', e));
     } else {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -129,7 +134,9 @@ export function DisciplineShareCard() {
   };
 
   const handleDownload = async () => {
+    console.log('handleDownload clicked');
     const blob = await capture();
+    console.log('blob from capture:', blob);
     if (!blob) return;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
