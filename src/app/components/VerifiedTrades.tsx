@@ -417,51 +417,48 @@ export function VerifiedTrades() {
               const periodLabel = shareCardPeriod === 'daily' ? 'Today' : shareCardPeriod === 'weekly' ? 'This Week' : shareCardPeriod === 'monthly' ? 'This Month' : shareCardPeriod === 'yearly' ? 'This Year' : 'All Time';
               const cardId = 'share-card-canvas';
 
-              const handleDownload = async () => {
+              const handleDownload = () => {
                 const el = document.getElementById(cardId);
                 if (!el) return;
-                try {
-                  const blob = await domtoimage.toBlob(el, { scale: 2 });
+                const a = document.createElement('a');
+                a.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
+                document.body.appendChild(a);
+                domtoimage.toBlob(el, { scale: 2 }).then((blob: Blob) => {
                   const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
                   a.href = url;
-                  a.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
-                  document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
                   URL.revokeObjectURL(url);
-                } catch (err) {
+                }).catch((err: any) => {
                   console.error('Download error:', err);
+                  document.body.removeChild(a);
                   toast.error('Download failed — try again');
-                }
+                });
               };
 
-              const handleShare = async () => {
+              const handleShare = () => {
                 const el = document.getElementById(cardId);
                 if (!el) return;
-                try {
-                  const blob = await domtoimage.toBlob(el, { scale: 2 });
+                domtoimage.toBlob(el, { scale: 2 }).then((blob: Blob) => {
                   const file = new File([blob], `stoix-verified-${shareCardPeriod}.png`, { type: 'image/png' });
                   if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
+                    navigator.share({
                       title: 'STOIX',
                       text: `${winRate}% Win Rate — ${periodLabel} 📈`,
                       files: [file],
                     }).catch(() => {});
                   } else {
-                    const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.href = url;
                     a.download = `stoix-verified-${shareCardPeriod}.png`;
+                    a.href = URL.createObjectURL(blob);
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
                   }
-                } catch (err) {
+                }).catch((err: any) => {
                   console.error('Share error:', err);
                   toast.error('Share failed — try downloading instead');
-                }
+                });
               };
 
               return (

@@ -96,60 +96,48 @@ export function DisciplineShareCard() {
   const trades = periodEntries.length;
   const wins = periodEntries.filter((e: any) => e.result === 'win').length;
 
-  const streak  = currentUser.currentStreak || 0;
-  const league  = getLeague(currentUser.totalPoints || 0);
+  const streak = currentUser.currentStreak || 0;
+  const league = getLeague(currentUser.totalPoints || 0);
   const isPremium = storage.isPremium();
 
-  const capture = async (): Promise<Blob | null> => {
-    console.log('capture called, cardRef:', cardRef.current);
-    if (!cardRef.current) { console.log('NO REF — returning null'); return null; }
-    console.log('domtoimage:', domtoimage);
-    try {
-      const blob = await domtoimage.toBlob(cardRef.current, { scale: 2 });
-      console.log('blob result:', blob, 'size:', blob?.size);
-      return blob;
-    } catch (err) {
-      console.error('Capture error:', err);
-      return null;
-    }
-  };
-
-  const handleShare = async () => {
-    console.log('handleShare clicked');
-    const blob = await capture();
-    console.log('blob from capture:', blob);
-    if (!blob) return;
-    if (navigator.share && navigator.canShare) {
-      navigator.share({
-        title: 'STOIX',
-        text: `${disciplineRate}% discipline — ${LABELS[range]} 🚀`,
-        files: [new File([blob], 'stoix-card.png', { type: 'image/png' })],
-      }).catch((e) => console.error('Share error:', e));
-    } else {
+  const handleDownload = () => {
+    if (!cardRef.current) return;
+    // Create anchor immediately in click handler (before async) — Chrome requires this
+    const a = document.createElement('a');
+    a.download = 'stoix-card.png';
+    document.body.appendChild(a);
+    domtoimage.toBlob(cardRef.current, { scale: 2 }).then((blob: Blob) => {
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
       a.href = url;
-      a.download = 'stoix-card.png';
-      document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    }
+    }).catch((err: any) => {
+      console.error('Download error:', err);
+      document.body.removeChild(a);
+    });
   };
 
-  const handleDownload = async () => {
-    console.log('handleDownload clicked');
-    const blob = await capture();
-    console.log('blob from capture:', blob);
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'stoix-card.png';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleShare = () => {
+    if (!cardRef.current) return;
+    domtoimage.toBlob(cardRef.current, { scale: 2 }).then((blob: Blob) => {
+      const file = new File([blob], 'stoix-card.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({
+          title: 'STOIX',
+          text: `${disciplineRate}% discipline — ${LABELS[range]} 🚀`,
+          files: [file],
+        }).catch((e: any) => console.error('Share error:', e));
+      } else {
+        // Fallback: download
+        const a = document.createElement('a');
+        a.download = 'stoix-card.png';
+        a.href = URL.createObjectURL(blob);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    }).catch((err: any) => console.error('Share capture error:', err));
   };
 
   return (
