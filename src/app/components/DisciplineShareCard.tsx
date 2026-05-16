@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { Share2, Download, Crown } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image-more';
 import { storage, getLeague } from '../utils/storage';
 import { useRef } from 'react';
 import { Logo } from './Logo';
@@ -101,52 +101,41 @@ export function DisciplineShareCard() {
   const league  = getLeague(currentUser.totalPoints || 0);
   const isPremium = storage.isPremium();
 
-  // FIX: Use ignoreElements to skip stylesheets that contain oklch colors
-  const capture = () => {
-    if (!cardRef.current) return Promise.resolve(null);
-    return html2canvas(cardRef.current, {
-      backgroundColor: '#000000',
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      ignoreElements: (element) => {
-        const tag = element.tagName;
-        if (tag === 'LINK' || tag === 'STYLE') return true;
-        return false;
-      },
-    });
+  const capture = async (): Promise<Blob | null> => {
+    if (!cardRef.current) return null;
+    try {
+      const blob = await domtoimage.toBlob(cardRef.current, { scale: 2 });
+      return blob;
+    } catch (err) {
+      console.error('Capture error:', err);
+      return null;
+    }
   };
 
   const handleShare = async () => {
-    const canvas = await capture();
-    if (!canvas) return;
-    canvas.toBlob(blob => {
-      if (!blob) return;
-      if (navigator.share && navigator.canShare) {
-        navigator.share({
-          title: 'STOIX',
-          text: `${disciplineRate}% discipline — ${LABELS[range]} 🚀`,
-          files: [new File([blob], 'stoix-card.png', { type: 'image/png' })],
-        }).catch(() => {});
-      } else {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'stoix-card.png';
-        a.click();
-      }
-    });
-  };
-
-  const handleDownload = async () => {
-    const canvas = await capture();
-    if (!canvas) return;
-    canvas.toBlob(blob => {
-      if (!blob) return;
+    const blob = await capture();
+    if (!blob) return;
+    if (navigator.share && navigator.canShare) {
+      navigator.share({
+        title: 'STOIX',
+        text: `${disciplineRate}% discipline — ${LABELS[range]} 🚀`,
+        files: [new File([blob], 'stoix-card.png', { type: 'image/png' })],
+      }).catch(() => {});
+    } else {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'stoix-card.png';
       a.click();
-    });
+    }
+  };
+
+  const handleDownload = async () => {
+    const blob = await capture();
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'stoix-card.png';
+    a.click();
   };
 
   return (

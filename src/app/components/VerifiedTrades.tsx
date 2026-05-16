@@ -8,7 +8,7 @@ import { Badge } from '../components/ui/badge';
 import { supabase } from '../utils/supabase';
 import { storage } from '../utils/storage';
 import { Logo } from '../components/Logo';
-import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image-more';
 import { Crown } from 'lucide-react';
 import { 
   Shield, Plus, Trash2, RefreshCw, TrendingUp, Upload, Share2, Download,
@@ -421,23 +421,11 @@ export function VerifiedTrades() {
                 const el = document.getElementById(cardId);
                 if (!el) return;
                 try {
-                  const canvas = await html2canvas(el, {
-                    backgroundColor: '#0f172a',
-                    scale: 2,
-                    useCORS: true,
-                    logging: false,
-                    ignoreElements: (element) => {
-                      if (element.tagName === 'LINK' || element.tagName === 'STYLE') return true;
-                      return false;
-                    },
-                  });
-                  canvas.toBlob((blob) => {
-                    if (!blob) return;
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
-                    a.click();
-                  });
+                  const blob = await domtoimage.toBlob(el, { scale: 2 });
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `stoix-verified-${shareCardPeriod}-${new Date().toISOString().slice(0,10)}.png`;
+                  a.click();
                 } catch (err) {
                   console.error('Download error:', err);
                   toast.error('Download failed — try again');
@@ -448,32 +436,20 @@ export function VerifiedTrades() {
                 const el = document.getElementById(cardId);
                 if (!el) return;
                 try {
-                  const canvas = await html2canvas(el, {
-                    backgroundColor: '#0f172a',
-                    scale: 2,
-                    useCORS: true,
-                    logging: false,
-                    ignoreElements: (element) => {
-                      if (element.tagName === 'LINK' || element.tagName === 'STYLE') return true;
-                      return false;
-                    },
-                  });
-                  canvas.toBlob(async (blob) => {
-                    if (!blob) return;
-                    const file = new File([blob], `stoix-verified-${shareCardPeriod}.png`, { type: 'image/png' });
-                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                      await navigator.share({
-                        title: 'STOIX',
-                        text: `${winRate}% Win Rate — ${periodLabel} 📈`,
-                        files: [file],
-                      }).catch(() => {});
-                    } else {
-                      const a = document.createElement('a');
-                      a.href = URL.createObjectURL(blob);
-                      a.download = `stoix-verified-${shareCardPeriod}.png`;
-                      a.click();
-                    }
-                  });
+                  const blob = await domtoimage.toBlob(el, { scale: 2 });
+                  const file = new File([blob], `stoix-verified-${shareCardPeriod}.png`, { type: 'image/png' });
+                  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                      title: 'STOIX',
+                      text: `${winRate}% Win Rate — ${periodLabel} 📈`,
+                      files: [file],
+                    }).catch(() => {});
+                  } else {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `stoix-verified-${shareCardPeriod}.png`;
+                    a.click();
+                  }
                 } catch (err) {
                   console.error('Share error:', err);
                   toast.error('Share failed — try downloading instead');
