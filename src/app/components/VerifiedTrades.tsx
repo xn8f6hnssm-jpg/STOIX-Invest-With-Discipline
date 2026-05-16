@@ -509,7 +509,7 @@ export function VerifiedTrades() {
                             <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Net P&L</div>
                           </div>
                           <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
-                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#4ade80', border: 'none', background: 'transparent' }}>{wins}W</div>
+                            <div style={{ fontSize: '22px', fontWeight: '700', color: '#4ade80', border: 'none', background: 'transparent' }}>{wins}</div>
                             <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Wins</div>
                           </div>
                           <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
