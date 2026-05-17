@@ -1,86 +1,85 @@
-// STOIX Logo — Fehu rune mark + wordmark
-// Fehu: vertical staff with two thin diagonal branches sweeping upward
-// Dark mass background, gold Fehu mark, text auto-adapts to light/dark mode
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showText?: boolean;
   className?: string;
-  darkMode?: boolean;
 }
 
-export function Logo({ size = 'md', showText = true, className = '', darkMode = false }: LogoProps) {
-  const cfg = {
-    sm: { ms: 34, fs: 17, gap: 9,  sub: false, ls: '-0.04em' },
-    md: { ms: 46, fs: 22, gap: 12, sub: false, ls: '-0.04em' },
-    lg: { ms: 62, fs: 30, gap: 15, sub: true,  ls: '-0.05em' },
-    xl: { ms: 82, fs: 42, gap: 20, sub: true,  ls: '-0.05em' },
-  }[size];
-  const { ms, fs, gap, sub } = cfg;
+export function Logo({ size = 'md', showText = true, className = '' }: LogoProps) {
+  const sizes = {
+    sm: { total: 28, text: 'text-base',  sub: false },
+    md: { total: 36, text: 'text-xl',    sub: false },
+    lg: { total: 52, text: 'text-2xl',   sub: true  },
+    xl: { total: 72, text: 'text-4xl',   sub: true  },
+  };
 
-  // Scale all coords from 80x92 base design (Option B)
-  const B = 92; // base height
-  const s = (n: number) => (n / B) * ms;
+  const { total, text: textSize, sub } = sizes[size];
 
-  const massFill  = '#1e1e1e';
-  const goldColor = '#c9a84c';
+  // Icon geometry
+  const s = total;          // bounding box
+  const cx = s / 2;
+  const cy = s / 2;
+  const r = s * 0.42;       // diamond radius
 
-  // Auto-detect dark mode from html class, or use explicit darkMode prop
-  const isDark = darkMode || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
-  const textColor = isDark ? '#ffffff' : '#0f172a';
-  const subColor  = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(15,23,42,0.4)';
+  // Zigzag edge line — 4 points, upward trajectory
+  const p1 = { x: cx - r * 0.55, y: cy + r * 0.20 };
+  const p2 = { x: cx - r * 0.10, y: cy - r * 0.28 };
+  const p3 = { x: cx + r * 0.22, y: cy + r * 0.08 };
+  const p4 = { x: cx + r * 0.55, y: cy - r * 0.45 };
 
-  // All polygon points scaled from base 80x92 design
-  // Base: mass x=4 y=4 w=72 h=84
-  //       staff x=18 y=10 w=9 h=70
-  //       upper branch: 27,28 → 66,8 → 70,8 → 70,13 → 66,13 → 27,33
-  //       lower branch: 27,50 → 66,30 → 70,30 → 70,35 → 66,35 → 27,55
-
-  const p = (pts: [number,number][]) => pts.map(([x,y]) => `${s(x)},${s(y)}`).join(' ');
+  const polyPoints = `${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}`;
 
   return (
-    <div
-      style={{ display: 'inline-flex', alignItems: 'center', gap, flexShrink: 0 }}
-      className={className}
-    >
+    <div className={`flex items-center gap-2.5 ${className}`}>
+      {/* Mark */}
       <svg
-        width={ms}
-        height={ms}
-        viewBox={`0 0 ${ms} ${ms}`}
+        width={s}
+        height={s}
+        viewBox={`0 0 ${s} ${s}`}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        style={{ flexShrink: 0 }}
         aria-hidden="true"
       >
-        {/* Dark mass */}
-        <rect x={s(4)} y={s(4)} width={s(72)} height={s(84)} rx={s(2)} fill={massFill} />
-        {/* Fehu staff */}
-        <rect x={s(18)} y={s(10)} width={s(9)} height={s(70)} fill={goldColor} />
-        {/* Upper branch — thin, steep upward sweep */}
-        <polygon points={p([[27,28],[66,8],[70,8],[70,13],[66,13],[27,33]])} fill={goldColor} />
-        {/* Lower branch — same angle, lower position */}
-        <polygon points={p([[27,50],[66,30],[70,30],[70,35],[66,35],[27,55]])} fill={goldColor} />
+        {/* Diamond — filled, sharp */}
+        <rect
+          x={cx - r * 0.72}
+          y={cy - r * 0.72}
+          width={r * 1.44}
+          height={r * 1.44}
+          rx={s * 0.04}
+          transform={`rotate(45 ${cx} ${cy})`}
+          className="fill-foreground dark:fill-white"
+        />
+
+        {/* Edge line — cyan, sharp, upward */}
+        <polyline
+          points={polyPoints}
+          stroke="#22d3ee"
+          strokeWidth={s * 0.062}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+
+        {/* Tip dot */}
+        <circle
+          cx={p4.x}
+          cy={p4.y}
+          r={s * 0.055}
+          fill="#22d3ee"
+        />
       </svg>
 
+      {/* Wordmark */}
       {showText && (
-        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-          <span style={{
-            fontSize: fs,
-            fontWeight: 800,
-            letterSpacing: cfg.ls,
-            color: textColor,
-            fontFamily: "'Inter', 'SF Pro Display', -apple-system, sans-serif",
-          }}>
+        <div className="flex flex-col leading-none">
+          <span
+            className={`font-bold tracking-tight ${textSize} text-foreground dark:text-white`}
+            style={{ letterSpacing: '-0.03em' }}
+          >
             STOIX
           </span>
           {sub && (
-            <span style={{
-              fontSize: 9,
-              fontWeight: 500,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase' as const,
-              color: subColor,
-              marginTop: 3,
-            }}>
+            <span className="text-xs text-muted-foreground font-medium tracking-widest uppercase mt-0.5">
               Trade with Discipline
             </span>
           )}
