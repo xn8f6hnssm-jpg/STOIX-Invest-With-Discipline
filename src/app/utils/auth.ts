@@ -252,6 +252,8 @@ export async function signOut() {
       toast.error('Failed to sign out');
       return { success: false, error: error.message };
     }
+    // Clear all local storage so app doesn't think user is still logged in
+    localStorage.clear();
     toast.success('Signed out successfully');
     return { success: true };
   } catch (error: any) {
