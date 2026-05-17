@@ -42,7 +42,7 @@ export function Login() {
     if (!resetEmail.trim()) { setError('Please enter your email'); return; }
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-      redirectTo: 'https://stoix-invest-with-discipline.vercel.app/app/reset-password',
+      redirectTo: 'https://www.stoixtrader.com/app/reset-password',
     });
     if (error) { setError(error.message); } else { setResetSent(true); }
     setLoading(false);
