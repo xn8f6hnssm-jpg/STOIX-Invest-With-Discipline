@@ -105,7 +105,6 @@ async function loadUserFromSupabase(userId: string): Promise<any | null> {
 // Sign up new user
 export async function signUp(data: SignUpData) {
   try {
-    // Check username availability directly in Supabase
     const { data: existingUser } = await supabase
       .from('users')
       .select('id')
@@ -117,7 +116,6 @@ export async function signUp(data: SignUpData) {
       return { success: false, error: 'Username already taken' };
     }
 
-    // Sign up directly via Supabase Auth
     const { data: authData, error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
@@ -191,7 +189,6 @@ export async function signIn(data: SignInData, skipProfileFetch?: boolean) {
       return { success: true, session: authData.session, user: authData.user };
     }
 
-    // Regular login — try Supabase first, fall back to localStorage
     const supabaseUser = await loadUserFromSupabase(userId);
 
     if (supabaseUser) {
@@ -252,8 +249,10 @@ export async function signOut() {
       toast.error('Failed to sign out');
       return { success: false, error: error.message };
     }
-    // Clear all local storage so app doesn't think user is still logged in
-    localStorage.clear();
+    // Only clear app-specific keys, not Supabase auth tokens
+    localStorage.removeItem('tradeforge_current_user');
+    localStorage.removeItem('stoix_skip_landing');
+    localStorage.removeItem('stoix_verified_instructions_seen');
     toast.success('Signed out successfully');
     return { success: true };
   } catch (error: any) {
