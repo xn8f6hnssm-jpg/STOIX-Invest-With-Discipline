@@ -389,21 +389,16 @@ export function DailyCheck() {
   const submitForfeit = async () => {
     if (storage.isDailyCheckLocked()) return;
 
-    // Points 26-30
     let points = getRandomDailyPoints();
-
-    // Apply double XP if active (Premium feature)
-    if (storage.isDoubleXPActive()) {
-      points = points * 2;
-    }
-
-    // FIX: +5 points for posting publicly
+    if (storage.isDoubleXPActive()) points = points * 2;
     if (createPost) points += 5;
 
     const user = storage.getCurrentUser();
     if (!user) return;
 
-    // Check if streak will break and offer streak saver
+    const savedStreak = user.currentStreak;
+    let streakProtected = false;
+
     const wouldBreakStreak = user.currentStreak > 0;
     if (wouldBreakStreak && user.isPremium && (user.streakSavers || 0) > 0) {
       const useStreakSaver = confirm(
@@ -412,6 +407,64 @@ export function DailyCheck() {
         `You have ${user.streakSavers} Streak Saver${(user.streakSavers || 0) > 1 ? 's' : ''} remaining.\n\n` +
         `Use one now to protect your streak?`
       );
+      if (useStreakSaver) {
+        streakProtected = storage.useStreakSaver();
+        if (streakProtected) {
+          alert(`✅ Streak Saver used! Your ${savedStreak}-day streak is protected!`);
+        }
+      }
+    }
+
+    storage.addDayLog({
+      userId: user.id,
+      date: new Date().toISOString().split('T')[0],
+      isClean: false,
+      photoUrl: photoPreview,
+      note,
+      forfeitCompleted: selectedForfeit,
+      pointsEarned: points,
+      posted: createPost,
+    });
+
+    // Restore streak AFTER addDayLog resets it to 0
+    if (streakProtected) {
+      storage.updateCurrentUser({ currentStreak: savedStreak });
+    }
+
+    if (createPost) {
+      let postPhoto = photoPreview;
+      if (photoPreview && photoPreview.startsWith('data:image')) {
+        try {
+          const canvas = document.createElement('canvas');
+          const img = new Image();
+          await new Promise<void>(resolve => { img.onload = () => resolve(); img.src = photoPreview; });
+          const maxW = 800;
+          let w = img.width, h = img.height;
+          if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+          postPhoto = canvas.toDataURL('image/jpeg', 0.6);
+        } catch { postPhoto = ''; }
+      }
+      storage.addPost({
+        userId: user.id,
+        username: user.username,
+        avatarUrl: '',
+        league: `${user.totalPoints}`,
+        isVerified: user.isVerified || false,
+        type: 'forfeit',
+        photoUrl: postPhoto,
+        images: postPhoto ? [postPhoto] : [],
+        caption: `${note}${note ? ' — ' : ''}Forfeit completed: ${selectedForfeit}`,
+      });
+    }
+
+    const now = Date.now();
+    localStorage.setItem(`daily_check_last_${user.id}`, now.toString());
+    setSubmittedAt(now);
+    setPointsEarned(points);
+    setStep('summary');
+  };
 
       if (useStreakSaver) {
         if (storage.useStreakSaver()) {
