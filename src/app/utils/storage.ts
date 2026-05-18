@@ -1494,3 +1494,12 @@ export const getDisciplineRate = (cleanDays: number, totalDays: number): number 
   if (totalDays === 0) return 0;
   return Math.round((cleanDays / totalDays) * 100);
 };
+
+export const checkDemotion = (userId: string): boolean => {
+  const logs = storage.getDayLogs();
+  const userLogs = logs.filter((l: any) => l.userId === userId);
+  if (userLogs.length < 7) return false;
+  const last7 = userLogs.slice(-7);
+  const cleanCount = last7.filter((l: any) => l.isClean).length;
+  return cleanCount < 3;
+};
