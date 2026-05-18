@@ -15,7 +15,7 @@ export function PremiumFeatures() {
     const success = storage.activateDoubleXP();
     if (success) {
       alert('🔥 Double XP activated for today! You\'ll earn 2x points on your Daily Check-In.');
-      window.location.reload(); // Refresh to show active state
+      window.location.reload();
     } else {
       const remaining = currentUser.doubleXPDaysRemaining || 0;
       if (remaining === 0) {
@@ -48,7 +48,7 @@ export function PremiumFeatures() {
             </div>
             <div>
               <p className="font-semibold text-sm">Streak Savers</p>
-              <p className="text-xs text-muted-foreground">Protect your streak when you break a rule (2/month)</p>
+              <p className="text-xs text-muted-foreground">Protect your streak when you break a rule (5/month)</p>
             </div>
           </div>
           <Badge variant="outline" className="text-blue-500 border-blue-500">
@@ -64,7 +64,7 @@ export function PremiumFeatures() {
             </div>
             <div>
               <p className="font-semibold text-sm">Double XP Days</p>
-              <p className="text-xs text-muted-foreground">Earn 2x points on check-ins (5/month, random)</p>
+              <p className="text-xs text-muted-foreground">Earn 2x points on check-ins (8/month, random)</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -76,14 +76,10 @@ export function PremiumFeatures() {
             ) : (
               <>
                 <Badge variant="outline" className="text-orange-500 border-orange-500">
-                  {doubleXPDaysRemaining}/5
+                  {doubleXPDaysRemaining}/8
                 </Badge>
                 {doubleXPDaysRemaining > 0 && (
-                  <Button
-                    size="sm"
-                    onClick={handleActivateDoubleXP}
-                    className="bg-orange-500 hover:bg-orange-600"
-                  >
+                  <Button size="sm" onClick={handleActivateDoubleXP} className="bg-orange-500 hover:bg-orange-600">
                     Activate
                   </Button>
                 )}
