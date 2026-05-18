@@ -135,8 +135,7 @@ export function WelcomeDialog() {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="max-w-sm p-0 overflow-hidden gap-0" style={{ borderRadius: 16 }}>
+<Dialog open={open} onOpenChange={() => handleClose(false)}>      <DialogContent className="max-w-sm p-0 overflow-hidden gap-0" style={{ borderRadius: 16 }}>
         {/* Progress bar */}
         <div className="flex gap-1 p-4 pb-0">
           {STEPS.map((_, i) => (

@@ -120,24 +120,31 @@ export function DisciplineShareCard() {
 
   const handleShare = () => {
     if (!cardRef.current) return;
+    const a = document.createElement('a');
+    a.download = 'stoix-card.png';
+    document.body.appendChild(a);
     domtoimage.toBlob(cardRef.current, { scale: 2 }).then((blob: Blob) => {
       const file = new File([blob], 'stoix-card.png', { type: 'image/png' });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        document.body.removeChild(a);
         navigator.share({
           title: 'STOIX',
           text: `${disciplineRate}% discipline — ${LABELS[range]} 🚀`,
           files: [file],
         }).catch((e: any) => console.error('Share error:', e));
       } else {
-        // Fallback: download
-        const a = document.createElement('a');
-        a.download = 'stoix-card.png';
-        a.href = URL.createObjectURL(blob);
-        document.body.appendChild(a);
+        const url = URL.createObjectURL(blob);
+        a.href = url;
         a.click();
-        document.body.removeChild(a);
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
       }
-    }).catch((err: any) => console.error('Share capture error:', err));
+    }).catch((err: any) => {
+      console.error('Share capture error:', err);
+      document.body.removeChild(a);
+    });
   };
 
   return (
