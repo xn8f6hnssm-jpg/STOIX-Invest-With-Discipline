@@ -20,14 +20,14 @@ async function uploadImageToStorage(base64Image: string, userId: string, entryId
 
     if (!response.ok) {
       console.error('Image upload failed:', await response.text());
-      return base64Image; // Fallback to base64 if upload fails
+      return base64Image;
     }
 
     const data = await response.json();
-    return data.url; // Return the signed URL from Supabase Storage
+    return data.url;
   } catch (error) {
     console.error('Image upload error:', error);
-    return base64Image; // Fallback to base64 if upload fails
+    return base64Image;
   }
 }
 
@@ -51,11 +51,11 @@ export interface User {
   isPremium?: boolean;
   premiumSince?: number;
   // Premium features
-  streakSavers?: number; // Number of streak savers available (2 per month)
-  streakSaversUsed?: number; // Total used over time
-  doubleXPDaysRemaining?: number; // Number of double XP days available (5 per month, random)
-  lastDoubleXPReset?: number; // Timestamp of last monthly reset
-  activeDoubleXPDate?: string; // Date when double XP is active (YYYY-MM-DD)
+  streakSavers?: number;
+  streakSaversUsed?: number;
+  doubleXPDaysRemaining?: number;
+  lastDoubleXPReset?: number;
+  activeDoubleXPDate?: string;
   // Achievements
   achievements?: Achievement[];
   // Account Rules (Prop Firm Rules) - Premium Feature
@@ -70,7 +70,7 @@ export interface User {
   // Pre-Trade Checklist - Premium Feature
   preTradeChecklistEnabled?: boolean;
   // Custom Strategy Section Name
-  strategiesSectionName?: string; // Custom name for "All Strategies" section
+  strategiesSectionName?: string;
 }
 
 export interface Achievement {
@@ -97,7 +97,7 @@ export interface Rule {
   title: string;
   description: string;
   tag: string;
-  isCritical?: boolean; // ⭐ Critical rule toggle
+  isCritical?: boolean;
 }
 
 export interface DayLog {
@@ -122,30 +122,30 @@ export interface JournalEntry {
   screenshots?: string[];
   customFields?: Record<string, any>;
   riskReward?: number;
-  pnl?: number; // NEW: Optional P&L field for tracking actual dollar gains/losses
+  pnl?: number;
   isNoTradeDay?: boolean;
   pointsAwarded?: boolean;
   timestamp?: number;
-  strategyId?: string; // NEW: Link to strategy
+  strategyId?: string;
   reflection?: {
     questions: Record<string, string>;
     insights: string[];
   };
   // Investment Thesis fields (for Long Term Hold users)
-  assetName?: string; // Required for investors
-  action?: 'buy' | 'hold' | 'sell'; // Investment action
-  investmentThesis?: string; // Why buying this asset
-  invalidationCondition?: string; // What would make them sell
-  plannedHoldTime?: string; // Expected hold duration
-  thesisReviewDates?: string[]; // Dates when thesis was reviewed
-  sellReason?: 'thesis_broken' | 'emotional_reaction' | 'planned_exit'; // Why selling
+  assetName?: string;
+  action?: 'buy' | 'hold' | 'sell';
+  investmentThesis?: string;
+  invalidationCondition?: string;
+  plannedHoldTime?: string;
+  thesisReviewDates?: string[];
+  sellReason?: 'thesis_broken' | 'emotional_reaction' | 'planned_exit';
 }
 
 export interface JournalFieldDefinition {
   id: string;
   name: string;
   type: 'text' | 'number' | 'checkbox' | 'dropdown' | 'datetime' | 'time' | 'image';
-  options?: string[]; // For dropdown
+  options?: string[];
 }
 
 export interface Strategy {
@@ -153,7 +153,7 @@ export interface Strategy {
   userId: string;
   name: string;
   description?: string;
-  color: string; // For visual distinction
+  color: string;
   createdAt: number;
 }
 
@@ -164,16 +164,16 @@ export interface Group {
   creatorId: string;
   creatorUsername: string;
   type: 'free' | 'paid';
-  price?: number; // Monthly price in USD for paid groups
+  price?: number;
   memberCount: number;
-  members: string[]; // User IDs
-  admins: string[]; // User IDs with admin privileges
-  inviteCode: string; // Unique code for instant joining
-  isPublic: boolean; // Can be discovered in search
+  members: string[];
+  admins: string[];
+  inviteCode: string;
+  isPublic: boolean;
   coverImage?: string;
   createdAt: number;
-  challenges?: GroupChallenge[]; // Challenges within the group
-  channels?: GroupChannel[]; // Chat channels/tabs within the group
+  challenges?: GroupChallenge[];
+  channels?: GroupChannel[];
 }
 
 export interface GroupChannel {
@@ -183,7 +183,7 @@ export interface GroupChannel {
   description?: string;
   createdBy: string;
   createdAt: number;
-  isDefault?: boolean; // The default "general" channel
+  isDefault?: boolean;
 }
 
 export interface GroupMessage {
@@ -193,7 +193,7 @@ export interface GroupMessage {
   userId: string;
   username: string;
   content: string;
-  mentions: string[]; // Array of mentioned userIds, or ["@everyone"]
+  mentions: string[];
   attachments?: {
     type: 'image' | 'file';
     url: string;
@@ -210,15 +210,15 @@ export interface GroupChallenge {
   groupId: string;
   name: string;
   description: string;
-  duration: number; // days
-  participants: string[]; // User IDs
+  duration: number;
+  participants: string[];
   startDate: string;
   endDate: string;
   prize?: string;
   rules: string[];
   leaderboard: { userId: string; points: number; username: string }[];
   status: 'upcoming' | 'active' | 'completed';
-  createdBy: string; // User ID
+  createdBy: string;
   createdAt: number;
 }
 
@@ -236,8 +236,8 @@ export interface CreditTransaction {
   id: string;
   userId: string;
   type: 'earn' | 'withdrawal' | 'refund';
-  amount: number; // In USD
-  source?: string; // e.g., "Group payment from user123"
+  amount: number;
+  source?: string;
   status: 'completed' | 'pending' | 'failed';
   timestamp: number;
   withdrawalDetails?: {
@@ -249,7 +249,7 @@ export interface CreditTransaction {
 
 export interface UserCredits {
   userId: string;
-  balance: number; // In USD
+  balance: number;
   totalEarned: number;
   totalWithdrawn: number;
   transactions: CreditTransaction[];
@@ -292,7 +292,7 @@ export interface Activity {
   type: 'post' | 'journal' | 'clean_day' | 'forfeit_day';
   description: string;
   timestamp: number;
-  relatedId?: string; // Post ID or Journal ID
+  relatedId?: string;
 }
 
 // Storage keys
@@ -314,11 +314,11 @@ const STORAGE_KEYS = {
   USER_CREDITS: 'tradeforge_user_credits',
   GROUP_CHANNELS: 'tradeforge_group_channels',
   GROUP_MESSAGES: 'tradeforge_group_messages',
-  CHAT_MESSAGES: 'tradeforge_chat_messages', // NEW: Chat messages
-  FOLLOWING: 'tradeforge_following', // NEW: Following users
-  MENTAL_PREP_SETTINGS: 'tradeforge_mental_prep_settings', // NEW: Mental preparation settings
-  AFFIRMATIONS: 'tradeforge_affirmations', // NEW: Personal affirmations
-  MENTAL_PREP_TRACKING: 'tradeforge_mental_prep_tracking', // NEW: Mental prep completion tracking
+  CHAT_MESSAGES: 'tradeforge_chat_messages',
+  FOLLOWING: 'tradeforge_following',
+  MENTAL_PREP_SETTINGS: 'tradeforge_mental_prep_settings',
+  AFFIRMATIONS: 'tradeforge_affirmations',
+  MENTAL_PREP_TRACKING: 'tradeforge_mental_prep_tracking',
 };
 
 // Generate unique ID with timestamp + random suffix
@@ -343,15 +343,12 @@ const getStorageSizeMB = (): number => {
   return getStorageSize() / (1024 * 1024);
 };
 
-// Check if storage is approaching limit (warn at 4MB, block at 4.5MB)
 const checkStorageSpace = (): { canAdd: boolean; shouldWarn: boolean; sizeMB: number } => {
   const sizeMB = getStorageSizeMB();
   
-  // Cleanup at 2.8MB to stay well below quota - more aggressive
   if (sizeMB > 2.8) {
     console.log(`⚠️ Storage approaching limit (${sizeMB.toFixed(2)} MB), running cleanup...`);
     cleanupOldData();
-    // Recalculate after cleanup
     const newSizeMB = getStorageSizeMB();
     return {
       canAdd: newSizeMB < 4.5,
@@ -361,8 +358,8 @@ const checkStorageSpace = (): { canAdd: boolean; shouldWarn: boolean; sizeMB: nu
   }
   
   return {
-    canAdd: sizeMB < 4.5, // Block new images at 4.5MB
-    shouldWarn: sizeMB > 2.8, // Warn at 2.8MB
+    canAdd: sizeMB < 4.5,
+    shouldWarn: sizeMB > 2.8,
     sizeMB: parseFloat(sizeMB.toFixed(2))
   };
 };
@@ -371,19 +368,17 @@ const cleanupOldData = () => {
   try {
     console.log(`💾 Storage before cleanup: ${getStorageSizeMB().toFixed(2)} MB`);
     
-    // 1. Remove old posts (keep last 20 without images)
     try {
       const postsStr = localStorage.getItem(STORAGE_KEYS.POSTS);
       if (postsStr) {
         const posts = JSON.parse(postsStr);
-        // Keep only last 10 posts and strip images/photos (reduced from 15)
         const cleaned = posts.slice(-10).map((post: any) => ({
           ...post,
           photoUrl: '',
           images: [],
           journalData: post.journalData ? {
             ...post.journalData,
-            customFields: {} // Remove custom field images
+            customFields: {}
           } : undefined
         }));
         localStorage.removeItem(STORAGE_KEYS.POSTS);
@@ -395,7 +390,6 @@ const cleanupOldData = () => {
       localStorage.removeItem(STORAGE_KEYS.POSTS);
     }
     
-    // 2. Remove old activities (keep last 15, reduced from 20)
     try {
       const activitiesStr = localStorage.getItem(STORAGE_KEYS.ACTIVITIES);
       if (activitiesStr) {
@@ -410,15 +404,13 @@ const cleanupOldData = () => {
       localStorage.removeItem(STORAGE_KEYS.ACTIVITIES);
     }
     
-    // 3. Remove old daily logs (keep last 30 days, reduced from 45)
     try {
       const logsStr = localStorage.getItem(STORAGE_KEYS.DAILY_LOGS);
       if (logsStr) {
         const logs = JSON.parse(logsStr);
-        // Strip photos from all logs to save space, keep last 30
         const cleaned = logs.slice(-30).map((log: DayLog) => ({
           ...log,
-          photoUrl: '' // Remove photos
+          photoUrl: ''
         }));
         localStorage.removeItem(STORAGE_KEYS.DAILY_LOGS);
         localStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(cleaned));
@@ -429,26 +421,19 @@ const cleanupOldData = () => {
       localStorage.removeItem(STORAGE_KEYS.DAILY_LOGS);
     }
     
-    // 4. For journal - KEEP ALL ENTRIES but remove screenshots to save space
     try {
       const journalStr = localStorage.getItem(STORAGE_KEYS.JOURNAL_ENTRIES);
       if (journalStr) {
         const entries = JSON.parse(journalStr);
-        // Keep images from last 5 entries ONLY (reduced from 20)
         const cleaned = entries.map((entry: JournalEntry, index: number) => {
           const isRecent = index >= entries.length - 5;
-          if (isRecent) {
-            // Keep recent entries with images
-            return entry;
-          }
-          // Remove screenshots and image custom fields from older entries
+          if (isRecent) return entry;
           return {
             ...entry,
-            screenshots: [], // Remove screenshots
-            customFields: entry.customFields ? 
+            screenshots: [],
+            customFields: entry.customFields ?
               Object.fromEntries(
                 Object.entries(entry.customFields).map(([key, value]) => {
-                  // Remove base64 images from custom fields
                   if (typeof value === 'string' && value.startsWith('data:image')) {
                     return [key, ''];
                   }
@@ -467,7 +452,6 @@ const cleanupOldData = () => {
         const journalStr = localStorage.getItem(STORAGE_KEYS.JOURNAL_ENTRIES);
         if (journalStr) {
           const entries = JSON.parse(journalStr);
-          // Keep last 100 entries without images
           const cleaned = entries.slice(-100).map((entry: JournalEntry) => ({
             id: entry.id,
             userId: entry.userId,
@@ -490,20 +474,17 @@ const cleanupOldData = () => {
       }
     }
     
-    // 5. For backtesting - Keep images from last 5, remove from older ones
     try {
       const backtestingStr = localStorage.getItem(STORAGE_KEYS.BACKTESTING_ENTRIES);
       if (backtestingStr) {
         const entries = JSON.parse(backtestingStr);
         const cleaned = entries.map((entry: JournalEntry, index: number) => {
           const isRecent = index >= entries.length - 5;
-          if (isRecent) {
-            return entry;
-          }
+          if (isRecent) return entry;
           return {
             ...entry,
             screenshots: [],
-            customFields: entry.customFields ? 
+            customFields: entry.customFields ?
               Object.fromEntries(
                 Object.entries(entry.customFields).map(([key, value]) => {
                   if (typeof value === 'string' && value.startsWith('data:image')) {
@@ -523,19 +504,17 @@ const cleanupOldData = () => {
       localStorage.removeItem(STORAGE_KEYS.BACKTESTING_ENTRIES);
     }
     
-    // 6. Clean chat messages - keep last 200 per channel
     try {
       const messagesStr = localStorage.getItem(STORAGE_KEYS.CHAT_MESSAGES);
       if (messagesStr) {
         const messages = JSON.parse(messagesStr);
-        // Group by channel and keep last 200 per channel, remove file attachments
         const messagesByChannel: Record<string, any[]> = {};
         messages.forEach((msg: any) => {
           const key = `${msg.groupId}_${msg.channelId}`;
           if (!messagesByChannel[key]) messagesByChannel[key] = [];
           messagesByChannel[key].push({
             ...msg,
-            fileUrl: undefined, // Remove file attachments
+            fileUrl: undefined,
             fileType: undefined,
             fileName: undefined
           });
@@ -556,7 +535,6 @@ const cleanupOldData = () => {
     console.log(`🎉 Storage after cleanup: ${getStorageSizeMB().toFixed(2)} MB`);
   } catch (error) {
     console.error('Error during cleanup:', error);
-    // If cleanup itself fails, just nuke non-essential data
     try {
       localStorage.removeItem(STORAGE_KEYS.POSTS);
       localStorage.removeItem(STORAGE_KEYS.ACTIVITIES);
@@ -575,17 +553,15 @@ const safeSetItem = (key: string, value: string): boolean => {
     return true;
   } catch (e) {
     if (e instanceof DOMException && (
-      e.code === 22 || // QuotaExceededError
-      e.code === 1014 || // Firefox
+      e.code === 22 ||
+      e.code === 1014 ||
       e.name === 'QuotaExceededError' ||
       e.name === 'NS_ERROR_DOM_QUOTA_REACHED'
     )) {
       console.error('❌ QUOTA EXCEEDED! Running emergency cleanup...');
       
-      // Emergency cleanup - more aggressive
       cleanupOldData();
       
-      // Try stripping images from ALL journal entries as emergency measure
       try {
         const journalStr = localStorage.getItem(STORAGE_KEYS.JOURNAL_ENTRIES);
         if (journalStr) {
@@ -593,7 +569,7 @@ const safeSetItem = (key: string, value: string): boolean => {
           const stripped = entries.map((e: JournalEntry) => ({
             ...e,
             screenshots: [],
-            customFields: e.customFields ? 
+            customFields: e.customFields ?
               Object.fromEntries(
                 Object.entries(e.customFields).map(([k, v]) => {
                   if (typeof v === 'string' && v.startsWith('data:image')) {
@@ -611,7 +587,6 @@ const safeSetItem = (key: string, value: string): boolean => {
         console.error('Failed to strip journal images:', stripError);
       }
       
-      // Try again after aggressive cleanup
       try {
         localStorage.setItem(key, value);
         console.log('✅ Successfully saved after emergency cleanup');
@@ -619,7 +594,6 @@ const safeSetItem = (key: string, value: string): boolean => {
       } catch (retryError) {
         console.error('❌ Storage still full after emergency cleanup');
         
-        // Final option: Alert user
         alert(
           '⚠️ STORAGE IS COMPLETELY FULL\n\n' +
           'Your browser storage is full even after removing old images.\n\n' +
@@ -641,9 +615,8 @@ const safeSetItem = (key: string, value: string): boolean => {
 
 // Helper functions
 export const storage = {
-  //Upload image helper (can be used before adding entry)
   uploadImage: uploadImageToStorage,
-  
+
   // User operations
   getCurrentUser: (): User | null => {
     const userStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
@@ -652,7 +625,6 @@ export const storage = {
 
   setCurrentUser: (user: User) => {
     safeSetItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-    // Also save to all users list
     const allUsers = storage.getAllUsers();
     const existingIndex = allUsers.findIndex(u => u.id === user.id);
     if (existingIndex !== -1) {
@@ -702,7 +674,6 @@ export const storage = {
       const updatedUser = { ...currentUser, ...updates };
       storage.setCurrentUser(updatedUser);
       
-      // Also update in all users list
       const allUsers = storage.getAllUsers();
       const userIndex = allUsers.findIndex(u => u.id === userId);
       if (userIndex !== -1) {
@@ -722,9 +693,9 @@ export const storage = {
       storage.updateCurrentUser({
         isPremium: true,
         premiumSince: Date.now(),
-        streakSavers: 2, // Premium users get 2 streak savers per month
+        streakSavers: 5,        // FIX: 5 streak savers per month
         streakSaversUsed: 0,
-        doubleXPDaysRemaining: 5, // 5 double XP days per month (random)
+        doubleXPDaysRemaining: 8, // FIX: 8 double XP days per month
         lastDoubleXPReset: Date.now(),
       });
     }
@@ -756,29 +727,25 @@ export const storage = {
     const currentUser = storage.getCurrentUser();
     if (!currentUser || !currentUser.isPremium) return false;
     
-    // Check if already active today
     const today = new Date().toISOString().split('T')[0];
     if (currentUser.activeDoubleXPDate === today) {
-      return false; // Already active
+      return false;
     }
     
-    // Reset monthly allowance if needed
     const now = Date.now();
     const lastReset = currentUser.lastDoubleXPReset || 0;
     const daysSinceReset = (now - lastReset) / (1000 * 60 * 60 * 24);
     
     let daysRemaining = currentUser.doubleXPDaysRemaining || 0;
     
-    // Reset on the first day of the month
     if (daysSinceReset >= 30) {
-      daysRemaining = 5;
+      daysRemaining = 8; // FIX: reset to 8
       storage.updateCurrentUser({
-        doubleXPDaysRemaining: 5,
+        doubleXPDaysRemaining: 8,
         lastDoubleXPReset: now,
       });
     }
     
-    // Use a double XP day
     if (daysRemaining > 0) {
       storage.updateCurrentUser({
         doubleXPDaysRemaining: daysRemaining - 1,
@@ -825,7 +792,6 @@ export const storage = {
     return newRule;
   },
 
-  // Update the account rules limits object (maxDailyLoss, maxOverallDrawdown, etc.) on the user
   updateAccountRules: (rules: {
     maxDailyLoss?: number;
     maxOverallDrawdown?: number;
@@ -843,7 +809,7 @@ export const storage = {
     if (!currentUser || !currentUser.isPremium) return false;
     
     const rules = storage.getAccountRules(currentUser.id);
-    const updatedRules = rules.map(r => 
+    const updatedRules = rules.map(r =>
       r.id === ruleId ? { ...r, title, description } : r
     );
     
@@ -866,7 +832,6 @@ export const storage = {
   toggleAccountProtectionMode: (enabled: boolean): boolean => {
     const currentUser = storage.getCurrentUser();
     if (!currentUser || !currentUser.isPremium) return false;
-    
     storage.updateCurrentUser({ accountProtectionMode: enabled });
     return true;
   },
@@ -881,7 +846,6 @@ export const storage = {
   togglePreTradeChecklist: (enabled: boolean): boolean => {
     const currentUser = storage.getCurrentUser();
     if (!currentUser || !currentUser.isPremium) return false;
-    
     storage.updateCurrentUser({ preTradeChecklistEnabled: enabled });
     return true;
   },
@@ -899,8 +863,6 @@ export const storage = {
     
     const rulesStr = localStorage.getItem(STORAGE_KEYS.RULES);
     let allRules: Rule[] = rulesStr ? JSON.parse(rulesStr) : [];
-    
-    // Filter rules by current user ID (don't migrate old rules automatically)
     return allRules.filter((rule: Rule) => rule.userId === currentUser.id);
   },
 
@@ -908,7 +870,6 @@ export const storage = {
     const currentUser = storage.getCurrentUser();
     if (!currentUser) throw new Error('No user logged in');
     
-    // Get ALL rules from storage (not filtered)
     const rulesStr = localStorage.getItem(STORAGE_KEYS.RULES);
     const allRules = rulesStr ? JSON.parse(rulesStr) : [];
     
@@ -919,7 +880,6 @@ export const storage = {
   },
 
   deleteRule: (ruleId: string) => {
-    // Get ALL rules, delete the one, save back ALL rules
     const rulesStr = localStorage.getItem(STORAGE_KEYS.RULES);
     const allRules = rulesStr ? JSON.parse(rulesStr) : [];
     const updatedRules = allRules.filter((r: Rule) => r.id !== ruleId);
@@ -956,6 +916,7 @@ export const storage = {
         updates.currentStreak = currentUser.currentStreak + 1;
       } else {
         updates.forfeitDays = currentUser.forfeitDays + 1;
+        updates.currentStreak = 0; // FIX: reset streak on forfeit (streak saver in DailyCheck.tsx restores it after)
       }
       
       storage.updateCurrentUser(updates);
@@ -1154,7 +1115,7 @@ export const storage = {
   setOnboardingComplete: () => {
     safeSetItem(STORAGE_KEYS.ONBOARDING_COMPLETE, 'true');
   },
-  
+
   // Storage management
   getStorageInfo: () => {
     return {
@@ -1165,12 +1126,12 @@ export const storage = {
       activities: storage.getActivities().length,
     };
   },
-  
+
   manualCleanup: () => {
     cleanupOldData();
     return storage.getStorageInfo();
   },
-  
+
   // Follow/Unfollow functionality
   followUser: (userId: string) => {
     const following = storage.getFollowing();
@@ -1179,23 +1140,23 @@ export const storage = {
       safeSetItem(STORAGE_KEYS.FOLLOWING, JSON.stringify(following));
     }
   },
-  
+
   unfollowUser: (userId: string) => {
     const following = storage.getFollowing();
     const updated = following.filter(id => id !== userId);
     safeSetItem(STORAGE_KEYS.FOLLOWING, JSON.stringify(updated));
   },
-  
+
   getFollowing: (): string[] => {
     const followingStr = localStorage.getItem(STORAGE_KEYS.FOLLOWING);
     return followingStr ? JSON.parse(followingStr) : [];
   },
-  
+
   isFollowing: (userId: string): boolean => {
     const following = storage.getFollowing();
     return following.includes(userId);
   },
-  
+
   // Groups
   getGroups: (): Group[] => {
     const groupsStr = localStorage.getItem(STORAGE_KEYS.GROUPS);
@@ -1348,7 +1309,6 @@ export const storage = {
     const filtered = channels.filter((c: GroupChannel) => c.id !== channelId);
     safeSetItem(STORAGE_KEYS.GROUP_CHANNELS, JSON.stringify(filtered));
     
-    // Also delete all messages in this channel
     const messages = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUP_MESSAGES) || '[]');
     const filteredMessages = messages.filter((m: GroupMessage) => m.channelId !== channelId);
     safeSetItem(STORAGE_KEYS.GROUP_MESSAGES, JSON.stringify(filteredMessages));
@@ -1394,7 +1354,7 @@ export const storage = {
     const allUsers = storage.getAllUsers();
     const userIndex = allUsers.findIndex(u => u.id === userId);
     
-    if (userIndex === -1) return { ...achievement, id: '', earnedAt: 0 }; // User not found
+    if (userIndex === -1) return { ...achievement, id: '', earnedAt: 0 };
     
     const user = allUsers[userIndex];
     const achievements = user.achievements || [];
@@ -1408,10 +1368,8 @@ export const storage = {
     achievements.push(newAchievement);
     user.achievements = achievements;
     
-    // Check for trophy milestone rewards (every 10 trophies = 100 points)
     const trophyCount = achievements.filter(a => a.type === 'trophy').length;
     
-    // Award bonus if just reached a milestone (divisible by 10)
     if (achievement.type === 'trophy' && trophyCount % 10 === 0) {
       user.totalPoints = (user.totalPoints || 0) + 100;
       console.log(`🏆 Trophy Milestone! ${trophyCount} trophies = +100 bonus points`);
@@ -1420,7 +1378,6 @@ export const storage = {
     allUsers[userIndex] = user;
     safeSetItem(STORAGE_KEYS.ALL_USERS, JSON.stringify(allUsers));
     
-    // Update current user if it's them
     const currentUser = storage.getCurrentUser();
     if (currentUser && currentUser.id === userId) {
       storage.setCurrentUser(user);
@@ -1430,21 +1387,21 @@ export const storage = {
   },
 
   awardChallengeWinnerAchievement: (
-    userId: string, 
-    groupId: string, 
-    challengeId: string, 
+    userId: string,
+    groupId: string,
+    challengeId: string,
     challengeName: string,
     place: number
   ): Achievement | null => {
-    if (place < 1 || place > 3) return null; // Only top 3 get achievements
+    if (place < 1 || place > 3) return null;
     
     const achievementTypes: { [key: number]: Achievement['type'] } = {
-      1: 'trophy',  // 1st place = trophy
-      2: 'medal',   // 2nd place = medal
-      3: 'star',    // 3rd place = star
+      1: 'trophy',
+      2: 'medal',
+      3: 'star',
     };
     
-    const placeLabels = {
+    const placeLabels: { [key: number]: string } = {
       1: '🥇 1st Place',
       2: '🥈 2nd Place',
       3: '🥉 3rd Place',
@@ -1461,26 +1418,26 @@ export const storage = {
     
     return storage.addAchievement(userId, achievement);
   },
-  
+
   // Mental Preparation
   getMentalPrepSettings: () => {
     const settingsStr = localStorage.getItem(STORAGE_KEYS.MENTAL_PREP_SETTINGS);
     return settingsStr ? JSON.parse(settingsStr) : null;
   },
-  
+
   saveMentalPrepSettings: (settings: any) => {
     safeSetItem(STORAGE_KEYS.MENTAL_PREP_SETTINGS, JSON.stringify(settings));
   },
-  
+
   getAffirmations: (): string[] => {
     const affirmationsStr = localStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
     return affirmationsStr ? JSON.parse(affirmationsStr) : [];
   },
-  
+
   saveAffirmations: (affirmations: string[]) => {
     safeSetItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(affirmations));
   },
-  
+
   trackMentalPrepCompletion: (completed: boolean) => {
     const tracking = JSON.parse(localStorage.getItem(STORAGE_KEYS.MENTAL_PREP_TRACKING) || '[]');
     tracking.push({
@@ -1490,10 +1447,34 @@ export const storage = {
     });
     safeSetItem(STORAGE_KEYS.MENTAL_PREP_TRACKING, JSON.stringify(tracking));
   },
-  
+
   getMentalPrepTracking: () => {
     const trackingStr = localStorage.getItem(STORAGE_KEYS.MENTAL_PREP_TRACKING);
     return trackingStr ? JSON.parse(trackingStr) : [];
+  },
+
+  // Daily check lock helpers (used by DailyCheck.tsx)
+  isDailyCheckLocked: (): boolean => {
+    const user = storage.getCurrentUser();
+    if (!user) return false;
+    const last = parseInt(localStorage.getItem(`daily_check_last_${user.id}`) || '0', 10);
+    if (!last) return false;
+    const COOLDOWN_MS = 5 * 60 * 60 * 1000; // 5 hours
+    return Date.now() - last < COOLDOWN_MS;
+  },
+
+  getDailyCheckCooldown: (): string | null => {
+    const user = storage.getCurrentUser();
+    if (!user) return null;
+    const last = parseInt(localStorage.getItem(`daily_check_last_${user.id}`) || '0', 10);
+    if (!last) return null;
+    const COOLDOWN_MS = 5 * 60 * 60 * 1000;
+    const remaining = COOLDOWN_MS - (Date.now() - last);
+    if (remaining <= 0) return null;
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
   },
 };
 
