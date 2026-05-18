@@ -85,7 +85,7 @@ const CATEGORIZED_QUOTES = {
   ],
 };
 
-const RELIGIOUS_TEXTS = {
+const RELIGIOUS_TEXTS: Record<string, string[]> = {
   Islam: [
     "Indeed, Allah is with those who are patient. — Quran 2:153",
     "Whoever fears Allah, He will make a way out for him. — Quran 65:2",
@@ -121,17 +121,24 @@ const RELIGIOUS_TEXTS = {
     "One who has control over the mind is tranquil in heat and cold, in pleasure and pain. — Bhagavad Gita 6.7",
     "For one who has conquered the mind, the mind is the best of friends. — Bhagavad Gita 6.6",
   ],
+  Sikhism: [
+    "In the company of the holy, ego is eliminated. — Guru Granth Sahib",
+    "One who serves others is truly a great person. — Guru Granth Sahib",
+    "The mind is won by obeying His command. — Guru Granth Sahib",
+    "Speak only that which will bring you honor. — Guru Granth Sahib",
+    "Whatever God does, accept that with pleasure. — Guru Granth Sahib",
+  ],
 };
 
 interface MentalPrepSettings {
   showTradingQuote: boolean;
   showGeneralQuote: boolean;
-  quoteSources: string[]; // NEW: Selected quote sources (movies, books, anime, etc.)
+  quoteSources: string[];
   showAffirmation: boolean;
   showBreathing: boolean;
   showReligious: boolean;
-  selectedReligion: string; // kept for backwards compat
-  selectedReligions: string[]; // multi-select
+  selectedReligion: string;
+  selectedReligions: string[];
   requireBeforeTrade: boolean;
 }
 
@@ -183,10 +190,20 @@ const getMentalPrepCooldownRemaining = (userId: string): string | null => {
   return `${h}h ${m}m`;
 };
 
+// Build a quote for every religion in the list
+const buildReligiousQuotes = (religions: string[]): Record<string, string> => {
+  const quotes: Record<string, string> = {};
+  religions.forEach(religion => {
+    const texts = RELIGIOUS_TEXTS[religion] || [];
+    if (texts.length > 0) quotes[religion] = texts[Math.floor(Math.random() * texts.length)];
+  });
+  return quotes;
+};
+
 export function MentalPreparation({ onComplete, isPreTrade = false }: { onComplete?: () => void; isPreTrade?: boolean }) {
-  const [settings, setSettings] = useState<MentalPrepSettings>(() => {
+  const getInitialSettings = (): MentalPrepSettings => {
     const saved = storage.getMentalPrepSettings();
-    const defaultSettings = {
+    const defaults: MentalPrepSettings = {
       showTradingQuote: true,
       showGeneralQuote: true,
       quoteSources: ['movies', 'books', 'anime', 'philosophy', 'sports'],
@@ -197,18 +214,20 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
       selectedReligions: ['Islam'],
       requireBeforeTrade: false,
     };
+    if (!saved) return defaults;
+    return {
+      ...defaults,
+      ...saved,
+      quoteSources: saved.quoteSources || defaults.quoteSources,
+      selectedReligions: Array.isArray(saved.selectedReligions) && saved.selectedReligions.length > 0
+        ? saved.selectedReligions
+        : saved.selectedReligion
+          ? [saved.selectedReligion]
+          : defaults.selectedReligions,
+    };
+  };
 
-    if (saved) {
-      return {
-        ...defaultSettings,
-        ...saved,
-        quoteSources: saved.quoteSources || defaultSettings.quoteSources,
-        selectedReligions: saved.selectedReligions || (saved.selectedReligion ? [saved.selectedReligion] : ['Islam']),
-      };
-    }
-
-    return defaultSettings;
-  });
+  const [settings, setSettings] = useState<MentalPrepSettings>(getInitialSettings);
 
   const [affirmations, setAffirmations] = useState<string[]>(() => storage.getAffirmations());
   const [enabledAffirmations, setEnabledAffirmations] = useState<Set<number>>(() => {
@@ -242,12 +261,21 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
           }
           // Sync mental prep settings
           if (data.mental_prep_settings) {
-            const newSettings = { ...settings, ...data.mental_prep_settings,
-              quoteSources: data.mental_prep_settings.quoteSources || settings.quoteSources,
-              selectedReligions: data.mental_prep_settings.selectedReligions || settings.selectedReligions,
+            const remote = data.mental_prep_settings;
+            const newSettings: MentalPrepSettings = {
+              ...getInitialSettings(),
+              ...remote,
+              quoteSources: remote.quoteSources || getInitialSettings().quoteSources,
+              selectedReligions: Array.isArray(remote.selectedReligions) && remote.selectedReligions.length > 0
+                ? remote.selectedReligions
+                : remote.selectedReligion
+                  ? [remote.selectedReligion]
+                  : ['Islam'],
             };
             setSettings(newSettings);
             storage.saveMentalPrepSettings(newSettings);
+            // FIX: Rebuild quotes for ALL religions from remote settings
+            setReligiousQuotes(buildReligiousQuotes(newSettings.selectedReligions));
           }
         }
       } catch (err) {
@@ -256,22 +284,20 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     };
     loadFromSupabase();
   }, []);
+
   const [newAffirmation, setNewAffirmation] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
   const [showSettings, setShowSettings] = useState(false);
 
-  // FIX: Completion state — shows "Preparation Complete. +5 Discipline Points Earned."
   const [completed, setCompleted] = useState(false);
   const [pointsAwarded, setPointsAwarded] = useState(0);
 
-  // FIX: Cooldown state
   const [onCooldown, setOnCooldown] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
 
   const currentUser = storage.getCurrentUser();
 
-  // Check cooldown on mount and update every minute
   useEffect(() => {
     if (!currentUser) return;
     const update = () => {
@@ -299,18 +325,14 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
   const [generalQuote, setGeneralQuote] = useState(() => {
     const saved = storage.getMentalPrepSettings();
     const quoteSources = saved?.quoteSources || ['movies', 'books', 'anime', 'philosophy', 'sports'];
-    const enabledQuotes = quoteSources.flatMap(source => CATEGORIZED_QUOTES[source as keyof typeof CATEGORIZED_QUOTES] || []);
+    const enabledQuotes = quoteSources.flatMap((source: string) => CATEGORIZED_QUOTES[source as keyof typeof CATEGORIZED_QUOTES] || []);
     return enabledQuotes.length > 0 ? enabledQuotes[Math.floor(Math.random() * enabledQuotes.length)] : '';
   });
-  const [religiousQuotes, setReligiousQuotes] = useState<Record<string, string>>(() => {
-    const quotes: Record<string, string> = {};
-    const religions = settings.selectedReligions || [settings.selectedReligion];
-    religions.forEach(religion => {
-      const texts = RELIGIOUS_TEXTS[religion as keyof typeof RELIGIOUS_TEXTS] || [];
-      if (texts.length > 0) quotes[religion] = texts[Math.floor(Math.random() * texts.length)];
-    });
-    return quotes;
-  });
+
+  // FIX: Initialize quotes for ALL selected religions at mount time
+  const [religiousQuotes, setReligiousQuotes] = useState<Record<string, string>>(() =>
+    buildReligiousQuotes(getInitialSettings().selectedReligions)
+  );
 
   const regenTradingQuote = () => {
     const others = TRADING_QUOTES.filter(q => q !== tradingQuote);
@@ -325,7 +347,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
   };
 
   const regenReligiousQuote = (religion: string) => {
-    const texts = RELIGIOUS_TEXTS[religion as keyof typeof RELIGIOUS_TEXTS] || [];
+    const texts = RELIGIOUS_TEXTS[religion] || [];
     const current = religiousQuotes[religion] || '';
     const others = texts.filter(t => t !== current);
     if (others.length > 0) {
@@ -338,23 +360,20 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     const updated = current.includes(religion)
       ? current.filter(r => r !== religion)
       : [...current, religion];
-    if (updated.length === 0) return; // must keep at least one
+    if (updated.length === 0) return;
     updateSettings({ selectedReligions: updated, selectedReligion: updated[0] });
-    // Init quote for newly added religion
+    // FIX: Init quote for newly added religion immediately
     if (!current.includes(religion)) {
-      const texts = RELIGIOUS_TEXTS[religion as keyof typeof RELIGIOUS_TEXTS] || [];
+      const texts = RELIGIOUS_TEXTS[religion] || [];
       if (texts.length > 0) {
         setReligiousQuotes(prev => ({ ...prev, [religion]: texts[Math.floor(Math.random() * texts.length)] }));
       }
     }
   };
 
-  // Show only enabled affirmations
   const displayAffirmations = affirmations.length > 0
     ? affirmations.filter((_, i) => enabledAffirmations.has(i))
     : [DEFAULT_AFFIRMATIONS[Math.floor(Math.random() * DEFAULT_AFFIRMATIONS.length)]];
-
-
 
   const updateSettings = (updates: Partial<MentalPrepSettings>) => {
     const newSettings = { ...settings, ...updates };
@@ -373,8 +392,7 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     if (!newAffirmation.trim()) return;
     const updated = [...affirmations, newAffirmation.trim()];
     setAffirmations(updated);
-    storage.saveAffirmations(updated); // saves to localStorage + Supabase
-    // Enable new affirmation by default
+    storage.saveAffirmations(updated);
     const updatedEnabled = new Set(enabledAffirmations);
     updatedEnabled.add(updated.length - 1);
     setEnabledAffirmations(updatedEnabled);
@@ -441,27 +459,23 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
     return () => clearInterval(interval);
   }, [breathingActive, breathingPhase]);
 
-  // FIX: Complete with 5-hour cooldown + visual confirmation state
   const handleComplete = () => {
     storage.trackMentalPrepCompletion(true);
 
     const user = storage.getCurrentUser();
     let awarded = 0;
 
-    // FIX: Only award points if NOT on cooldown
     if (user && !isMentalPrepOnCooldown(user.id)) {
       awarded = 5;
       storage.updateCurrentUser({
         totalPoints: (user.totalPoints || 0) + 5,
       });
-      // FIX: Store cooldown timestamp (5 hours)
       localStorage.setItem(getMentalPrepCooldownKey(user.id), Date.now().toString());
     }
 
     setPointsAwarded(awarded);
     setCompleted(true);
 
-    // Update cooldown state immediately so the button switches right away
     setOnCooldown(true);
     setCooldownRemaining(getMentalPrepCooldownRemaining(user?.id || '') || '5h 0m');
 
@@ -472,13 +486,11 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
 
   const handleSkip = () => {
     storage.trackMentalPrepCompletion(false);
-
     if (onComplete) {
       onComplete();
     }
   };
 
-  // FIX: Show confirmation screen after completion — with back button and live cooldown
   if (completed) {
     return (
       <div className="container mx-auto px-4 py-6 max-w-3xl">
@@ -808,7 +820,6 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
         </p>
       </div>
 
-      {/* FIX: Show cooldown info */}
       {onCooldown && !isPreTrade && (
         <Alert className="mb-6 bg-muted border-muted-foreground/20">
           <AlertDescription className="text-sm">
@@ -928,35 +939,40 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
           </motion.div>
         )}
 
-        {/* Religious Reading */}
-        {settings.showReligious && Object.keys(religiousQuotes).length > 0 && (
-          <>
-            {(settings.selectedReligions || [settings.selectedReligion]).map((religion, idx) => {
-              const quote = religiousQuotes[religion];
-              if (!quote) return null;
-              return (
-                <motion.div key={religion} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.3 + idx * 0.1 }}>
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <Book className="w-5 h-5 text-amber-500" />
-                          {RELIGION_TO_BOOK[religion] || religion} Reading
-                        </CardTitle>
-                        <Button size="sm" variant="ghost" onClick={() => regenReligiousQuote(religion)} className="text-xs text-muted-foreground">
-                          🔄 New Verse
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-base leading-relaxed">{quote}</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </>
-        )}
+        {/* FIX: Religious Reading — render a card for EVERY selected religion */}
+        {settings.showReligious && settings.selectedReligions.map((religion, idx) => {
+          // FIX: If quote not yet loaded for this religion, generate one on the fly
+          const quote = religiousQuotes[religion] || (() => {
+            const texts = RELIGIOUS_TEXTS[religion] || [];
+            if (texts.length === 0) return null;
+            const q = texts[Math.floor(Math.random() * texts.length)];
+            setReligiousQuotes(prev => ({ ...prev, [religion]: q }));
+            return q;
+          })();
+
+          if (!quote) return null;
+
+          return (
+            <motion.div key={religion} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.3 + idx * 0.1 }}>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Book className="w-5 h-5 text-amber-500" />
+                      {RELIGION_TO_BOOK[religion] || religion} Reading
+                    </CardTitle>
+                    <Button size="sm" variant="ghost" onClick={() => regenReligiousQuote(religion)} className="text-xs text-muted-foreground">
+                      🔄 New Verse
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-base leading-relaxed">{quote}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
 
         {/* Breathing Exercise */}
         {settings.showBreathing && (
@@ -1014,7 +1030,6 @@ export function MentalPreparation({ onComplete, isPreTrade = false }: { onComple
               </Button>
             </>
           ) : onCooldown ? (
-            // Cooldown active — show timer, no button
             <div className="w-full flex flex-col items-center gap-2 p-4 rounded-xl bg-muted border">
               <p className="text-sm font-semibold text-muted-foreground">⏳ Cooldown active</p>
               <p className="text-lg font-bold">Available in {cooldownRemaining}</p>
