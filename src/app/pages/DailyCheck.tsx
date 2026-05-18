@@ -10,11 +10,9 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { storage } from '../utils/storage';
 
-// FIX 4: 6 hours instead of 5
 const COOLDOWN_HOURS = 6;
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
-// Daily Check-In Component
 const DEFAULT_FORFEITS = [
   '100 pushups (any sets)',
   '50 burpees',
@@ -38,7 +36,6 @@ const DEFAULT_FORFEITS = [
 ];
 
 const INVESTOR_FORFEITS = [
-  // Physical
   '100 pushups (any sets)',
   '50 burpees',
   '3-mile run',
@@ -46,7 +43,6 @@ const INVESTOR_FORFEITS = [
   '5-minute plank hold (accumulated)',
   'Cold shower (minimum 2 minutes)',
   'Wake up at 5:00 AM tomorrow',
-  // Mental / Discipline
   'Do not check your portfolio for 24 hours',
   'Rewrite your investment thesis for your largest position',
   'Read your investing principles 5 times out loud',
@@ -63,36 +59,19 @@ const INVESTOR_FORFEITS = [
   'Journal about an emotional decision you almost made',
 ];
 
-// Points: random 26–30 base. Max with public post bonus = 35 (30+5)
 const getRandomDailyPoints = (): number => {
-  return Math.floor(Math.random() * 5) + 26; // 26, 27, 28, 29, or 30
+  return Math.floor(Math.random() * 5) + 26;
 };
 
 type Step = 'question' | 'clean-proof' | 'forfeit-wheel' | 'forfeit-proof' | 'summary';
 
-// ── Summary Screen Component ──────────────────────────────────────────────────
 function SummaryScreen({
-  isClean,
-  pointsEarned,
-  photoPreview,
-  note,
-  isNoTradeDay,
-  selectedForfeit,
-  onNavigate,
-  onStartNew,
-  userId,
-  submittedAt,
+  isClean, pointsEarned, photoPreview, note, isNoTradeDay, selectedForfeit,
+  onNavigate, onStartNew, userId, submittedAt,
 }: {
-  isClean: boolean;
-  pointsEarned: number;
-  photoPreview: string;
-  note: string;
-  isNoTradeDay: boolean;
-  selectedForfeit: string;
-  onNavigate: () => void;
-  onStartNew: () => void;
-  userId?: string;
-  submittedAt?: number;
+  isClean: boolean; pointsEarned: number; photoPreview: string; note: string;
+  isNoTradeDay: boolean; selectedForfeit: string; onNavigate: () => void;
+  onStartNew: () => void; userId?: string; submittedAt?: number;
 }) {
   const [countdown, setCountdown] = useState<string>('');
   const [available, setAvailable] = useState(false);
@@ -101,7 +80,6 @@ function SummaryScreen({
     const update = () => {
       if (!userId) return;
       const lastRaw = localStorage.getItem(`daily_check_last_${userId}`);
-      // FIX 4: Use submittedAt so clock starts exactly when user posts
       const lastMs = submittedAt || (lastRaw ? parseInt(lastRaw) : null);
       if (!lastMs) { setAvailable(true); setCountdown('Available now'); return; }
       const elapsed = Date.now() - lastMs;
@@ -121,24 +99,17 @@ function SummaryScreen({
 
   return (
     <div className="space-y-4">
-      {/* Header Card */}
       <Card className="border-2 border-green-500/30 bg-gradient-to-br from-green-500/5 to-transparent">
         <CardContent className="pt-6 pb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase mb-1">Daily Check Logged</p>
-              <h2 className="text-2xl font-bold">
-                {isClean ? '✓ Clean Day' : '⚡ Forfeit Day'}
-              </h2>
+              <h2 className="text-2xl font-bold">{isClean ? '✓ Clean Day' : '⚡ Forfeit Day'}</h2>
             </div>
             <div className={`w-14 h-14 rounded-full flex items-center justify-center ${isClean ? 'bg-green-500/10' : 'bg-orange-500/10'}`}>
-              {isClean
-                ? <CheckCircle className="w-8 h-8 text-green-500" />
-                : <XCircle className="w-8 h-8 text-orange-500" />
-              }
+              {isClean ? <CheckCircle className="w-8 h-8 text-green-500" /> : <XCircle className="w-8 h-8 text-orange-500" />}
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 rounded-lg bg-background border">
               <p className="text-xs text-muted-foreground mb-1">Points Earned</p>
@@ -155,11 +126,9 @@ function SummaryScreen({
         </CardContent>
       </Card>
 
-      {/* What was logged */}
       <Card>
         <CardContent className="pt-4 space-y-3">
           <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">What You Logged</p>
-
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isClean ? 'bg-green-500/20' : 'bg-orange-500/20'}`}>
               {isClean ? <CheckCircle className="w-4 h-4 text-green-600" /> : <XCircle className="w-4 h-4 text-orange-600" />}
@@ -169,14 +138,12 @@ function SummaryScreen({
               {selectedForfeit && <p className="text-xs text-muted-foreground">Forfeit: {selectedForfeit}</p>}
             </div>
           </div>
-
           {note && (
             <div className="p-3 rounded-lg bg-muted">
               <p className="text-xs text-muted-foreground mb-1">Your Note</p>
               <p className="text-sm leading-relaxed">{note}</p>
             </div>
           )}
-
           {photoPreview && (
             <div className="rounded-lg overflow-hidden">
               <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -190,9 +157,7 @@ function SummaryScreen({
 
       {available ? (
         <div className="space-y-2">
-          <Button onClick={onStartNew} className="w-full h-12 text-base font-semibold">
-            Start New Daily Check
-          </Button>
+          <Button onClick={onStartNew} className="w-full h-12 text-base font-semibold">Start New Daily Check</Button>
           <Button onClick={onNavigate} variant="outline" className="w-full">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
           </Button>
@@ -220,9 +185,7 @@ export function DailyCheck() {
   const [respinsUsed, setRespinsUsed] = useState(0);
   const [isNoTradeDay, setIsNoTradeDay] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
-  // FIX 4: Track exact submission timestamp
   const [submittedAt, setSubmittedAt] = useState<number | undefined>(undefined);
-  // FIX 1: Drag state for both upload zones
   const [isDraggingClean, setIsDraggingClean] = useState(false);
   const [isDraggingForfeit, setIsDraggingForfeit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -247,32 +210,20 @@ export function DailyCheck() {
   useEffect(() => {
     const todayLog = storage.getTodayLog();
     const cooldown = getCooldownRemaining();
-
     if (todayLog) {
       setPointsEarned(todayLog.pointsEarned ?? 0);
       setIsClean(todayLog.isClean ?? true);
       setNote(todayLog.note || '');
       setPhotoPreview(todayLog.photoUrl || '');
       setSelectedForfeit(todayLog.forfeitCompleted || '');
-      setIsNoTradeDay(!!todayLog.isNoTradeDay);
-      // FIX 2: Only show summary if cooldown is still active
+      setIsNoTradeDay(!!(todayLog as any).isNoTradeDay);
       if (cooldown) setStep('summary');
     }
-
     setCooldownRemaining(cooldown);
-    const interval = setInterval(() => {
-      const remaining = getCooldownRemaining();
-      setCooldownRemaining(remaining);
-      // FIX 2: Removed the kick-to-question line that was causing summary to revert
-    }, 30000);
-
-    // FIX 2: Removed visibilitychange handler that was resetting state
-    return () => {
-      clearInterval(interval);
-    };
+    const interval = setInterval(() => setCooldownRemaining(getCooldownRemaining()), 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  // FIX 1: Shared photo file handler for both click and drag
   const handlePhotoFile = (file: File) => {
     setPhotoFile(file);
     const reader = new FileReader();
@@ -286,17 +237,13 @@ export function DailyCheck() {
   };
 
   const handleAnswer = (clean: boolean) => {
-    // Hard backend block — check cooldown before allowing any submission path
     if (storage.isDailyCheckLocked()) {
       setCooldownRemaining(storage.getDailyCheckCooldown());
       return;
     }
     setIsClean(clean);
-    if (clean) {
-      setStep('clean-proof');
-    } else {
-      setStep('forfeit-wheel');
-    }
+    if (clean) setStep('clean-proof');
+    else setStep('forfeit-wheel');
   };
 
   const spinWheel = () => {
@@ -310,55 +257,31 @@ export function DailyCheck() {
     }, 2000);
   };
 
-  const handleRespin = () => {
-    setRespinsUsed(respinsUsed + 1);
-    setSelectedForfeit('');
-  };
+  const handleRespin = () => { setRespinsUsed(respinsUsed + 1); setSelectedForfeit(''); };
 
-  const acceptForfeit = () => {
-    setStep('forfeit-proof');
-    setPhotoPreview('');
-    setNote('');
-  };
+  const acceptForfeit = () => { setStep('forfeit-proof'); setPhotoPreview(''); setNote(''); };
 
   const submitCleanDay = async () => {
     if (storage.isDailyCheckLocked()) return;
-
-    // Points 26-30
     let points = getRandomDailyPoints();
-
-    // Apply double XP if active (Premium feature)
-    if (storage.isDoubleXPActive()) {
-      points = points * 2;
-    }
-
-    // FIX: +5 points for posting publicly
+    if (storage.isDoubleXPActive()) points = points * 2;
     if (createPost) points += 5;
-
     const user = storage.getCurrentUser();
     if (!user) return;
 
-    const dayLog = storage.addDayLog({
-      userId: user.id,
-      date: new Date().toISOString().split('T')[0],
-      isClean: true,
-      photoUrl: photoPreview,
-      note,
-      pointsEarned: points,
-      posted: createPost,
+    storage.addDayLog({
+      userId: user.id, date: new Date().toISOString().split('T')[0],
+      isClean: true, photoUrl: photoPreview, note, pointsEarned: points, posted: createPost,
     });
 
-    // Post appears in social feed when createPost is true
     if (createPost) {
-      // Compress image before posting to save storage
       let postPhoto = photoPreview;
       if (photoPreview && photoPreview.startsWith('data:image')) {
         try {
           const canvas = document.createElement('canvas');
           const img = new Image();
           await new Promise<void>(resolve => { img.onload = () => resolve(); img.src = photoPreview; });
-          const maxW = 800;
-          let w = img.width, h = img.height;
+          const maxW = 800; let w = img.width, h = img.height;
           if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
           canvas.width = w; canvas.height = h;
           canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
@@ -366,70 +289,47 @@ export function DailyCheck() {
         } catch { postPhoto = ''; }
       }
       storage.addPost({
-        userId: user.id,
-        username: user.username,
-        avatarUrl: '',
-        league: `${user.totalPoints}`,
-        isVerified: user.isVerified || false,
-        type: 'clean',
-        photoUrl: postPhoto,
-        images: postPhoto ? [postPhoto] : [],
-        caption: note,
+        userId: user.id, username: user.username, avatarUrl: '',
+        league: `${user.totalPoints}`, isVerified: user.isVerified || false,
+        type: 'clean', photoUrl: postPhoto, images: postPhoto ? [postPhoto] : [], caption: note,
       });
     }
 
-    // FIX 4: Store exact timestamp and pass to summary
     const now = Date.now();
     localStorage.setItem(`daily_check_last_${user.id}`, now.toString());
-    setSubmittedAt(now);
-    setPointsEarned(points);
-    setStep('summary');
+    setSubmittedAt(now); setPointsEarned(points); setStep('summary');
   };
 
   const submitForfeit = async () => {
     if (storage.isDailyCheckLocked()) return;
-
     let points = getRandomDailyPoints();
     if (storage.isDoubleXPActive()) points = points * 2;
     if (createPost) points += 5;
-
     const user = storage.getCurrentUser();
     if (!user) return;
 
     const savedStreak = user.currentStreak;
     let streakProtected = false;
 
-    const wouldBreakStreak = user.currentStreak > 0;
-    if (wouldBreakStreak && user.isPremium && (user.streakSavers || 0) > 0) {
-      const useStreakSaver = confirm(
-        `🛡️ STREAK SAVER AVAILABLE!\n\n` +
-        `Your ${user.currentStreak}-day streak is about to break!\n\n` +
-        `You have ${user.streakSavers} Streak Saver${(user.streakSavers || 0) > 1 ? 's' : ''} remaining.\n\n` +
-        `Use one now to protect your streak?`
+    if (user.currentStreak > 0 && user.isPremium && (user.streakSavers || 0) > 0) {
+      const useIt = confirm(
+        `🛡️ STREAK SAVER AVAILABLE!\n\nYour ${user.currentStreak}-day streak is about to break!\n\n` +
+        `You have ${user.streakSavers} Streak Saver${(user.streakSavers || 0) > 1 ? 's' : ''} remaining.\n\nUse one now to protect your streak?`
       );
-      if (useStreakSaver) {
+      if (useIt) {
         streakProtected = storage.useStreakSaver();
-        if (streakProtected) {
-          alert(`✅ Streak Saver used! Your ${savedStreak}-day streak is protected!`);
-        }
+        if (streakProtected) alert(`✅ Streak Saver used! Your ${savedStreak}-day streak is protected!`);
       }
     }
 
     storage.addDayLog({
-      userId: user.id,
-      date: new Date().toISOString().split('T')[0],
-      isClean: false,
-      photoUrl: photoPreview,
-      note,
-      forfeitCompleted: selectedForfeit,
-      pointsEarned: points,
-      posted: createPost,
+      userId: user.id, date: new Date().toISOString().split('T')[0],
+      isClean: false, photoUrl: photoPreview, note,
+      forfeitCompleted: selectedForfeit, pointsEarned: points, posted: createPost,
     });
 
     // Restore streak AFTER addDayLog resets it to 0
-    if (streakProtected) {
-      storage.updateCurrentUser({ currentStreak: savedStreak });
-    }
+    if (streakProtected) storage.updateCurrentUser({ currentStreak: savedStreak });
 
     if (createPost) {
       let postPhoto = photoPreview;
@@ -438,8 +338,7 @@ export function DailyCheck() {
           const canvas = document.createElement('canvas');
           const img = new Image();
           await new Promise<void>(resolve => { img.onload = () => resolve(); img.src = photoPreview; });
-          const maxW = 800;
-          let w = img.width, h = img.height;
+          const maxW = 800; let w = img.width, h = img.height;
           if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
           canvas.width = w; canvas.height = h;
           canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
@@ -447,88 +346,23 @@ export function DailyCheck() {
         } catch { postPhoto = ''; }
       }
       storage.addPost({
-        userId: user.id,
-        username: user.username,
-        avatarUrl: '',
-        league: `${user.totalPoints}`,
-        isVerified: user.isVerified || false,
-        type: 'forfeit',
-        photoUrl: postPhoto,
-        images: postPhoto ? [postPhoto] : [],
+        userId: user.id, username: user.username, avatarUrl: '',
+        league: `${user.totalPoints}`, isVerified: user.isVerified || false,
+        type: 'forfeit', photoUrl: postPhoto, images: postPhoto ? [postPhoto] : [],
         caption: `${note}${note ? ' — ' : ''}Forfeit completed: ${selectedForfeit}`,
       });
     }
 
     const now = Date.now();
     localStorage.setItem(`daily_check_last_${user.id}`, now.toString());
-    setSubmittedAt(now);
-    setPointsEarned(points);
-    setStep('summary');
+    setSubmittedAt(now); setPointsEarned(points); setStep('summary');
   };
 
-      if (useStreakSaver) {
-        if (storage.useStreakSaver()) {
-          alert(`✅ Streak Saver used! Your ${user.currentStreak}-day streak is protected!`);
-        }
-      }
-    }
-
-    storage.addDayLog({
-      userId: user.id,
-      date: new Date().toISOString().split('T')[0],
-      isClean: false,
-      photoUrl: photoPreview,
-      note,
-      forfeitCompleted: selectedForfeit,
-      pointsEarned: points,
-      posted: createPost,
-    });
-
-    // Post appears in social feed when createPost is true
-    if (createPost) {
-      let postPhoto = photoPreview;
-      if (photoPreview && photoPreview.startsWith('data:image')) {
-        try {
-          const canvas = document.createElement('canvas');
-          const img = new Image();
-          await new Promise<void>(resolve => { img.onload = () => resolve(); img.src = photoPreview; });
-          const maxW = 800;
-          let w = img.width, h = img.height;
-          if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
-          postPhoto = canvas.toDataURL('image/jpeg', 0.6);
-        } catch { postPhoto = ''; }
-      }
-      storage.addPost({
-        userId: user.id,
-        username: user.username,
-        avatarUrl: '',
-        league: `${user.totalPoints}`,
-        isVerified: user.isVerified || false,
-        type: 'forfeit',
-        photoUrl: postPhoto,
-        images: postPhoto ? [postPhoto] : [],
-        caption: `${note}${note ? ' — ' : ''}Forfeit completed: ${selectedForfeit}`,
-      });
-    }
-
-    // FIX 4: Store exact timestamp and pass to summary
-    const now = Date.now();
-    localStorage.setItem(`daily_check_last_${user.id}`, now.toString());
-    setSubmittedAt(now);
-    setPointsEarned(points);
-    setStep('summary');
-  };
-
-  // Photo is recommended but not required for any day type
   const canSubmitCleanDay = note.length >= 20;
-  // FIX 3: Forfeit photo is optional — only note required
   const canSubmitForfeit = note.length >= 20;
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
-      {/* Double XP Banner */}
       {storage.isDoubleXPActive() && (
         <Card className="mb-6 bg-gradient-to-r from-orange-500 to-red-500 text-white border-0">
           <CardContent className="py-4">
@@ -537,14 +371,11 @@ export function DailyCheck() {
               <p className="font-bold text-lg">DOUBLE XP ACTIVE TODAY!</p>
               <Zap className="w-6 h-6" />
             </div>
-            <p className="text-center text-sm text-white/90 mt-1">
-              You'll earn 2x points on your Daily Check-In
-            </p>
+            <p className="text-center text-sm text-white/90 mt-1">You'll earn 2x points on your Daily Check-In</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Cooldown Banner */}
       {cooldownRemaining && step === 'question' && (
         <Card className="mb-6 bg-muted border-muted-foreground/20">
           <CardContent className="py-4">
@@ -563,31 +394,16 @@ export function DailyCheck() {
           <CardHeader>
             <CardTitle className="text-2xl">Daily Check-In</CardTitle>
             <CardDescription>
-              {isLongTermHold
-                ? 'Did you follow your investing rules today?'
-                : 'Did you follow all of your rules today?'}
+              {isLongTermHold ? 'Did you follow your investing rules today?' : 'Did you follow all of your rules today?'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              onClick={() => handleAnswer(true)}
-              className="w-full h-20 text-lg bg-green-600 hover:bg-green-700"
-              disabled={!!cooldownRemaining}
-            >
-              <CheckCircle className="w-6 h-6 mr-2" />
-              Yes, I followed my rules
+            <Button onClick={() => handleAnswer(true)} className="w-full h-20 text-lg bg-green-600 hover:bg-green-700" disabled={!!cooldownRemaining}>
+              <CheckCircle className="w-6 h-6 mr-2" /> Yes, I followed my rules
             </Button>
-
-            <Button
-              onClick={() => handleAnswer(false)}
-              variant="destructive"
-              className="w-full h-20 text-lg"
-              disabled={!!cooldownRemaining}
-            >
-              <XCircle className="w-6 h-6 mr-2" />
-              No, I broke at least one rule
+            <Button onClick={() => handleAnswer(false)} variant="destructive" className="w-full h-20 text-lg" disabled={!!cooldownRemaining}>
+              <XCircle className="w-6 h-6 mr-2" /> No, I broke at least one rule
             </Button>
-
             {cooldownRemaining && (
               <p className="text-center text-sm text-muted-foreground pt-2">
                 🔒 Locked — come back in <span className="font-bold text-foreground">{cooldownRemaining}</span>
@@ -600,154 +416,76 @@ export function DailyCheck() {
       {step === 'clean-proof' && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">
-              {isLongTermHold ? 'Decision Evidence (Optional)' : 'Clean Day Proof'}
-            </CardTitle>
+            <CardTitle className="text-2xl">{isLongTermHold ? 'Decision Evidence (Optional)' : 'Clean Day Proof'}</CardTitle>
             <CardDescription>
-              {isLongTermHold
-                ? 'Add anything related to your investing discipline today.'
-                : 'Upload proof to earn your points'
-              }
+              {isLongTermHold ? 'Add anything related to your investing discipline today.' : 'Upload proof to earn your points'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* No Trade Day checkbox */}
             <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg">
-              <Checkbox
-                id="no-trades"
-                checked={isNoTradeDay}
-                onCheckedChange={(checked) => setIsNoTradeDay(checked as boolean)}
-              />
+              <Checkbox id="no-trades" checked={isNoTradeDay} onCheckedChange={(checked) => setIsNoTradeDay(checked as boolean)} />
               <div className="space-y-1">
-                <label
-                  htmlFor="no-trades"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
+                <label htmlFor="no-trades" className="text-sm font-medium leading-none">
                   {isLongTermHold ? 'No investing activity today' : 'No Trade Day'}
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  {isLongTermHold
-                    ? 'Check this if you made no changes to your portfolio today'
-                    : 'Check this if you did not execute any trades today — image upload becomes optional'
-                  }
+                  {isLongTermHold ? 'Check this if you made no changes to your portfolio today' : 'Check this if you did not execute any trades today — image upload becomes optional'}
                 </p>
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>
-                {isNoTradeDay
-                  ? 'Upload proof photo (Optional for No Trade Day)'
-                  : isLongTermHold
-                    ? 'Upload screenshot or add note (Optional)'
-                    : 'Upload proof photo or screenshot of trade (Recommended)'
-                }
+                {isNoTradeDay ? 'Upload proof photo (Optional for No Trade Day)' : isLongTermHold ? 'Upload screenshot or add note (Optional)' : 'Upload proof photo or screenshot of trade (Recommended)'}
               </Label>
-              <p className="text-xs text-muted-foreground">
-                You can upload: • Trade proof &nbsp;• Discipline proof &nbsp;• Rule break / forfeit proof
-              </p>
+              <p className="text-xs text-muted-foreground">You can upload: • Trade proof &nbsp;• Discipline proof &nbsp;• Rule break / forfeit proof</p>
               {isLongTermHold && !isNoTradeDay && (
-                <p className="text-xs text-muted-foreground mb-2">
-                  Examples: Portfolio screenshot, research notes, position update, broker screenshot, or short discipline note.
-                </p>
+                <p className="text-xs text-muted-foreground mb-2">Examples: Portfolio screenshot, research notes, position update, broker screenshot, or short discipline note.</p>
               )}
-              {/* FIX 1: Drag & drop upload zone */}
               <div
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isDraggingClean ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
                 onClick={() => { if (!photoPreview) fileInputRef.current?.click(); }}
                 onDragOver={(e) => { e.preventDefault(); setIsDraggingClean(true); }}
                 onDragLeave={(e) => { e.preventDefault(); setIsDraggingClean(false); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDraggingClean(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file && file.type.startsWith('image/')) handlePhotoFile(file);
-                }}
+                onDrop={(e) => { e.preventDefault(); setIsDraggingClean(false); const file = e.dataTransfer.files?.[0]; if (file && file.type.startsWith('image/')) handlePhotoFile(file); }}
               >
                 {photoPreview ? (
                   <div className="relative inline-block">
                     <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded" />
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setPhotoPreview(''); setPhotoFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                      className="absolute top-1 right-1 w-7 h-7 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center transition-colors"
-                    >
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setPhotoPreview(''); setPhotoFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="absolute top-1 right-1 w-7 h-7 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center transition-colors">
                       <XCircle className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-2 pointer-events-none">
                     <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      {isNoTradeDay ? 'Click or drag & drop to upload (optional)' : 'Click or drag & drop to upload'}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{isNoTradeDay ? 'Click or drag & drop to upload (optional)' : 'Click or drag & drop to upload'}</p>
                     <p className="text-xs text-muted-foreground">PNG, JPG, JPEG supported</p>
                   </div>
                 )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="hidden"
-                />
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="note">
-                {isLongTermHold ? 'Discipline Note (Required, min 20 characters)' : 'Note (Required, min 20 characters)'}
-              </Label>
-              {isLongTermHold && (
-                <p className="text-xs text-muted-foreground mb-2">
-                  Example: "I wanted to sell during the drop but stayed patient."
-                </p>
-              )}
-              <Textarea
-                id="note"
-                placeholder={isLongTermHold
-                  ? 'Any thoughts about your investing discipline today...'
-                  : 'Any notes about today...'
-                }
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={3}
-              />
-              {note.length > 0 && note.length < 20 && (
-                <p className="text-xs text-red-500">
-                  {20 - note.length} more characters needed
-                </p>
-              )}
+              <Label htmlFor="note">{isLongTermHold ? 'Discipline Note (Required, min 20 characters)' : 'Note (Required, min 20 characters)'}</Label>
+              {isLongTermHold && <p className="text-xs text-muted-foreground mb-2">Example: "I wanted to sell during the drop but stayed patient."</p>}
+              <Textarea id="note" placeholder={isLongTermHold ? 'Any thoughts about your investing discipline today...' : 'Any notes about today...'} value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
+              {note.length > 0 && note.length < 20 && <p className="text-xs text-red-500">{20 - note.length} more characters needed</p>}
             </div>
 
             <div className="space-y-3 p-4 bg-muted rounded-lg">
               <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="post"
-                  checked={createPost}
-                  onCheckedChange={(checked) => setCreatePost(checked as boolean)}
-                />
-                <label htmlFor="post" className="text-sm font-medium">
-                  Post publicly (+5 points)
-                </label>
+                <Checkbox id="post" checked={createPost} onCheckedChange={(checked) => setCreatePost(checked as boolean)} />
+                <label htmlFor="post" className="text-sm font-medium">Post publicly (+5 points)</label>
               </div>
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep('question')} className="flex-1">
-                Back
-              </Button>
+              <Button variant="outline" onClick={() => setStep('question')} className="flex-1">Back</Button>
               <div className="flex-1 flex flex-col gap-1">
-                <Button
-                  onClick={submitCleanDay}
-                  disabled={!canSubmitCleanDay}
-                  className="w-full h-12 text-base font-semibold"
-                >
-                  Complete Daily Check
-                </Button>
-                <p className="text-xs text-center text-muted-foreground">
-                  Earn {26}–{30 + (createPost ? 5 : 0)} points
-                </p>
+                <Button onClick={submitCleanDay} disabled={!canSubmitCleanDay} className="w-full h-12 text-base font-semibold">Complete Daily Check</Button>
+                <p className="text-xs text-center text-muted-foreground">Earn {26}–{30 + (createPost ? 5 : 0)} points</p>
               </div>
             </div>
           </CardContent>
@@ -769,32 +507,17 @@ export function DailyCheck() {
                     <p className="font-semibold text-lg">{selectedForfeit}</p>
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center p-8">
-                    Click the button below to spin
-                  </p>
+                  <p className="text-muted-foreground text-center p-8">Click the button below to spin</p>
                 )}
               </div>
             </div>
-
             {!selectedForfeit ? (
-              <Button
-                onClick={spinWheel}
-                disabled={isSpinning}
-                className="w-full h-14 text-lg"
-              >
-                {isSpinning ? 'Spinning...' : 'Spin Wheel'}
-              </Button>
+              <Button onClick={spinWheel} disabled={isSpinning} className="w-full h-14 text-lg">{isSpinning ? 'Spinning...' : 'Spin Wheel'}</Button>
             ) : (
               <div className="space-y-3">
-                <Button onClick={acceptForfeit} className="w-full h-14 text-lg">
-                  Accept Forfeit
-                </Button>
+                <Button onClick={acceptForfeit} className="w-full h-14 text-lg">Accept Forfeit</Button>
                 {(isPremium || respinsUsed === 0) && (
-                  <Button
-                    onClick={handleRespin}
-                    variant="outline"
-                    className="w-full"
-                  >
+                  <Button onClick={handleRespin} variant="outline" className="w-full">
                     {isPremium ? 'Re-spin (Unlimited ∞)' : 'Re-spin (1 allowed)'}
                   </Button>
                 )}
@@ -814,29 +537,18 @@ export function DailyCheck() {
             <Badge className="text-sm">{selectedForfeit}</Badge>
 
             <div className="space-y-2">
-              {/* FIX 3: Optional label */}
               <Label>Upload proof photo <span className="text-muted-foreground font-normal">(Optional)</span></Label>
-              {/* FIX 1: Drag & drop on forfeit zone */}
               <div
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isDraggingForfeit ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
                 onClick={() => { if (!photoPreview) forfeitFileInputRef.current?.click(); }}
                 onDragOver={(e) => { e.preventDefault(); setIsDraggingForfeit(true); }}
                 onDragLeave={(e) => { e.preventDefault(); setIsDraggingForfeit(false); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDraggingForfeit(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file && file.type.startsWith('image/')) handlePhotoFile(file);
-                }}
+                onDrop={(e) => { e.preventDefault(); setIsDraggingForfeit(false); const file = e.dataTransfer.files?.[0]; if (file && file.type.startsWith('image/')) handlePhotoFile(file); }}
               >
                 {photoPreview ? (
                   <div className="relative inline-block">
                     <img src={photoPreview} alt="Preview" className="max-h-64 mx-auto rounded" />
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setPhotoPreview(''); setPhotoFile(null); if (forfeitFileInputRef.current) forfeitFileInputRef.current.value = ''; }}
-                      className="absolute top-1 right-1 w-7 h-7 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center transition-colors"
-                    >
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setPhotoPreview(''); setPhotoFile(null); if (forfeitFileInputRef.current) forfeitFileInputRef.current.value = ''; }} className="absolute top-1 right-1 w-7 h-7 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center transition-colors">
                       <XCircle className="w-4 h-4" />
                     </button>
                   </div>
@@ -847,60 +559,28 @@ export function DailyCheck() {
                     <p className="text-xs text-muted-foreground">PNG, JPG, JPEG supported</p>
                   </div>
                 )}
-                <input
-                  ref={forfeitFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="hidden"
-                />
+                <input ref={forfeitFileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>What did you learn? (Required, min 20 characters)</Label>
-              <Textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Reflect on what you learned from this experience..."
-                rows={4}
-              />
-              {note.length > 0 && note.length < 20 && (
-                <p className="text-xs text-red-500">
-                  {20 - note.length} more characters needed
-                </p>
-              )}
+              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reflect on what you learned from this experience..." rows={4} />
+              {note.length > 0 && note.length < 20 && <p className="text-xs text-red-500">{20 - note.length} more characters needed</p>}
             </div>
 
             <div className="space-y-3 p-4 bg-muted rounded-lg">
               <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="post-forfeit"
-                  checked={createPost}
-                  onCheckedChange={(checked) => setCreatePost(checked as boolean)}
-                />
-                <label htmlFor="post-forfeit" className="text-sm font-medium">
-                  Post publicly (+5 points)
-                </label>
+                <Checkbox id="post-forfeit" checked={createPost} onCheckedChange={(checked) => setCreatePost(checked as boolean)} />
+                <label htmlFor="post-forfeit" className="text-sm font-medium">Post publicly (+5 points)</label>
               </div>
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep('forfeit-wheel')} className="flex-1">
-                Back
-              </Button>
+              <Button variant="outline" onClick={() => setStep('forfeit-wheel')} className="flex-1">Back</Button>
               <div className="flex-1 flex flex-col gap-1">
-                {/* FIX 3: Removed !photoPreview — only note required now */}
-                <Button
-                  onClick={submitForfeit}
-                  disabled={!canSubmitForfeit}
-                  className="w-full h-12 text-base font-semibold"
-                >
-                  Complete Daily Check
-                </Button>
-                <p className="text-xs text-center text-muted-foreground">
-                  Earn {26}–{30 + (createPost ? 5 : 0)} points
-                </p>
+                <Button onClick={submitForfeit} disabled={!canSubmitForfeit} className="w-full h-12 text-base font-semibold">Complete Daily Check</Button>
+                <p className="text-xs text-center text-muted-foreground">Earn {26}–{30 + (createPost ? 5 : 0)} points</p>
               </div>
             </div>
           </CardContent>
@@ -909,25 +589,14 @@ export function DailyCheck() {
 
       {step === 'summary' && (
         <SummaryScreen
-          isClean={isClean}
-          pointsEarned={pointsEarned}
-          photoPreview={photoPreview}
-          note={note}
-          isNoTradeDay={isNoTradeDay}
-          selectedForfeit={selectedForfeit}
+          isClean={isClean} pointsEarned={pointsEarned} photoPreview={photoPreview}
+          note={note} isNoTradeDay={isNoTradeDay} selectedForfeit={selectedForfeit}
           submittedAt={submittedAt}
           onNavigate={() => navigate('/app')}
           onStartNew={() => {
-            // Reset all state and go back to question step
-            setStep('question');
-            setIsClean(false);
-            setNote('');
-            setPhotoPreview('');
-            setPhotoFile(null);
-            setSelectedForfeit('');
-            setIsNoTradeDay(false);
-            setPointsEarned(0);
-            setSubmittedAt(undefined);
+            setStep('question'); setIsClean(false); setNote(''); setPhotoPreview('');
+            setPhotoFile(null); setSelectedForfeit(''); setIsNoTradeDay(false);
+            setPointsEarned(0); setSubmittedAt(undefined);
           }}
           userId={user?.id}
         />
