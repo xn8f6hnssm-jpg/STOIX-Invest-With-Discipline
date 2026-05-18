@@ -154,7 +154,6 @@ export function Upgrade() {
             <Button size="lg" className="w-full" onClick={() => handleUpgrade('annual')} disabled={!!loading}>
               {loading === 'annual' ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Redirecting...</> : <><Crown className="w-5 h-5 mr-2" />Start Annual Plan</>}
             </Button>
-            <p className="text-xs text-center text-muted-foreground">30-day money-back guarantee</p>
           </CardContent>
         </Card>
       </div>
@@ -224,21 +223,6 @@ export function Upgrade() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Guarantee */}
-      <Card className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border-blue-200">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <Shield className="w-8 h-8 text-blue-600 shrink-0" />
-            <div>
-              <h3 className="font-bold text-lg mb-2">30-Day Money-Back Guarantee</h3>
-              <p className="text-muted-foreground text-sm">
-                Try Premium risk-free for 30 days. If you're not completely satisfied, we'll refund you in full, no questions asked.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
