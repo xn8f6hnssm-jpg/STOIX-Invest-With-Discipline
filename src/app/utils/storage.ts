@@ -428,8 +428,7 @@ export const storage = {
   },
 
   // ── Premium ───────────────────────────────────────────────────────────────
-  upgradeToPremium: () => storage.updateCurrentUser({ isPremium: true, premiumSince: Date.now(), streakSavers: 2, streakSaversUsed: 0, doubleXPDaysRemaining: 5, lastDoubleXPReset: Date.now() }),
-  isPremium: (): boolean => storage.getCurrentUser()?.isPremium || false,
+upgradeToPremium: () => storage.updateCurrentUser({ isPremium: true, premiumSince: Date.now(), streakSavers: 5, streakSaversUsed: 0, doubleXPDaysRemaining: 8, lastDoubleXPReset: Date.now() }),  isPremium: (): boolean => storage.getCurrentUser()?.isPremium || false,
 
   useStreakSaver: (): boolean => {
     const user = storage.getCurrentUser();
@@ -446,8 +445,7 @@ export const storage = {
     if (user.activeDoubleXPDate === today) return false;
     const now = Date.now();
     let daysRemaining = user.doubleXPDaysRemaining || 0;
-    if ((now - (user.lastDoubleXPReset || 0)) >= 30 * 86400000) { daysRemaining = 5; storage.updateCurrentUser({ doubleXPDaysRemaining: 5, lastDoubleXPReset: now }); }
-    if (daysRemaining > 0) { storage.updateCurrentUser({ doubleXPDaysRemaining: daysRemaining - 1, activeDoubleXPDate: today }); return true; }
+if ((now - (user.lastDoubleXPReset || 0)) >= 30 * 86400000) { daysRemaining = 8; storage.updateCurrentUser({ doubleXPDaysRemaining: 8, lastDoubleXPReset: now }); }    if (daysRemaining > 0) { storage.updateCurrentUser({ doubleXPDaysRemaining: daysRemaining - 1, activeDoubleXPDate: today }); return true; }
     return false;
   },
 
