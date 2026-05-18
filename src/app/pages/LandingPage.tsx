@@ -82,12 +82,13 @@ export function LandingPage() {
             {[
               { icon: '📓', title: 'AI Trading Journal', desc: 'Log every trade with custom fields and screenshots. AI finds your patterns and builds your edge.' },
               { icon: '✅', title: 'Daily Check-In', desc: 'Build discipline daily. Log clean/forfeit days, earn points, and climb the league.' },
-              { icon: '🛡️', title: 'RevengeX', desc: 'Detects revenge trading patterns. Stops you before you blow your account.' },
+              { icon: '🛡️', title: 'RevengeX', desc: 'Detects revenge trading patterns and stops you before you blow your account.' },
+              { icon: '📊', title: 'Verified Trade Journal', desc: 'Connect your broker and automatically import real trades. See your actual stats, expected value, and performance metrics — no manual entry needed.' },
               { icon: '🤖', title: 'AI Analytics', desc: 'Deep analysis of your trades, backtesting, and A+ setups to find your edge.' },
-              { icon: '🧠', title: 'Mental Preparation', desc: 'Customisable pre-session routine to get your mindset right before the market.' },
+              { icon: '🧠', title: 'Mental Preparation', desc: 'Customisable pre-session routine to get your mindset right before the market opens.' },
               { icon: '🏆', title: 'Prop Firm Success', desc: 'Customise to your prop firm rules. Track daily loss, drawdown, and consistency.' },
               { icon: '👥', title: 'Social & Community', desc: 'Follow traders, share setups, and compete on the global leaderboard.' },
-              { icon: '��', title: 'Groups & DMs', desc: 'Create paid or free trading groups. Message traders directly.' },
+              { icon: '💬', title: 'Groups & Direct Messages', desc: 'Create paid or free trading groups. Message traders directly.' },
             ].map(f => (
               <div key={f.title} className="feature-card">
                 <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
@@ -140,7 +141,16 @@ export function LandingPage() {
               <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', color: '#555', textTransform: 'uppercase', marginBottom: 12 }}>Free</p>
               <p style={{ fontFamily: 'Bebas Neue', fontSize: 48, marginBottom: 4 }}>$0</p>
               <p style={{ color: '#444', fontSize: 13, marginBottom: 20 }}>Forever free</p>
-              {['Daily check-ins & streaks', 'Basic trading journal', '3 custom fields', 'Community & leaderboard', 'Social feed'].map(f => (
+              {[
+                'Daily check-ins & streaks',
+                'Basic trading journal',
+                '3 custom fields',
+                'Impulse trade blocker (RevengeX)',
+                'Groups & direct messages',
+                'Mental preparation suite',
+                'Community & leaderboard',
+                'Social feed',
+              ].map(f => (
                 <div key={f} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13, color: '#666' }}>
                   <span style={{ color: '#C9A84C' }}>✓</span>{f}
                 </div>
@@ -152,7 +162,18 @@ export function LandingPage() {
               <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', color: '#C9A84C', textTransform: 'uppercase', marginBottom: 12 }}>Premium</p>
               <p style={{ fontFamily: 'Bebas Neue', fontSize: 48, color: '#C9A84C', marginBottom: 4 }}>$12.99</p>
               <p style={{ color: '#666', fontSize: 13, marginBottom: 20 }}>per month · or $119.99/yr</p>
-              {['Everything in Free', 'Unlimited custom fields', 'AI Strategy Builder', 'Backtesting journal', 'Mental prep suite', 'Prop firm tracker', 'Groups & paid communities'].map(f => (
+              {[
+                'Everything in Free',
+                'Unlimited custom fields',
+                'A+ Trade Journal',
+                'Verified Trade Journal',
+                'AI Strategy Builder',
+                'Backtesting journal',
+                'Prop firm tracker',
+                'Streak Savers (5/month)',
+                'Double XP Days (8/month)',
+                'Groups & paid communities',
+              ].map(f => (
                 <div key={f} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13, color: '#888' }}>
                   <span style={{ color: '#C9A84C' }}>✓</span>{f}
                 </div>
