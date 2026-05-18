@@ -8,6 +8,7 @@ import { Checkbox } from '../../components/ui/checkbox';
 import { signIn } from '../../utils/auth';
 
 const TRADING_STYLES = ['Day Trader', 'Swing Trader', 'Long Term Hold', 'Other'];
+const COMING_SOON_STYLES = ['Long Term Hold'];
 const MARKETS = ['Stocks', 'Futures', 'Options', 'Forex', 'Crypto', 'Other'];
 
 export function OnboardingProfile() {
@@ -18,12 +19,10 @@ export function OnboardingProfile() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Check if we have signup data
     const onboardingData = sessionStorage.getItem('onboarding_user');
     console.log('🔍 OnboardingProfile mounted, checking for onboarding_user:', onboardingData);
     
     if (!onboardingData) {
-      // No signup data, redirect to signup
       console.log('❌ No onboarding data found, redirecting to /');
       navigate('/');
     } else {
@@ -45,33 +44,28 @@ export function OnboardingProfile() {
     
     const filteredInstruments = instruments.filter(i => i.trim() !== '');
     
-    // Store profile data in sessionStorage to use after login
     sessionStorage.setItem('onboarding_profile', JSON.stringify({
       tradingStyle,
       markets: selectedMarkets,
       instruments: filteredInstruments,
     }));
     
-    // Get signup data and auto-login
     const onboardingData = sessionStorage.getItem('onboarding_user');
     if (onboardingData) {
       const userData = JSON.parse(onboardingData);
       
       console.log('🔐 Auto-logging in user:', userData.email);
       
-      // Sign in the user (skip profile fetch during onboarding)
       const result = await signIn({
         email: userData.email,
         password: userData.password
-      }, true); // skipProfileFetch = true for onboarding
+      }, true);
       
       if (result.success) {
         console.log('✅ Sign in successful, user created in localStorage');
         
-        // Wait a tiny bit to ensure state is updated
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Verify user is in localStorage
         const currentUser = localStorage.getItem('tradeforge_currentUser');
         if (currentUser) {
           const user = JSON.parse(currentUser);
@@ -81,11 +75,9 @@ export function OnboardingProfile() {
           console.error('❌ CRITICAL: User not in localStorage after sign in!');
         }
         
-        // Navigate to rules setup
         navigate('/onboarding/rules');
       } else {
         console.error('Auto-login failed:', result.error);
-        // Clear session and redirect to login
         sessionStorage.clear();
         navigate('/');
       }
@@ -106,20 +98,29 @@ export function OnboardingProfile() {
             <div className="space-y-3">
               <Label>Trading Style</Label>
               <div className="grid grid-cols-2 gap-2">
-                {TRADING_STYLES.map((style) => (
-                  <button
-                    key={style}
-                    type="button"
-                    onClick={() => setTradingStyle(style)}
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      tradingStyle === style
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {style}
-                  </button>
-                ))}
+                {TRADING_STYLES.map((style) => {
+                  const isComingSoon = COMING_SOON_STYLES.includes(style);
+                  return (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() => !isComingSoon && setTradingStyle(style)}
+                      disabled={isComingSoon}
+                      className={`p-3 rounded-lg border-2 transition-all relative ${
+                        isComingSoon
+                          ? 'border-border opacity-50 cursor-not-allowed'
+                          : tradingStyle === style
+                            ? 'border-primary bg-primary/10'
+                            : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <span>{style}</span>
+                      {isComingSoon && (
+                        <span className="block text-xs text-muted-foreground mt-0.5">Coming Soon</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
