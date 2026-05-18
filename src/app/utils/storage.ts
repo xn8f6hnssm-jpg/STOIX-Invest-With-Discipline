@@ -1507,7 +1507,15 @@ export const getLeague = (points: number): { name: string; color: string; icon: 
   if (points >= 250) return { name: 'Silver', color: 'text-gray-400', icon: '🥈' };
   return { name: 'Bronze', color: 'text-orange-400', icon: '🥉' };
 };
-
+// Demotion check - returns true if user is at risk of league demotion
+export const checkDemotion = (userId: string): boolean => {
+  const logs = storage.getDayLogs();
+  const userLogs = logs.filter(l => l.userId === userId);
+  if (userLogs.length < 7) return false;
+  const last7 = userLogs.slice(-7);
+  const cleanCount = last7.filter(l => l.isClean).length;
+  return cleanCount < 3; // Less than 3 clean days in last 7 = demotion risk
+};
 // Discipline rate calculation
 export const getDisciplineRate = (cleanDays: number, totalDays: number): number => {
   if (totalDays === 0) return 0;
