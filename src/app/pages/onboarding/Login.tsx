@@ -10,7 +10,7 @@ import { Eye, EyeOff } from 'lucide-react';
 
 export function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // email or username
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,8 +25,27 @@ export function Login() {
     setLoading(true);
     setError('');
 
-    const result = await signIn({ email, password });
-    
+    let emailToUse = identifier.trim();
+
+    // If it doesn't look like an email, treat it as a username and look up the email
+    if (!emailToUse.includes('@')) {
+      const { data, error: lookupError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('username', emailToUse)
+        .maybeSingle();
+
+      if (lookupError || !data) {
+        setError('No account found with that username');
+        setLoading(false);
+        return;
+      }
+
+      emailToUse = data.email;
+    }
+
+    const result = await signIn({ email: emailToUse, password });
+
     if (!result.success) {
       setError(result.error || 'Login failed');
       setLoading(false);
@@ -62,8 +81,19 @@ export function Login() {
           <form onSubmit={handleLogin} className="space-y-4 bg-card p-6 rounded-xl border">
             {error && <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-lg">{error}</p>}
             <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required className="mt-1" style={{ fontSize: '16px' }} />
+              <Label htmlFor="identifier">Email or Username</Label>
+              <Input
+                id="identifier"
+                type="text"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                placeholder="you@example.com or @username"
+                required
+                className="mt-1"
+                style={{ fontSize: '16px' }}
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
             </div>
             <div>
               <Label htmlFor="password">Password</Label>

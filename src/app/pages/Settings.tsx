@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Button } from '../components/ui/button';
-import { Crown, Shield, User, Mail, Users2, FileText, UserPlus, MessageCircle } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
+import { Crown, Shield, User, Mail, Users2, FileText, UserPlus, MessageCircle, ChevronRight, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAccessToken } from '../utils/supabase';
 import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router';
-import { signOut } from '../utils/auth';
+import { signIn, signOut } from '../utils/auth';
 import { storage } from '../utils/storage';
 import { PremiumBadge } from '../components/PremiumBadge';
 import { Badge } from '../components/ui/badge';
@@ -18,9 +19,11 @@ export function Settings() {
   const [isPremium, setIsPremium] = useState(false);
   const [skipLanding, setSkipLanding] = useState(localStorage.getItem('stoix_skip_landing') === 'true');
   const [profile, setProfile] = useState<any>(null);
+  const [showSwitchAccounts, setShowSwitchAccounts] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  
+
   const currentUser = storage.getCurrentUser();
   const allUsers = storage.getAllUsers();
 
@@ -46,7 +49,22 @@ export function Settings() {
     }
   };
 
+  const handleSwitchAccount = (user: any) => {
+    if (user.id === currentUser?.id) return;
+    setSwitchingTo(user.id);
+    // Switch directly by setting this user as current
+    storage.setCurrentUser(user);
+    toast.success(`Switched to @${user.username}`);
+    setTimeout(() => {
+      setSwitchingTo(null);
+      setShowSwitchAccounts(false);
+      navigate('/app');
+      window.location.reload();
+    }, 500);
+  };
+
   const canAddAccount = allUsers.length < 3;
+  const otherUsers = allUsers.filter(u => u.id !== currentUser?.id);
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -84,13 +102,63 @@ export function Settings() {
                 <Badge variant="outline">{currentUser.tradingStyle}</Badge>
                 <span className="text-sm text-muted-foreground">Trading Style</span>
               </div>
+
               <div className="pt-2 border-t space-y-2">
-                {allUsers.length > 1 && (
-                  <Button variant="outline" className="w-full" onClick={() => navigate('/login')}>
-                    <Users2 className="w-4 h-4 mr-2" />
-                    Switch Account ({allUsers.length} total)
-                  </Button>
+                {/* Switch Account */}
+                {otherUsers.length > 0 && (
+                  <div>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setShowSwitchAccounts(!showSwitchAccounts)}
+                    >
+                      <Users2 className="w-4 h-4 mr-2" />
+                      Switch Account ({allUsers.length} total)
+                      <ChevronRight className={`w-4 h-4 ml-auto transition-transform ${showSwitchAccounts ? 'rotate-90' : ''}`} />
+                    </Button>
+
+                    {showSwitchAccounts && (
+                      <div className="mt-2 space-y-2 p-3 bg-muted/50 rounded-lg">
+                        {allUsers.map(user => {
+                          const isActive = user.id === currentUser?.id;
+                          return (
+                            <button
+                              key={user.id}
+                              onClick={() => handleSwitchAccount(user)}
+                              disabled={isActive || switchingTo === user.id}
+                              className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-colors text-left ${
+                                isActive
+                                  ? 'bg-primary/10 cursor-default'
+                                  : 'hover:bg-muted cursor-pointer'
+                              }`}
+                            >
+                              <Avatar className="w-9 h-9 flex-shrink-0">
+                                <AvatarImage src={user.profilePicture} />
+                                <AvatarFallback className="text-sm">
+                                  {user.name?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || '?'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold truncate">{user.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
+                              </div>
+                              {isActive && (
+                                <div className="flex items-center gap-1 text-xs text-primary font-medium flex-shrink-0">
+                                  <Check className="w-3.5 h-3.5" /> Active
+                                </div>
+                              )}
+                              {switchingTo === user.id && (
+                                <div className="text-xs text-muted-foreground flex-shrink-0">Switching...</div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 )}
+
+                {/* Add Account */}
                 {canAddAccount ? (
                   <Button variant="outline" className="w-full" onClick={() => navigate('/login?signup=true')}>
                     <UserPlus className="w-4 h-4 mr-2" />
@@ -233,8 +301,6 @@ export function Settings() {
             </Button>
           </CardContent>
         </Card>
-
-
       </div>
     </div>
   );
