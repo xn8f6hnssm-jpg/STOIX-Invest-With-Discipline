@@ -40,20 +40,16 @@ async function syncDataFromSupabase(userId: string) {
         forfeitDays: userData.forfeit_days ?? localUser.forfeitDays ?? 0,
         currentStreak: userData.current_streak ?? localUser.currentStreak ?? 0,
         isPremium: userData.is_premium ?? localUser.isPremium ?? false,
-        // Always use Supabase profile_picture — it's the single source of truth
         profilePicture: userData.profile_picture || localUser.profilePicture || '',
         achievements: userData.achievements || localUser.achievements || [],
       };
-      // Restore mental prep settings from Supabase — always use Supabase as source of truth
       if (userData.mental_prep_settings) {
         localStorage.setItem('tradeforge_mental_prep_settings', JSON.stringify(userData.mental_prep_settings));
       }
-      // Restore affirmations — always use Supabase if it has more
       if (userData.affirmations && Array.isArray(userData.affirmations) && userData.affirmations.length > 0) {
         localStorage.setItem(`tradeforge_affirmations_${userId}`, JSON.stringify(userData.affirmations));
       }
       localStorage.setItem('tradeforge_current_user', JSON.stringify(merged));
-      // Update all_users too
       const allUsers = JSON.parse(localStorage.getItem('tradeforge_all_users') || '[]');
       const idx = allUsers.findIndex((u: any) => u.id === userId);
       if (idx !== -1) { allUsers[idx] = { ...allUsers[idx], ...merged }; }
@@ -83,7 +79,6 @@ async function syncDataFromSupabase(userId: string) {
         sellReason: e.sell_reason || null, beResolution: e.be_resolution || null,
       });
 
-      // Split by entry type
       const liveEntries = journalData.filter((e: any) => !e.entry_type || e.entry_type === 'live').map(mapEntry);
       const btEntries = journalData.filter((e: any) => e.entry_type === 'backtesting').map(mapEntry);
       const aplusEntries = journalData.filter((e: any) => e.entry_type === 'aplus').map(mapEntry);
@@ -120,14 +115,12 @@ async function syncDataFromSupabase(userId: string) {
       localStorage.setItem('tradeforge_daily_logs', JSON.stringify(mapped));
       console.log(`✅ Synced ${mapped.length} day logs`);
 
-      // Fix daily check cooldown across devices
       const today = new Date().toISOString().split('T')[0];
       const todayLog = mapped.find((l: any) => l.date === today);
       if (todayLog) {
         const cooldownKey = `daily_check_last_${userId}`;
         const existing = localStorage.getItem(cooldownKey);
         if (!existing) {
-          // Set cooldown to 5 hours ago + time of log (approximate)
           localStorage.setItem(cooldownKey, (Date.now() - (1000 * 60 * 30)).toString());
           console.log('✅ Daily check cooldown set from Supabase');
         }
@@ -181,7 +174,6 @@ async function syncDataFromSupabase(userId: string) {
       localStorage.setItem(`tradeforge_journal_fields_${userId}`, JSON.stringify(mapped));
       console.log(`✅ Synced ${mapped.length} journal fields`);
     } else {
-      // No fields in Supabase — check if user has fields in localStorage and migrate them up
       const localFields = JSON.parse(localStorage.getItem(`tradeforge_journal_fields_${userId}`) || '[]');
       if (localFields.length > 0) {
         console.log(`🔄 Migrating ${localFields.length} local fields to Supabase...`);
@@ -260,7 +252,6 @@ export function MainLayout() {
     const syncUser = async () => {
       setSyncing(true);
       try {
-        // Quick check - if no local user and no supabase session redirect to login
         const localUser = storage.getCurrentUser();
         const { data: { session } } = await supabase.auth.getSession();
         if (!localUser && !session) {
@@ -281,7 +272,6 @@ export function MainLayout() {
 
         if (currentLocalUser) {
           const localUser = currentLocalUser;
-          // Always sync FROM Supabase first — wait for it before rendering
           await syncDataFromSupabase(localUser.id);
           syncUserToSupabase().catch(console.error);
           setSyncing(false);
@@ -312,7 +302,7 @@ export function MainLayout() {
           storage.setCurrentUser(userData);
           await syncDataFromSupabase(supabaseUser.id);
           await syncUserToSupabase();
-          } else {
+        } else {
           navigate('/login');
         }
       } catch (err) {
@@ -411,7 +401,6 @@ export function MainLayout() {
                     <Button variant="ghost" className="w-full justify-start" onClick={() => { navigate('/app/upgrade'); setMenuOpen(false); }}>
                       Upgrade
                     </Button>
-
                   </nav>
                   <Separator />
                   <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
@@ -423,8 +412,11 @@ export function MainLayout() {
           </div>
         </div>
 
-        {/* Main content — full width on mobile, padded on desktop */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-20 w-full">
+        {/* Main content */}
+        <div
+          className="flex-1 overflow-y-auto overflow-x-hidden w-full"
+          style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
+        >
           <div style={{ animation: 'fadeIn 0.15s ease-out' }}>
             <style>{`
               @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
@@ -436,8 +428,11 @@ export function MainLayout() {
           </div>
         </div>
 
-        {/* Bottom navigation — full width, fixed */}
-        <div className="fixed bottom-0 left-0 right-0 bg-card border-t z-10">
+        {/* Bottom navigation */}
+        <div
+          className="fixed bottom-0 left-0 right-0 bg-card border-t z-10"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
           <div className="max-w-2xl mx-auto px-2 py-2">
             <nav className="flex items-center justify-around">
               {navigation.map((item) => {
@@ -448,7 +443,9 @@ export function MainLayout() {
                     key={item.path}
                     onClick={() => navigate(item.path)}
                     className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
-                      active ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'
+                      active
+                        ? 'text-primary border-b-2 border-primary'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     <Icon className="w-5 h-5" />

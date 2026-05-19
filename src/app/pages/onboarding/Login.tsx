@@ -32,8 +32,7 @@ export function Login() {
       const { data, error: lookupError } = await supabase
         .from('users')
         .select('email')
-        .eq('username', emailToUse)
-        .maybeSingle();
+.ilike('username', emailToUse)        .maybeSingle();
 
       if (lookupError || !data) {
         setError('No account found with that username');

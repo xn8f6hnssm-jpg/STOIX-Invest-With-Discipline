@@ -13,14 +13,33 @@ const FehuMark = ({ size = 28 }: { size?: number }) => (
 export function LandingPage() {
   const navigate = useNavigate();
   const [scrollY, setScrollY] = useState(0);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
     const skipLanding = localStorage.getItem('stoix_skip_landing');
     if (skipLanding === 'true') { navigate('/app'); return; }
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll, { passive: true });
+
+    // Show install banner only on mobile browsers, not already installed
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const android = /android/i.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    const dismissed = localStorage.getItem('stoix_install_dismissed');
+
+    if ((ios || android) && !isStandalone && !dismissed) {
+      setIsIOS(ios);
+      setShowInstallBanner(true);
+    }
+
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const dismissBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem('stoix_install_dismissed', 'true');
+  };
 
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', background: '#080808', color: '#fff', overflowX: 'hidden' }}>
@@ -35,6 +54,25 @@ export function LandingPage() {
         .feature-card { border: 1px solid #1a1a1a; background: #0e0e0e; padding: 24px; }
         .divider { width: 32px; height: 2px; background: #C9A84C; margin: 16px 0; }
       `}</style>
+
+      {/* Subtle install banner */}
+      {showInstallBanner && (
+        <div style={{
+          position: 'fixed', bottom: 16, left: 16, right: 16, zIndex: 200,
+          background: '#111', border: '1px solid #222', borderRadius: 12,
+          padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+        }}>
+          <FehuMark size={32} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 2 }}>Add STOIX to Home Screen</p>
+            <p style={{ fontSize: 11, color: '#555' }}>
+              {isIOS ? 'Tap Share → Add to Home Screen' : 'Tap menu → Add to Home Screen'}
+            </p>
+          </div>
+          <button onClick={dismissBanner} style={{ background: 'none', border: 'none', color: '#444', fontSize: 18, cursor: 'pointer', padding: '4px 8px', lineHeight: 1 }}>×</button>
+        </div>
+      )}
 
       <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: scrollY > 40 ? 'rgba(8,8,8,0.97)' : 'transparent', borderBottom: scrollY > 40 ? '1px solid #1a1a1a' : 'none', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
