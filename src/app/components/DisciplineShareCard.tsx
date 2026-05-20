@@ -96,13 +96,17 @@ export function DisciplineShareCard() {
   const trades = periodEntries.length;
   const wins = periodEntries.filter((e: any) => e.result === 'win').length;
 
+  // P&L calculation
+  const totalPnL = periodEntries.reduce((sum: number, e: any) => sum + (e.pnl || 0), 0);
+  const hasPnL = periodEntries.some((e: any) => e.pnl != null && e.pnl !== 0);
+  const fmtPnL = (val: number) => `${val >= 0 ? '+' : '-'}$${Math.abs(val).toFixed(0)}`;
+
   const streak = currentUser.currentStreak || 0;
   const league = getLeague(currentUser.totalPoints || 0);
   const isPremium = storage.isPremium();
 
   const handleDownload = () => {
     if (!cardRef.current) return;
-    // Create anchor immediately in click handler (before async) — Chrome requires this
     const a = document.createElement('a');
     a.download = 'stoix-card.png';
     document.body.appendChild(a);
@@ -147,6 +151,58 @@ export function DisciplineShareCard() {
     });
   };
 
+  // Grid: if P&L exists show 3 cols (trades, wins, pnl) + streak + league
+  // Otherwise show original 2x2
+  const statsGrid = hasPnL ? (
+    <>
+      {/* Row 1: 3 cols */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', border: 'none', background: 'transparent' }}>
+        <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{trades}</div>
+          <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Trades</div>
+        </div>
+        <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{wins}</div>
+          <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Wins</div>
+        </div>
+        <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: totalPnL >= 0 ? '#22c55e' : '#ef4444', border: 'none', background: 'transparent' }}>{fmtPnL(totalPnL)}</div>
+          <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>P&L</div>
+        </div>
+      </div>
+      {/* Row 2: 2 cols */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', border: 'none', background: 'transparent' }}>
+        <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>🔥 {streak}</div>
+          <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Streak</div>
+        </div>
+        <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{league.tier} {league.roman}</div>
+          <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>League</div>
+        </div>
+      </div>
+    </>
+  ) : (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', border: 'none', background: 'transparent' }}>
+      <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+        <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{trades}</div>
+        <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Trades</div>
+      </div>
+      <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+        <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{wins}</div>
+        <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Wins</div>
+      </div>
+      <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+        <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>🔥 {streak}</div>
+        <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Streak</div>
+      </div>
+      <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
+        <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{league.tier} {league.roman}</div>
+        <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>League</div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-3">
       {/* Range pills */}
@@ -166,7 +222,7 @@ export function DisciplineShareCard() {
         ))}
       </div>
 
-      {/* Card — fully inline styled so dom-to-image captures correctly */}
+      {/* Card */}
       <div
         ref={cardRef}
         style={{
@@ -199,25 +255,8 @@ export function DisciplineShareCard() {
           <div style={{ fontSize: '15px', color: '#cbd5e1', fontWeight: '600', marginTop: '4px', border: 'none', background: 'transparent' }}>Discipline Rate</div>
         </div>
 
-        {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', border: 'none', background: 'transparent' }}>
-          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{trades}</div>
-            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Trades</div>
-          </div>
-          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{wins}</div>
-            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Wins</div>
-          </div>
-          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>🔥 {streak}</div>
-            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Streak</div>
-          </div>
-          <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>{league.tier} {league.roman}</div>
-            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>League</div>
-          </div>
-        </div>
+        {/* Stats */}
+        {statsGrid}
 
         {/* Footer */}
         <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
