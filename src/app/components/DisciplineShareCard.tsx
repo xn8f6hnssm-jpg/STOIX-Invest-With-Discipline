@@ -52,6 +52,7 @@ function inRange(dateStr: string, from: Date | null): boolean {
 
 export function DisciplineShareCard() {
   const [range, setRange] = useState<Range>('overall');
+  const [showPnL, setShowPnL] = useState(true);
   const cardRef = useRef<HTMLDivElement>(null);
   const currentUser = storage.getCurrentUser();
   if (!currentUser) return null;
@@ -98,7 +99,7 @@ export function DisciplineShareCard() {
 
   // P&L calculation
   const totalPnL = periodEntries.reduce((sum: number, e: any) => sum + (e.pnl || 0), 0);
-  const hasPnL = periodEntries.some((e: any) => e.pnl != null && e.pnl !== 0);
+  const hasPnL = showPnL && periodEntries.some((e: any) => e.pnl != null && e.pnl !== 0);
   const fmtPnL = (val: number) => `${val >= 0 ? '+' : '-'}$${Math.abs(val).toFixed(0)}`;
 
   const streak = currentUser.currentStreak || 0;
@@ -205,21 +206,32 @@ export function DisciplineShareCard() {
 
   return (
     <div className="space-y-3">
-      {/* Range pills */}
-      <div className="flex gap-1.5 flex-wrap">
-        {PILLS.map(p => (
-          <button
-            key={p.key}
-            onClick={() => setRange(p.key)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-              range === p.key
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
+      {/* Range pills + P&L toggle */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
+          {PILLS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => setRange(p.key)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                range === p.key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showPnL}
+            onChange={e => setShowPnL(e.target.checked)}
+            className="w-3.5 h-3.5 cursor-pointer"
+          />
+          <span className="text-xs text-muted-foreground font-medium">Show P&L</span>
+        </label>
       </div>
 
       {/* Card */}

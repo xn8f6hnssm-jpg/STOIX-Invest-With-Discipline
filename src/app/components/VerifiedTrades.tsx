@@ -427,7 +427,18 @@ export function VerifiedTrades() {
             <DialogTitle>Verified Trading Card</DialogTitle>
           </DialogHeader>
           <div className="p-4 space-y-3">
-            {/* Timeframe selector — always show all 5 tabs */}
+            {/* Timeframe selector + P&L toggle */}
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showPnL}
+                  onChange={e => setShowPnL(e.target.checked)}
+                  className="w-3.5 h-3.5 cursor-pointer"
+                />
+                <span className="text-xs text-muted-foreground font-medium">Show P&L</span>
+              </label>
+            </div>
             <div className="flex gap-1 bg-muted rounded-lg p-1">
               {(['daily', 'weekly', 'monthly', 'yearly', 'overall'] as const).map(p => (
                 <button key={p} onClick={() => setShareCardPeriod(p)}
@@ -550,8 +561,10 @@ export function VerifiedTrades() {
                             <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Trades</div>
                           </div>
                           <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
-                            <div style={{ fontSize: '22px', fontWeight: '700', color: totalPnl >= 0 ? '#4ade80' : '#f87171', border: 'none', background: 'transparent' }}>{totalPnl >= 0 ? '+' : ''}${Math.abs(totalPnl).toFixed(0)}</div>
-                            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Net P&L</div>
+                            {showPnL && <><div style={{ fontSize: '22px', fontWeight: '700', color: totalPnl >= 0 ? '#4ade80' : '#f87171', border: 'none', background: 'transparent' }}>{totalPnl >= 0 ? '+' : ''}${Math.abs(totalPnl).toFixed(0)}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Net P&L</div></>}
+                          {!showPnL && <><div style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', border: 'none', background: 'transparent' }}>—</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', border: 'none', background: 'transparent' }}>Net P&L</div></>}
                           </div>
                           <div style={{ textAlign: 'center', border: 'none', background: 'transparent', padding: 0 }}>
                             <div style={{ fontSize: '22px', fontWeight: '700', color: '#4ade80', border: 'none', background: 'transparent' }}>{wins}</div>
