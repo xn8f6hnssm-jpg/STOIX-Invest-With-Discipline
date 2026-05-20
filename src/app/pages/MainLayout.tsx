@@ -19,12 +19,10 @@ import {
 } from '../components/ui/sheet';
 import { Separator } from '../components/ui/separator';
 
-// Load ALL user data from Supabase into localStorage
 async function syncDataFromSupabase(userId: string) {
   try {
     console.log('🔄 Syncing all data from Supabase for user:', userId);
 
-    // ── 1. Sync user profile ──
     const { data: userData } = await supabase
       .from('users')
       .select('*')
@@ -58,7 +56,6 @@ async function syncDataFromSupabase(userId: string) {
       console.log(`✅ User profile synced — points: ${merged.totalPoints}, streak: ${merged.currentStreak}`);
     }
 
-    // ── 2. Sync journal entries ──
     const { data: journalData } = await supabase
       .from('journal_entries')
       .select('*')
@@ -97,7 +94,6 @@ async function syncDataFromSupabase(userId: string) {
       }
     }
 
-    // ── 3. Sync day logs ──
     const { data: logsData } = await supabase
       .from('day_logs')
       .select('*')
@@ -122,12 +118,10 @@ async function syncDataFromSupabase(userId: string) {
         const existing = localStorage.getItem(cooldownKey);
         if (!existing) {
           localStorage.setItem(cooldownKey, (Date.now() - (1000 * 60 * 30)).toString());
-          console.log('✅ Daily check cooldown set from Supabase');
         }
       }
     }
 
-    // ── 4. Sync strategies ──
     const { data: strategiesData } = await supabase
       .from('strategies').select('*').eq('user_id', userId);
 
@@ -142,7 +136,6 @@ async function syncDataFromSupabase(userId: string) {
       localStorage.setItem('tradeforge_strategies', JSON.stringify(merged));
     }
 
-    // ── 4b. Sync rules ──
     const { data: rulesData } = await supabase
       .from('rules')
       .select('*')
@@ -160,7 +153,6 @@ async function syncDataFromSupabase(userId: string) {
       console.log(`✅ Synced ${mapped.length} rules`);
     }
 
-    // ── 5. Sync journal fields ──
     const { data: fieldsData } = await supabase
       .from('journal_fields').select('*').eq('user_id', userId);
 
@@ -176,15 +168,10 @@ async function syncDataFromSupabase(userId: string) {
     } else {
       const localFields = JSON.parse(localStorage.getItem(`tradeforge_journal_fields_${userId}`) || '[]');
       if (localFields.length > 0) {
-        console.log(`🔄 Migrating ${localFields.length} local fields to Supabase...`);
         const rows = localFields.map((f: any) => ({
-          id: String(f.id),
-          user_id: userId,
-          name: f.name,
-          type: f.type,
+          id: String(f.id), user_id: userId, name: f.name, type: f.type,
           options: Array.isArray(f.options) ? f.options : [],
-          category: f.category || 'confluence',
-          other_label: f.otherLabel || null,
+          category: f.category || 'confluence', other_label: f.otherLabel || null,
         }));
         supabase.from('journal_fields').insert(rows).then(({ error }) => {
           if (error) console.error('Field migration error:', JSON.stringify(error));
@@ -204,7 +191,6 @@ export function MainLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isPremium] = useState(false);
   const { theme } = useTheme();
-
   const [syncing, setSyncing] = useState(true);
   const [notifCount, setNotifCount] = useState(0);
   const [dmCount, setDmCount] = useState(0);
@@ -305,6 +291,8 @@ export function MainLayout() {
             await syncDataFromSupabase(supabaseUser.id);
             await syncUserToSupabase();
             setSyncing(false);
+            // FIX: Notify Dashboard/Journal that sync is complete
+            window.dispatchEvent(new Event('stoix_sync_complete'));
             return;
           } else {
             navigate('/login');
@@ -318,6 +306,7 @@ export function MainLayout() {
           sessionStorage.removeItem('just_completed_onboarding');
           await syncUserToSupabase();
           setSyncing(false);
+          window.dispatchEvent(new Event('stoix_sync_complete'));
           return;
         }
 
@@ -325,6 +314,8 @@ export function MainLayout() {
           await syncDataFromSupabase(localUser.id);
           syncUserToSupabase().catch(console.error);
           setSyncing(false);
+          // FIX: Notify Dashboard/Journal that sync is complete
+          window.dispatchEvent(new Event('stoix_sync_complete'));
           return;
         }
 
@@ -373,7 +364,6 @@ export function MainLayout() {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <div className="w-full max-w-2xl mx-auto flex flex-col min-h-screen overflow-x-hidden">
-        {/* Top bar */}
         <div className="border-b bg-card sticky top-0 z-10" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="px-4 py-3 flex items-center justify-between">
             <Logo size="sm" darkMode={theme === "dark"} />
@@ -436,7 +426,6 @@ export function MainLayout() {
           </div>
         </div>
 
-        {/* Main content */}
         <div
           className="flex-1 overflow-y-auto overflow-x-hidden w-full"
           style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
@@ -452,7 +441,6 @@ export function MainLayout() {
           </div>
         </div>
 
-        {/* Bottom navigation */}
         <div
           className="fixed bottom-0 left-0 right-0 bg-card border-t z-10"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}

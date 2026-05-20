@@ -229,8 +229,14 @@ export function Dashboard() {
       await refreshData();
       setIsLoading(false);
     };
-    init();
+   init();
+
+    // FIX: Re-read after sync completes (fixes Safari blank dashboard)
+    const handleSyncComplete = () => { checkAndResetStreak(); refreshData(); };
+    window.addEventListener('stoix_sync_complete', handleSyncComplete);
+
     // Always load profile picture from Supabase on mount - single source of truth
+    const loadPic = async () => {
     const loadPic = async () => {
       const u = storage.getCurrentUser();
       if (!u) return;
@@ -245,6 +251,7 @@ export function Dashboard() {
       }
     };
     loadPic();
+    return () => window.removeEventListener('stoix_sync_complete', handleSyncComplete);
   }, []);
 
   useEffect(() => {

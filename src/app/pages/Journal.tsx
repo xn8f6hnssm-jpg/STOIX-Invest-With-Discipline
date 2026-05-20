@@ -699,6 +699,17 @@ export function Journal() {
     setAplusEntries(sortNewest(aplusData));
     const stratId = selectedStrategy === 'all' ? 'default' : selectedStrategy;
     setAplusFields(getAplusFields(user.id, stratId));
+
+    // FIX: Re-read after sync completes (fixes Safari blank journal)
+    const handleSyncComplete = () => {
+      const u = storage.getCurrentUser();
+      if (!u) return;
+      setEntries(sortNewest(storage.getJournalEntries().filter(e => e.userId === u.id)));
+      setBacktestingEntries(sortNewest(storage.getBacktestingEntries()));
+      setCustomFields(getUserFields(u.id));
+    };
+    window.addEventListener('stoix_sync_complete', handleSyncComplete);
+    return () => window.removeEventListener('stoix_sync_complete', handleSyncComplete);
   }, []);
 
   return (
