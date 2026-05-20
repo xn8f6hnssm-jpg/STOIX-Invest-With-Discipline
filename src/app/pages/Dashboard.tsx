@@ -138,7 +138,12 @@ export function Dashboard() {
   };
 
   const refreshData = async () => {
-    const currentUser = storage.getCurrentUser();
+    let currentUser = storage.getCurrentUser();
+    // FIX: If no user yet, wait for sync to complete (Safari ITP wipes localStorage)
+    if (!currentUser) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      currentUser = storage.getCurrentUser();
+    }
     if (currentUser) {
       if (!uploadingPic) {
         setUser({ ...currentUser });
