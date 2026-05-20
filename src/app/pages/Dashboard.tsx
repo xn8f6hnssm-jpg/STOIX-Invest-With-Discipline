@@ -42,7 +42,7 @@ function LeagueBadgeIcon({ tier, size = 36 }: { tier: string; size?: number }) {
 }
 
 const isWeekend = (date: Date): boolean => {
-  const day = date.getDay(); // 0 = Sunday, 6 = Saturday
+  const day = date.getDay();
   return day === 0 || day === 6;
 };
 
@@ -50,9 +50,6 @@ const getLastWeekday = (): Date => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   let day = today.getDay();
-  // If today is Sunday (0), last weekday was Friday (2 days ago)
-  // If today is Monday (1), last weekday was Friday (3 days ago)
-  // If today is Saturday (6), last weekday was Friday (1 day ago)
   if (day === 0) today.setDate(today.getDate() - 2);
   else if (day === 1) today.setDate(today.getDate() - 3);
   else if (day === 6) today.setDate(today.getDate() - 1);
@@ -70,29 +67,18 @@ const checkAndResetStreak = () => {
   const lastLog = sortedLogs[0];
   const lastLogDate = new Date(lastLog.date);
   lastLogDate.setHours(0, 0, 0, 0);
-  
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
-  // If today is a weekend, don't reset streak
   if (isWeekend(today)) return;
-
-  // If last log was today, streak is fine
   if (lastLogDate.getTime() === today.getTime()) return;
-
-  // If last log was yesterday (weekday), streak is fine
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   if (lastLogDate.getTime() === yesterday.getTime()) return;
-
-  // If today is Monday, check if last log was Friday (weekend gap is ok)
   if (today.getDay() === 1) {
     const lastFriday = new Date(today);
     lastFriday.setDate(today.getDate() - 3);
     if (lastLogDate.getTime() >= lastFriday.getTime()) return;
   }
-
-  // Missed a weekday — reset streak
   storage.updateCurrentUser({ currentStreak: 0 });
 };
 
@@ -118,33 +104,21 @@ export function Dashboard() {
   const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-
     setUploadingPic(true);
-
-    // Show instant preview with object URL
     const objectUrl = URL.createObjectURL(file);
     setProfilePic(objectUrl);
-
     try {
-      // Convert to base64
       const base64: string = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (ev) => resolve(ev.target?.result as string);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-
-      // Upload to Supabase Storage with unique filename
       const filename = `avatar_${Date.now()}`;
       const url = await storage.uploadImage(base64, user.id, filename, 'profile', 'profile');
-
       if (!url) throw new Error('Upload failed - no URL returned');
-
-      // Update Supabase users table
       const { error } = await supabase.from('users').update({ profile_picture: url }).eq('id', user.id);
       if (error) throw new Error('DB update failed: ' + error.message);
-
-      // Update localStorage
       const u = storage.getCurrentUser();
       if (u) {
         u.profilePicture = url;
@@ -153,12 +127,9 @@ export function Dashboard() {
         const idx = allUsers.findIndex((au: any) => au.id === u.id);
         if (idx !== -1) { allUsers[idx].profilePicture = url; localStorage.setItem('tradeforge_all_users', JSON.stringify(allUsers)); }
       }
-
-      // Set final URL with cache buster
       setProfilePic(url + '?t=' + Date.now());
     } catch (err) {
       console.error('Profile picture upload error:', err);
-      // Revert preview on error
       const u = storage.getCurrentUser();
       setProfilePic(u?.profilePicture || '');
     } finally {
@@ -169,7 +140,6 @@ export function Dashboard() {
   const refreshData = async () => {
     const currentUser = storage.getCurrentUser();
     if (currentUser) {
-      // Only update user state if not currently uploading a profile pic
       if (!uploadingPic) {
         setUser({ ...currentUser });
       }
@@ -179,8 +149,6 @@ export function Dashboard() {
       setDisciplineRate(getDisciplineRate(cleanDays, totalDays));
       setLeague(getLeague(currentUser.totalPoints ?? 0));
       setIsDemoted(checkDemotion(currentUser.id));
-
-      // Load posts from Supabase for recent activity
       try {
         const { data } = await supabase
           .from('posts')
@@ -189,7 +157,6 @@ export function Dashboard() {
           .order('timestamp', { ascending: false })
           .limit(20);
         if (data) {
-          // Fetch comment counts for these posts
           const postIds = data.map((p: any) => p.id);
           let commentsByPost: Record<string, any[]> = {};
           if (postIds.length > 0) {
@@ -223,27 +190,27 @@ export function Dashboard() {
     setHasLoggedToday(!!storage.getTodayLog());
   };
 
+  // FIX: Single clean useEffect — handles init, profile pic, and sync complete event
   useEffect(() => {
+    const handleSyncComplete = () => {
+      checkAndResetStreak();
+      refreshData();
+    };
+    window.addEventListener('stoix_sync_complete', handleSyncComplete);
+
     const init = async () => {
       checkAndResetStreak();
       await refreshData();
       setIsLoading(false);
     };
-   init();
+    init();
 
-    // FIX: Re-read after sync completes (fixes Safari blank dashboard)
-    const handleSyncComplete = () => { checkAndResetStreak(); refreshData(); };
-    window.addEventListener('stoix_sync_complete', handleSyncComplete);
-
-    // Always load profile picture from Supabase on mount - single source of truth
-    const loadPic = async () => {
     const loadPic = async () => {
       const u = storage.getCurrentUser();
       if (!u) return;
       const { data } = await supabase.from('users').select('profile_picture').eq('id', u.id).maybeSingle();
       if (data?.profile_picture) {
         setProfilePic(data.profile_picture + '?t=' + Date.now());
-        // Update localStorage
         u.profilePicture = data.profile_picture;
         localStorage.setItem('tradeforge_current_user', JSON.stringify(u));
       } else if (u.profilePicture && !u.profilePicture.startsWith('data:image')) {
@@ -251,6 +218,7 @@ export function Dashboard() {
       }
     };
     loadPic();
+
     return () => window.removeEventListener('stoix_sync_complete', handleSyncComplete);
   }, []);
 
@@ -258,19 +226,14 @@ export function Dashboard() {
     const loadFollowData = async () => {
       const u = storage.getCurrentUser();
       if (!u) return;
-
-      // Get counts
       const [{ data: followers }, { data: following }] = await Promise.all([
         supabase.from('following').select('follower_id').eq('following_id', u.id),
         supabase.from('following').select('following_id').eq('follower_id', u.id),
       ]);
       setFollowerCount(followers?.length || 0);
       setFollowingCount(following?.length || 0);
-
-      // Get follower user details
       const followerIds = (followers || []).map((r: any) => r.follower_id);
       const followingIds = (following || []).map((r: any) => r.following_id);
-
       if (followerIds.length > 0) {
         const { data: fUsers } = await supabase.from('users').select('id, username, name, profile_picture, total_points').in('id', followerIds);
         setFollowerList(fUsers || []);
@@ -293,11 +256,8 @@ export function Dashboard() {
 
   const handleDeletePost = async (postId: string) => {
     if (confirm('Are you sure you want to delete this post?')) {
-      // Remove from local state immediately
       setPosts(prev => prev.filter((p: any) => p.id !== postId));
-      // Delete from localStorage
       storage.deletePost(postId);
-      // Delete from Supabase
       try {
         await supabase.from('posts').delete().eq('id', postId);
         await supabase.from('comments').delete().eq('post_id', postId);
@@ -352,29 +312,23 @@ export function Dashboard() {
   const weeklyPnL = entriesForStats.filter(e => e.date >= weekStartStr).reduce((sum, e) => sum + (e.pnl || 0), 0);
   const fmtPnL = (val: number) => `${val >= 0 ? '+' : ''}$${Math.abs(val).toFixed(0)}`;
 
-  // followerList and followingList loaded from Supabase in useEffect above
-
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       <WelcomeDialog />
 
-      {/* Getting Started Checklist — only shows until all steps done */}
       {(() => {
         if (!user) return null;
         const hasJournal = storage.getJournalEntries().filter(e => e.userId === user.id).length > 0;
         const hasDailyCheck = (user.cleanDays || 0) + (user.forfeitDays || 0) > 0;
         const hasPost = userPosts.length > 0;
-        const hasRules = storage.getAccountRules()?.maxDailyLoss || storage.getAccountRules()?.consistencyRules;
         const allDone = hasJournal && hasDailyCheck && hasPost;
         if (allDone) return null;
-
         const steps = [
           { label: 'Complete your first Daily Check-In', done: hasDailyCheck, path: '/app/daily-check', icon: '✅' },
           { label: 'Add your first journal entry', done: hasJournal, path: '/app/journal', icon: '📓' },
           { label: 'Share your first post on Social', done: hasPost, path: '/app/social', icon: '📸' },
         ];
         const doneCount = steps.filter(s => s.done).length;
-
         return (
           <Card className="border-yellow-500/30 bg-yellow-500/5">
             <CardContent className="pt-4 pb-4">
@@ -405,7 +359,6 @@ export function Dashboard() {
         );
       })()}
 
-      {/* Followers / Following Modal */}
       <Dialog open={!!followModal} onOpenChange={() => setFollowModal(null)}>
         <DialogContent className="sm:max-w-sm" style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
           <DialogHeader style={{ flexShrink: 0 }}>
@@ -440,7 +393,6 @@ export function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Share Card Dialog */}
       <Dialog open={showShareCard} onOpenChange={setShowShareCard}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -450,7 +402,6 @@ export function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Daily Check CTA */}
       {!hasLoggedToday && (
         <Card className="bg-gradient-to-r from-blue-600 to-blue-800 text-white border-0">
           <CardContent className="pt-6 pb-6">
@@ -465,13 +416,9 @@ export function Dashboard() {
         </Card>
       )}
 
-      {/* Premium Features */}
       {user.isPremium && <PremiumFeatures />}
-
-      {/* Account Rules Monitor */}
       <AccountRulesWidget />
 
-      {/* Profile Section */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex gap-3">
@@ -557,7 +504,6 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Share Card Button */}
       <Card className="border border-border">
         <CardContent className="pt-4 pb-4">
           <Button className="w-full" variant="outline" onClick={() => setShowShareCard(true)}>
@@ -566,7 +512,6 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Activity Summary */}
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6 text-center">
@@ -603,7 +548,6 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Trading Stats */}
       {tradingStats.totalTrades > 0 && (
         <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
           <CardContent className="pt-6">
@@ -627,7 +571,6 @@ export function Dashboard() {
         </Card>
       )}
 
-      {/* Recent Activity */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
         {userPosts.length === 0 ? (
