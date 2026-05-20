@@ -102,6 +102,23 @@ async function loadUserFromSupabase(userId: string): Promise<any | null> {
   }
 }
 
+// ── Store session in localStorage for Safari ITP recovery ─────────────────────
+function storeSession(session: any) {
+  if (!session) return;
+  try {
+    localStorage.setItem('stoix_session', JSON.stringify({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    }));
+  } catch {}
+}
+
+function clearStoredSession() {
+  try {
+    localStorage.removeItem('stoix_session');
+  } catch {}
+}
+
 // Sign up new user
 export async function signUp(data: SignUpData) {
   try {
@@ -157,6 +174,9 @@ export async function signIn(data: SignInData, skipProfileFetch?: boolean) {
 
     console.log('🔐 Signed in successfully, userId:', userId);
     console.log('🔑 Session access token:', accessToken ? 'EXISTS' : 'MISSING');
+
+    // FIX: Store session in localStorage for Safari ITP recovery
+    storeSession(authData.session);
 
     if (skipProfileFetch) {
       const newUser = {
@@ -249,6 +269,8 @@ export async function signOut() {
       toast.error('Failed to sign out');
       return { success: false, error: error.message };
     }
+    // Clear stored session
+    clearStoredSession();
     // Only clear app-specific keys, not Supabase auth tokens
     localStorage.removeItem('tradeforge_current_user');
     localStorage.removeItem('stoix_skip_landing');
@@ -278,25 +300,6 @@ export async function signInWithOAuth(provider: 'google' | 'github' | 'facebook'
     console.error('OAuth sign in error:', error);
     toast.error('Failed to sign in with ' + provider);
     return { success: false, error: error.message };
-  }
-}
-
-// Check if username exists
-async function checkUsernameExists(username: string): Promise<boolean> {
-  try {
-    const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-ecfd718d/auth/check-username`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`
-      },
-      body: JSON.stringify({ username })
-    });
-    const data = await response.json();
-    return data.exists;
-  } catch (error) {
-    console.error('Error checking username:', error);
-    return false;
   }
 }
 

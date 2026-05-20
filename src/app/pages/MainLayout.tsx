@@ -24,7 +24,7 @@ async function syncDataFromSupabase(userId: string) {
   try {
     console.log('🔄 Syncing all data from Supabase for user:', userId);
 
-    // ── 1. Sync user profile (points, streak, clean/forfeit days) ──
+    // ── 1. Sync user profile ──
     const { data: userData } = await supabase
       .from('users')
       .select('*')
@@ -252,6 +252,23 @@ export function MainLayout() {
     const syncUser = async () => {
       setSyncing(true);
       try {
+        // FIX: Safari ITP — restore Supabase session from localStorage before anything else
+        const storedSession = localStorage.getItem('stoix_session');
+        if (storedSession) {
+          try {
+            const parsed = JSON.parse(storedSession);
+            if (parsed.access_token && parsed.refresh_token) {
+              await supabase.auth.setSession({
+                access_token: parsed.access_token,
+                refresh_token: parsed.refresh_token,
+              });
+              console.log('✅ Session restored from localStorage (Safari fix)');
+            }
+          } catch (e) {
+            console.log('Session restore failed, continuing normally');
+          }
+        }
+
         const localUser = storage.getCurrentUser();
         const { data: { session } } = await supabase.auth.getSession();
 
@@ -261,8 +278,7 @@ export function MainLayout() {
           return;
         }
 
-        // FIX: Safari — session exists but localStorage was cleared
-        // Load user from Supabase and rebuild localStorage
+        // Safari: session exists but localStorage was cleared — rebuild from Supabase
         if (!localUser && session) {
           const supabaseUser = await getCurrentUser();
           if (supabaseUser) {
