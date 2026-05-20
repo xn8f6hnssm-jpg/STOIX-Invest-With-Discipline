@@ -254,10 +254,47 @@ export function MainLayout() {
       try {
         const localUser = storage.getCurrentUser();
         const { data: { session } } = await supabase.auth.getSession();
+
         if (!localUser && !session) {
           navigate('/login');
           setSyncing(false);
           return;
+        }
+
+        // FIX: Safari — session exists but localStorage was cleared
+        // Load user from Supabase and rebuild localStorage
+        if (!localUser && session) {
+          const supabaseUser = await getCurrentUser();
+          if (supabaseUser) {
+            const userData = {
+              id: supabaseUser.id,
+              email: supabaseUser.email || '',
+              password: '',
+              username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || '',
+              name: supabaseUser.user_metadata?.name || 'Trader',
+              tradingStyle: supabaseUser.user_metadata?.tradingStyle || '',
+              instruments: supabaseUser.user_metadata?.instruments || [],
+              rules: [],
+              totalPoints: 0,
+              cleanDays: 0,
+              forfeitDays: 0,
+              currentStreak: 0,
+              followers: 0,
+              following: 0,
+              isVerified: false,
+              profilePicture: supabaseUser.user_metadata?.profilePicture || '',
+              isPremium: false,
+            };
+            storage.setCurrentUser(userData as any);
+            await syncDataFromSupabase(supabaseUser.id);
+            await syncUserToSupabase();
+            setSyncing(false);
+            return;
+          } else {
+            navigate('/login');
+            setSyncing(false);
+            return;
+          }
         }
 
         const justCompletedOnboarding = sessionStorage.getItem('just_completed_onboarding');
@@ -268,43 +305,14 @@ export function MainLayout() {
           return;
         }
 
-        const currentLocalUser = localUser || storage.getCurrentUser();
-
-        if (currentLocalUser) {
-          const localUser = currentLocalUser;
+        if (localUser) {
           await syncDataFromSupabase(localUser.id);
           syncUserToSupabase().catch(console.error);
           setSyncing(false);
           return;
         }
 
-        const supabaseUser = await getCurrentUser();
-        if (supabaseUser) {
-          const userData = {
-            id: supabaseUser.id,
-            email: supabaseUser.email || '',
-            password: '',
-            username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || '',
-            name: supabaseUser.user_metadata?.name || 'Trader',
-            tradingStyle: supabaseUser.user_metadata?.tradingStyle || '',
-            instruments: supabaseUser.user_metadata?.instruments || [],
-            rules: [],
-            totalPoints: 0,
-            cleanDays: 0,
-            forfeitDays: 0,
-            currentStreak: 0,
-            followers: 0,
-            following: 0,
-            isVerified: false,
-            profilePicture: supabaseUser.user_metadata?.profilePicture || '',
-            isPremium: false,
-          };
-          storage.setCurrentUser(userData);
-          await syncDataFromSupabase(supabaseUser.id);
-          await syncUserToSupabase();
-        } else {
-          navigate('/login');
-        }
+        navigate('/login');
       } catch (err) {
         console.error('Sync error:', err);
       } finally {
@@ -444,7 +452,7 @@ export function MainLayout() {
                     onClick={() => navigate(item.path)}
                     className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all ${
                       active
-                        ? 'text-primary border-b-2 border-primary'
+                        ? 'text-primary bg-muted'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
