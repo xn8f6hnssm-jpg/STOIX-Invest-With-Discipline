@@ -287,7 +287,8 @@ export function Dashboard() {
     return (
       <div className="container mx-auto px-4 py-6 flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
-          <p className="text-muted-foreground">Unable to load user data. Please try refreshing.</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
     );
