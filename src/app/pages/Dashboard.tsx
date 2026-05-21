@@ -201,8 +201,10 @@ export function Dashboard() {
       checkAndResetStreak();
       refreshData();
     };
-    window.addEventListener('stoix_sync_complete', handleSyncComplete);
-
+const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'tradeforge_journal_entries') refreshData();
+    };
+    window.addEventListener('storage', handleStorage);
     const init = async () => {
       checkAndResetStreak();
       await refreshData();
