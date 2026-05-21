@@ -25,8 +25,7 @@ const PILLS: { key: Range; label: string }[] = [
 
 function getDateBounds(range: Range): { from: Date | null; todayStr: string } {
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  if (range === 'today') return { from: new Date(todayStr + 'T00:00:00'), todayStr };
+const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');  if (range === 'today') return { from: new Date(now.getFullYear(), now.getMonth(), now.getDate()), todayStr };
   if (range === 'week') {
     const s = new Date(now);
     s.setHours(0, 0, 0, 0);

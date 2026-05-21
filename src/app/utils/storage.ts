@@ -678,7 +678,7 @@ if ((now - (user.lastDoubleXPReset || 0)) >= 30 * 86400000) { daysRemaining = 8;
           id: newEntry.id, user_id: newEntry.userId, date: newEntry.date, result: newEntry.result,
           description: newEntry.description || null, screenshots,
           custom_fields: customFields, risk_reward: newEntry.riskReward || null,
-          pnl: newEntry.pnl || null, is_no_trade_day: newEntry.isNoTradeDay || false,
+          pnl: newEntry.pnl != null ? newEntry.pnl : null, is_no_trade_day: newEntry.isNoTradeDay || false,
           points_awarded: newEntry.pointsAwarded || false, timestamp: newEntry.timestamp || Date.now(),
           strategy_id: newEntry.strategyId || null, asset_name: newEntry.assetName || null,
           action: newEntry.action || null, investment_thesis: newEntry.investmentThesis || null,
